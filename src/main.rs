@@ -181,75 +181,51 @@ async fn main() -> Result<()> {
     if workspace.yes {
         eprintln!("{}", i18n.t("status.warning_auto_approve"));
     }
-    for step in 1..=args.max_steps {
-        if args.max_steps == usize::MAX {
-            eprintln!("{}", i18n.tf("status.step", &[&step.to_string()]));
-        } else {
-            eprintln!("{}", i18n.tf("status.step_of", &[&step.to_string(), &args.max_steps.to_string()]));
-        }
-        messages = checked_history(api.plugins.emit("before_turn", json!({"messages":messages}))?["messages"].take())?;
-        api.plugins.save(args.session.as_deref(), &mut messages)?;
-        api.compact(&mut messages, args.session.as_deref()).await?;
-        let response = api.complete(&messages, false).await?;
-        let mut message = response["choices"][0]["message"].clone();
-        ensure!(message.is_object(), "API response has no assistant message");
-        message["role"] = json!("assistant");
-        let calls = tool_calls(&message)?; // Validate the entire batch before side effects.
-        let complete = calls.is_empty() || response["choices"][0]["finish_reason"] == "tool_calls";
-        ensure!(complete, "incomplete tool response");
-        if let Some(content) = message["content"].as_str() {
-            println!("{content}");
-        }
-        messages.push(message);
-        if calls.is_empty() {
-            api.plugins.save(args.session.as_deref(), &mut messages)?;
-            let reason = &response["choices"][0]["finish_reason"];
-            let reason_str = reason.as_str().unwrap_or("unknown");
-            ensure!(reason == "stop", i18n.tf("error.model_stopped", &[reason_str]));
-            api.plugins.emit("finish", json!({"messages":messages}))?;
-            return Ok(());
-        }
-        let budget = api.budget(&messages, calls.len(), false)?;
-        let tool_limit = number(&budget, "tool_output_bytes", workspace.io_limit)?.min(workspace.io_limit);
-        let mut images = Vec::new();
-        for call in calls {
-            let invocation = api.plugins.emit(
-                "before_tool",
-                json!({"name":call["function"]["name"],
-                "arguments":call["function"]["arguments"]}),
-            )?;
-            let name = field(&invocation, "name")?;
-            let arguments = field(&invocation, "arguments")?;
-            eprintln!("tool: {name} {}", clip(arguments, 500));
-            let result = match serde_json::from_str(arguments).context("invalid tool arguments") {
-                Ok(value) => workspace.tool(name, &value, &api.plugins, 8 - images.len() / 2).await,
-                Err(error) => Err(error),
-            };
-            let mut result = result.unwrap_or_else(|error| json!({"output":format!("ERROR: {error:#}")}));
-            result["name"] = json!(name);
-            let result = api.plugins.emit("after_tool", result)?;
-            for image in result.get("images").unwrap_or(&json!([])).as_array().context("invalid tool images")? {
-                ensure!(images.len() / 2 < 8 && image["type"] == "image_url", "invalid/excessive tool images");
-                let url = field(&image["image_url"], "url")?;
-                let (header, encoded) = url.split_once(";base64,").context("tool images must be data URLs")?;
-                let bytes = STANDARD.decode(encoded)?;
-                let valid = bytes.len() <= 8 * 1024 * 1024 && header == format!("data:{}", image_mime(&bytes)?);
-                ensure!(valid, "invalid image");
-                images.push(json!({"type":"text","text":format!("Image from tool {}",call["id"])}));
-                images.push(image.clone());
-            }
-            let output = field(&result, "output")?;
-            eprintln!("{}", clip(output, 600));
-            messages.push(json!({"role": "tool", "tool_call_id": call["id"],
-                "content": clip(output, tool_limit)}));
-        }
-        if !images.is_empty() {
-            messages.push(json!({"role":"user", "content":images}));
-        }
-        // Persist only complete tool batches, so resumed API history is valid.
-        api.plugins.save(args.session.as_deref(), &mut messages)?;
+    let mut host = NativeHost { api: &api, workspace: &workspace, session: args.session.as_deref(), i18n: &i18n };
+    i::agent::run(&mut host, &mut messages, args.max_steps).await
+}
+struct NativeHost<'a> { api: &'a Api, workspace: &'a Workspace, session: Option<&'a Path>, i18n: &'a i18n::I18n }
+impl i::agent::AgentHost for NativeHost<'_> {
+    async fn before_turn(&mut self, messages: &mut Vec<Value>) -> Result<()> {
+        *messages = checked_history(self.api.plugins.emit("before_turn", json!({"messages":messages}))?["messages"].take())?;
+        self.api.plugins.save(self.session, messages)?;
+        self.api.compact(messages, self.session).await
     }
-    bail!("{}", i18n.t("error.step_limit"))
+    async fn complete(&mut self, history: &[Value]) -> Result<Value> { self.api.complete(history, false).await }
+    async fn before_tools(&mut self, history: &[Value], pending: usize) -> Result<usize> {
+        let budget = self.api.budget(history, pending, false)?;
+        Ok(number(&budget, "tool_output_bytes", self.workspace.io_limit)?.min(self.workspace.io_limit))
+    }
+    async fn dispatch(&mut self, call: &Value, slots: usize) -> Result<Value> {
+        let invocation = self.api.plugins.emit("before_tool", json!({"name":call["function"]["name"],"arguments":call["function"]["arguments"]}))?;
+        let name = field(&invocation, "name")?;
+        let arguments = field(&invocation, "arguments")?;
+        let result = match serde_json::from_str(arguments).context("invalid tool arguments") {
+            Ok(args) => self.workspace.tool(name, &args, &self.api.plugins, slots).await,
+            Err(error) => Err(error),
+        };
+        let mut result = result.unwrap_or_else(|e| json!({"output":format!("ERROR: {e:#}")}));
+        result["name"] = json!(name);
+        self.api.plugins.emit("after_tool", result)
+    }
+    async fn checkpoint(&mut self, history: &mut Vec<Value>) -> Result<()> { self.api.plugins.save(self.session, history) }
+    async fn finish(&mut self, history: &[Value]) -> Result<()> {
+        self.api.plugins.emit("finish", json!({"messages":history}))?; Ok(())
+    }
+    fn emit(&mut self, event: Value) -> Result<()> {
+        match event["type"].as_str() {
+            Some("step") => {
+                let step = event["step"].to_string(); let max = event["max_steps"].to_string();
+                eprintln!("{}", if event["max_steps"] == json!(usize::MAX) { self.i18n.tf("status.step", &[&step]) }
+                    else { self.i18n.tf("status.step_of", &[&step, &max]) });
+            }
+            Some("assistant") => println!("{}", field(&event,"text")?),
+            Some("tool") => eprintln!("tool: {} {}", field(&event,"name")?, clip(field(&event,"arguments")?,500)),
+            Some("tool_result") => eprintln!("{}",field(&event,"text")?),
+            _ => {}
+        } Ok(())
+    }
+    fn cancelled(&self) -> bool { false }
 }
 struct Api {
     client: reqwest::Client,
@@ -517,37 +493,11 @@ impl Plugins {
     }
 }
 fn checked_history(value: Value) -> Result<Vec<Value>> {
-    let messages: Vec<Value> = serde_json::from_value(value)?;
-    ensure!(messages.first().is_some_and(|m| m["role"] == "system"), "missing system message");
-    let mut pending = Vec::new();
-    for message in &messages {
-        if message["role"] == "tool" {
-            let id = field(message, "tool_call_id")?;
-            let index = pending.iter().position(|p| p == id).context("orphan tool result")?;
-            pending.remove(index);
-        } else {
-            ensure!(pending.is_empty(), "incomplete tool batch");
-            ensure!(matches!(message["role"].as_str(), Some("system" | "user" | "assistant")), "invalid role");
-            for call in tool_calls(message)? {
-                pending.push(field(&call, "id")?.to_owned());
-            }
-        }
-    }
-    ensure!(pending.is_empty(), "incomplete tool batch");
-    Ok(messages)
+    i::agent::history::checked_history(value)
 }
+#[cfg(test)]
 fn tool_calls(message: &Value) -> Result<Vec<Value>> {
-    ensure!(message["tool_calls"].is_null() || message["role"] == "assistant", "invalid tool_calls role");
-    let calls = message.get("tool_calls").filter(|v| !v.is_null()).cloned().unwrap_or(json!([]));
-    let calls = calls.as_array().context("invalid tool_calls")?;
-    for (index, call) in calls.iter().enumerate() {
-        let id = field(call, "id")?;
-        ensure!(!id.is_empty() && !calls[..index].iter().any(|c| c["id"] == id), "duplicate/empty tool id");
-        ensure!(call["type"] == "function", "unsupported tool call type");
-        field(&call["function"], "name")?;
-        field(&call["function"], "arguments")?;
-    }
-    Ok(calls.clone())
+    i::agent::history::tool_calls(message)
 }
 fn setting(value: Option<String>, key: &str) -> Result<String> {
     value.or_else(|| env::var(key).ok()).filter(|v| !v.trim().is_empty()).with_context(|| format!("set {key}"))
@@ -757,13 +707,7 @@ fn content_with_images(text: &str, images: &Value) -> Value {
     if parts.len() == 1 { json!(text) } else { json!(parts) }
 }
 fn image_mime(bytes: &[u8]) -> Result<&'static str> {
-    match bytes {
-        [0x89, b'P', b'N', b'G', 13, 10, 0x1a, 10, ..] => Ok("image/png"),
-        [0xff, 0xd8, 0xff, ..] => Ok("image/jpeg"),
-        [b'G', b'I', b'F', b'8', b'7' | b'9', b'a', ..] => Ok("image/gif"),
-        [b'R', b'I', b'F', b'F', _, _, _, _, b'W', b'E', b'B', b'P', ..] => Ok("image/webp"),
-        _ => bail!("unsupported image format"),
-    }
+    i::workspace::text::image_mime(bytes)
 }
 fn drain(mut reader: impl Read + Send + 'static, limit: usize) -> thread::JoinHandle<io::Result<Vec<u8>>> {
     thread::spawn(move || {
@@ -804,22 +748,9 @@ fn read_text(path: &Path) -> Result<String> {
     ensure!(text.len() <= 2_000_000, "file exceeds 2 MB; use shell to inspect sections");
     Ok(text)
 }
+#[cfg(test)]
 fn replace_once(text: &str, old: &str, new: &str, line_number: Option<usize>) -> Result<String> {
-    ensure!(!old.is_empty(), "old text cannot be empty");
-    if let Some(line) = line_number {
-        let lines: Vec<&str> = text.lines().collect();
-        ensure!(line >= 1 && line <= lines.len(), "line_number {} out of range (file has {} lines)", line, lines.len());
-        let target = lines[line - 1];
-        ensure!(target.contains(old) && target.find(old) == target.rfind(old), "old text not found exactly once on line {}", line);
-        let mut result_lines: Vec<String> = lines.iter().map(|l| l.to_string()).collect();
-        result_lines[line - 1] = target.replacen(old, new, 1);
-        let mut result = result_lines.join("\n");
-        if text.ends_with('\n') { result.push('\n'); }
-        return Ok(result);
-    }
-    let (first, last) = (text.find(old), text.rfind(old));
-    ensure!(first.is_some() && first == last, "old text must match exactly once (found multiple matches); provide line_number to disambiguate");
-    Ok(text.replacen(old, new, 1))
+    i::workspace::text::replace_once(text, old, new, line_number)
 }
 fn clip(text: &str, limit: usize) -> String {
     if text.len() <= limit {
