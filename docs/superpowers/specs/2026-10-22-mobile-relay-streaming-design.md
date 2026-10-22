@@ -1,6 +1,6 @@
 # iPhone 同源转发与流式回复设计
 
-状态：会话方案已获用户确认，本文待用户审阅；尚未开始本轮产品代码改动。
+状态：暂缓。用户随后改选 Mac Edge 专用扩展安装路线；本轮由 `2026-10-22-extension-streaming-design.md` 替代，不实施本文的 relay 服务或 relay token。
 
 ## 目标与本轮范围
 
