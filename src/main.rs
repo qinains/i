@@ -221,9 +221,10 @@ async fn main() -> Result<()> {
             let name = field(&invocation, "name")?;
             let arguments = field(&invocation, "arguments")?;
             eprintln!("tool: {name} {}", clip(arguments, 500));
-            let result = serde_json::from_str(arguments)
-                .context("invalid tool arguments")
-                .and_then(|value| workspace.tool(name, &value, &api.plugins, 8 - images.len() / 2));
+            let result = match serde_json::from_str(arguments).context("invalid tool arguments") {
+                Ok(value) => workspace.tool(name, &value, &api.plugins, 8 - images.len() / 2).await,
+                Err(error) => Err(error),
+            };
             let mut result = result.unwrap_or_else(|error| json!({"output":format!("ERROR: {error:#}")}));
             result["name"] = json!(name);
             let result = api.plugins.emit("after_tool", result)?;
@@ -666,7 +667,7 @@ impl Workspace {
         }
         Ok(())
     }
-    fn tool(&self, name: &str, args: &Value, plugins: &Plugins, slots: usize) -> Result<Value> {
+    async fn tool(&self, name: &str, args: &Value, plugins: &Plugins, slots: usize) -> Result<Value> {
         ensure!(args.is_object(), "tool arguments must be an object");
         let plugin = plugins.tools.iter().find(|p| p["name"] == name);
         let native = tools().as_array().unwrap().iter().any(|t| t["function"]["name"] == name);
@@ -682,48 +683,36 @@ impl Workspace {
         if let Some(plugin) = plugin {
             return plugins.call(plugin, "tool", json!({"name":name,"arguments":args}));
         }
-        let output = match name {
-            "view_image" => {
-                ensure!(slots > 0, "at most 8 images per tool batch");
-                return Ok(json!({"output":"Image attached.","images":[self.image(field(args,"path")?)?]}));
-            }
-            "read" => {
-                let path = self.path(field(args, "path")?)?;
-                let text = read_text(&path)?;
-                let offset = number(args, "offset", 1)?;
-                let limit = number(args, "limit", 200)?;
-                ensure!(offset > 0 && (1..=1000).contains(&limit), "invalid offset or limit");
-                let lines: Vec<_> = text.lines().collect();
-                let mut result = format!("{} lines total\n", lines.len());
-                for (i, line) in lines.iter().enumerate().skip(offset - 1).take(limit) {
-                    result.push_str(&format!("{}: {}\n", i + 1, clip(line, self.io_limit)));
-                    if result.len() > self.io_limit {
-                        break;
-                    }
+        let mut shared = i::workspace::Workspace::new(
+            i::platform::native::NativeFs::new(self.root.clone())?,
+            i::workspace::Limits { file_bytes: 2_000_000, output_bytes: self.io_limit },
+        );
+        shared.exclude_downloads = true;
+        if name == "download" {
+            let request: i::workspace::archive::DownloadRequest = serde_json::from_value(args.clone())?;
+            let archive = shared.archive(&request).await?;
+            let relative = format!(".i/downloads/{}", archive.filename);
+            if let Some(paths) = &request.paths {
+                for source in paths {
+                    let source = i::workspace::path::validate(source, false)?;
+                    ensure!(!Path::new(&relative).starts_with(source), "archive output overlaps selected source");
                 }
-                Ok(clip(&result, self.io_limit))
             }
-            "write" => {
-                let path = self.path(field(args, "path")?)?;
-                let content = field(args, "content")?;
-                fs::create_dir_all(path.parent().context("no parent")?)?;
-                fs::write(&path, content).context("write file")?;
-                Ok(format!("Wrote {} bytes to {}", content.len(), path.display()))
+            let target = self.path(&relative)?;
+            self.approve(&format!("OVERWRITE {}", target.display()), target.exists())?;
+            use i::platform::FileSystem;
+            shared.fs.write_file(Path::new(&relative), &archive.bytes).await?;
+            return Ok(json!({"output":format!("Saved ZIP: {} ({} entries)", target.display(), archive.entries)}));
+        }
+        if matches!(name, "read" | "write" | "edit" | "view_image" | "list") {
+            if name == "view_image" { ensure!(slots > 0, "at most 8 images per tool batch"); shared.limits.file_bytes = 8 * 1024 * 1024; }
+            if let Some(original) = original {
+                ensure!(read_text(&self.path(field(args,"path")?)?)? == original, "file changed during approval; retry");
             }
-            "edit" => {
-                let path = self.path(field(args, "path")?)?;
-                let (old, new) = (field(args, "old")?, field(args, "new")?);
-                let line_number = args.get("line_number").and_then(|v| v.as_u64()).map(|v| v as usize);
-                let original = original.context("missing edit snapshot")?;
-                let updated = replace_once(&original, old, new, line_number)?;
-                ensure!(read_text(&path)? == original, "file changed during approval; retry");
-                fs::write(&path, updated).context("edit file")?;
-                Ok(format!("Edited {}", path.display()))
-            }
-            "shell" => self.shell(field(args, "command")?),
-            _ => bail!("unknown tool: {name}"),
-        };
-        output.map(|output| json!({"output":output}))
+            return shared.execute(name, args).await;
+        }
+        ensure!(name == "shell", "unknown tool: {name}");
+        Ok(json!({"output":self.shell(field(args, "command")?)?}))
     }
     fn shell(&self, command: &str) -> Result<String> {
         let mut cmd = Command::new(if cfg!(windows) { "cmd.exe" } else { "/bin/sh" });
