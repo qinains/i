@@ -6,12 +6,20 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const call = (name, args, id) => ({choices: [{finish_reason: 'tool_calls', message: {role: 'assistant', content: null,
     tool_calls: [{id, type: 'function', function: {name, arguments: JSON.stringify(args)}}]}}]});
 const final = content => ({choices: [{finish_reason: 'stop', message: {role: 'assistant', content}}]});
+let releaseStream;
 http.createServer(async (req, res) => {
+    if (req.url === '/release-stream') {releaseStream?.(); res.end('released'); return;}
     if (req.url === '/mock/v1/chat/completions') {
         let raw = ''; for await (const chunk of req) raw += chunk;
         const body = JSON.parse(raw);
         const task = body.messages.findLast(m => m.role === 'user')?.content ?? '';
         const last = body.messages.at(-1);
+        if (task === 'STREAM') {
+            res.writeHead(200,{'content-type':'text/event-stream'});
+            res.write('data: {"choices":[{"index":0,"delta":{"content":"First visible"},"finish_reason":null}]}\n\n');
+            await new Promise(resolve => {releaseStream = resolve; res.once('close',resolve);}); releaseStream = null;
+            res.end('data: {"choices":[{"index":0,"delta":{"content":" then done"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n'); return;
+        }
         let result;
         if (task === 'WAIT') { await new Promise(resolve => setTimeout(resolve, 3000)); result = call('write', {path:'late.txt',content:'late'}, 'late'); }
         else if (last.role === 'tool' && last.content.startsWith('ERROR')) result = final('Tool refused as expected.');
@@ -22,7 +30,15 @@ http.createServer(async (req, res) => {
         else if (last.tool_call_id === 'write') result = call('edit', {path:'nested/结果.txt',old:'hello',new:'world'}, 'edit');
         else if (last.tool_call_id === 'edit') result = call('download', {}, 'download');
         else result = final('All done. ZIP ready.');
-        res.writeHead(200, {'content-type':'application/json'}); res.end(JSON.stringify(result)); return;
+        if (body.stream) {
+            res.writeHead(200,{'content-type':'text/event-stream'});
+            const choice = result.choices[0];
+            const delta = {...choice.message};
+            if (delta.tool_calls) delta.tool_calls = delta.tool_calls.map((tool,index) => ({...tool,index}));
+            res.write(`data: ${JSON.stringify({choices:[{index:0,delta,finish_reason:null}]})}\n\n`);
+            res.end(`data: ${JSON.stringify({choices:[{index:0,delta:{},finish_reason:choice.finish_reason}]})}\n\ndata: [DONE]\n\n`);
+        } else {res.writeHead(200, {'content-type':'application/json'}); res.end(JSON.stringify(result));}
+        return;
     }
     try {
         const requested = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);

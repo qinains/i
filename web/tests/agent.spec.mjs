@@ -9,6 +9,20 @@ async function configure(page) {
     await page.locator('#api-key').fill('TEST_SECRET_NOT_PERSISTED');
 }
 async function submit(page, task) { await page.locator('#input').fill(task); await page.locator('#input').press('Enter'); }
+test('stream displays before server release without duplicate final output; cancel isolates next request', async ({page}) => {
+    await configure(page); await submit(page,'STREAM');
+    await expect(page.locator('#output')).toContainText('First visible');
+    await expect(page.locator('#status')).toHaveText('Processing...');
+    await page.request.get('/release-stream');
+    await expect(page.locator('#status')).toHaveText('Ready');
+    await expect(page.locator('.line.assistant')).toHaveCount(1);
+    await expect(page.locator('.line.assistant')).toHaveText('First visible then done');
+    await submit(page,'STREAM'); await expect(page.locator('.line.assistant')).toHaveCount(2);
+    await page.locator('#btn-cancel').click();
+    await expect(page.locator('#status')).toHaveText('Ready');
+    await expect(page.locator('#file-list')).toContainText('No files');
+    await expect(page.locator('#output')).toContainText('[incomplete]');
+});
 test('real WASM model tools edit OPFS and export a real ZIP', async ({page}) => {
     await configure(page);
     await submit(page,'MAKE');

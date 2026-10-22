@@ -28,7 +28,7 @@ extern "C" {
     #[wasm_bindgen(js_name = abortFetch)]
     fn abort(controller: &JsValue);
     #[wasm_bindgen(catch, js_name = fetchModel)]
-    async fn fetch(url: &str, body: &str, key: &str, controller: &JsValue) -> std::result::Result<JsValue, JsValue>;
+    async fn fetch(url: &str, body: &str, key: &str, controller: &JsValue, options: &JsValue, on_event: &Function) -> std::result::Result<JsValue, JsValue>;
 }
 const SYSTEM: &str = "You are a coding agent in a browser. Inspect files before editing. Paths are workspace-relative. \
 Shell and process plugins are disabled. Use list/read/write/edit/view_image for files and download for ZIP export. \
@@ -215,8 +215,8 @@ impl AgentHost for BrowserHost {
     }
     async fn complete(&mut self, history: &[Value]) -> Result<Value> {
         let body = self.config.body(history)?.to_string();
-        let response =
-            fetch(&self.config.endpoint()?, &body, &self.config.api_key, &self.controller).await.map_err(js_error)?;
+        let options = to_js(&json!({"transport":self.config.transport,"relayToken":self.config.relay_token}))?;
+        let response = fetch(&self.config.endpoint()?, &body, &self.config.api_key, &self.controller, &options, &self.terminal.event).await.map_err(js_error)?;
         Ok(serde_json::from_str(&response.as_string().ok_or_else(|| anyhow::anyhow!("expected model JSON"))?)?)
     }
     async fn before_tools(&mut self, _: &[Value], _: usize) -> Result<usize> {

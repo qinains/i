@@ -3,6 +3,33 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import {validatePath, opfsWrite, opfsMetadata, fetchModel} from '../platform.js';
 
+test('streaming reaches UI before completion and never retries a JSON response', async () => {
+    let release, hits = 0;
+    const gate = new Promise(resolve => {release = resolve;});
+    const server = http.createServer(async (req,res) => {
+        hits++; for await (const chunk of req) {}
+        if (req.url === '/json') {res.setHeader('content-type','application/json'); res.end('{}'); return;}
+        res.setHeader('content-type','text/event-stream');
+        res.write('data: {"choices":[{"index":0,"delta":{"content":"first"},"finish_reason":null}]}\n\n');
+        await gate;
+        res.end('data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n');
+    });
+    await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
+    const url = `http://127.0.0.1:${server.address().port}`;
+    try {
+        let first;
+        const seen = new Promise(resolve => {first = resolve;});
+        const pending = fetchModel(url,JSON.stringify({stream:true}),'',new AbortController(),{},event => {
+            if (event.type === 'assistant_delta') first(event.text);
+        });
+        const text = await Promise.race([seen,new Promise(resolve => setTimeout(() => resolve('TIMEOUT'),300))]);
+        release(); await pending;
+        assert.equal(text,'first');
+        await assert.rejects(fetchModel(url+'/json','{"stream":true}','',new AbortController(),{}),/SSE/i);
+        assert.equal(hits,2);
+    } finally {release(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve));}
+});
+
 test('path traversal and platform prefixes are rejected', () => {
     for (const path of ['../x', '/x', 'a/../b', 'C:/x', 'a\\b', 'x\0']) {
         assert.throws(() => validatePath(path));

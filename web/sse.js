@@ -46,7 +46,7 @@ export async function readChatCompletion(reader, {signal,onDelta = () => {},maxB
             }
         }
         if (choice.finish_reason != null) {
-            if (!['stop','tool_calls'].includes(choice.finish_reason)) throw new Error('Incomplete or unsupported finish_reason');
+            if (!['stop','tool_calls'].includes(choice.finish_reason)) throw new Error('incomplete tool response: unsupported finish_reason');
             finish = choice.finish_reason;
         }
     }

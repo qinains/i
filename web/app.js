@@ -7,8 +7,11 @@ const input = $('input');
 let agent;
 let busy = false;
 let pendingApproval;
+let streamBlock;
+let streamedText = null;
+let streamId;
 const artifacts = new Map();
-const redact = text => $('api-key').value ? String(text).split($('api-key').value).join('[redacted]') : String(text);
+const redact = text => [$('api-key').value,$('relay-token').value].filter(Boolean).reduce((value,key) => value.split(key).join('[redacted]'),String(text));
 function line(text, type = 'system') {
     const div = document.createElement('div'); div.className = `line ${type}`; div.textContent = redact(text);
     output.append(div); output.scrollTop = output.scrollHeight;
@@ -39,6 +42,24 @@ function publish(archive) {
     return artifact;
 }
 function event(event) {
+    if (event.type === 'stream_start') {
+        streamId = event.request_id; streamedText = ''; streamBlock = null; return;
+    }
+    if (['assistant_delta','stream_end','stream_error'].includes(event.type)) {
+        if (event.request_id !== streamId) return;
+        if (event.type === 'assistant_delta') {
+            if (!streamBlock) {streamBlock = document.createElement('div'); streamBlock.className = 'line assistant'; output.append(streamBlock);}
+            streamedText += event.text; streamBlock.textContent = redact(streamedText); output.scrollTop = output.scrollHeight;
+        } else {
+            if (event.type === 'stream_error') {
+                if (streamBlock) {streamBlock.classList.add('error'); streamBlock.textContent += ' [incomplete]';}
+                streamedText = null;
+            }
+            streamId = null;
+        }
+        return;
+    }
+    if (event.type === 'assistant' && streamedText === event.text) {streamedText = null; return;}
     if (event.type === 'cancelled') { settleApproval(false); return; }
     if (event.type === 'step') { $('step-counter').textContent = `[step ${event.step}/${event.max_steps}]`; return; }
     if (event.type === 'tool') { line(`tool: ${event.name} ${event.arguments.slice(0,1000)}`, 'tool'); return; }
