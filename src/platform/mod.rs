@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod native;
+#[cfg(all(target_arch = "wasm32", feature = "wasm"))]
+pub mod wasm;
 
 #[derive(Clone, Copy)]
 pub struct Capabilities {

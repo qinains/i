@@ -1,0 +1,219 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+    background: #1e1e1e;
+    color: #d4d4d4;
+    height: 100vh;
+    overflow: auto;
+}
+
+#app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    background: #2d2d2d;
+    border-bottom: 1px solid #3c3c3c;
+}
+
+header h1 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #569cd6;
+}
+
+.controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.controls button, .controls select {
+    background: #3c3c3c;
+    color: #d4d4d4;
+    border: 1px solid #555;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.controls button:hover {
+    background: #4c4c4c;
+}
+
+#workspace-info {
+    display: flex;
+    gap: 16px;
+    padding: 6px 16px;
+    background: #252525;
+    font-size: 12px;
+    color: #888;
+    border-bottom: 1px solid #3c3c3c;
+}
+
+#terminal {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 12px 16px;
+}
+
+#output {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: 8px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+#output .line {
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+#output .line.system {
+    color: #569cd6;
+}
+
+#output .line.error {
+    color: #f44747;
+}
+
+#output .line.success {
+    color: #6a9955;
+}
+
+#output .line.tool {
+    color: #c586c0;
+}
+
+#output .line.assistant {
+    color: #dcdcaa;
+}
+
+#input-line {
+    display: flex;
+    align-items: center;
+    padding-top: 8px;
+    border-top: 1px solid #3c3c3c;
+}
+
+#input-line .prompt {
+    color: #569cd6;
+    font-weight: 600;
+    margin-right: 8px;
+}
+
+#input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #d4d4d4;
+    font-family: inherit;
+    font-size: 14px;
+    outline: none;
+}
+
+#status-bar {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 16px;
+    background: #007acc;
+    font-size: 12px;
+    color: white;
+}
+
+/* File panel */
+.panel {
+    flex: 0 0 auto;
+    max-height: 24vh;
+    background: #252525;
+    border-left: 1px solid #3c3c3c;
+    padding: 16px;
+    transition: transform 0.2s;
+    overflow-y: auto;
+}
+
+#settings { display: flex; flex-wrap: wrap; gap: 10px; padding: 10px 16px; border: 1px solid #444; }
+#settings label { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+#settings input { padding: 5px; color: #ddd; background: #252525; border: 1px solid #666; }
+#settings input[type="number"] { width: 80px; }
+#terminal { min-height: 220px; }
+#downloads a { display: block; color: #8dcaff; padding: 4px 0; }
+#approval-panel { padding: 10px; background: #393222; border: 1px solid #997b36; }
+#approval-description { white-space: pre-wrap; max-height: 160px; overflow: auto; }
+button { cursor: pointer; padding: 5px 10px; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+[hidden] { display: none !important; }
+@media (max-width: 700px) {
+    header { flex-wrap: wrap; gap: 8px; }
+    .controls { flex-wrap: wrap; }
+    #settings label { width: 100%; }
+    #settings input:not([type="checkbox"]) { flex: 1; min-width: 0; }
+}
+
+.panel.open {
+    transform: translateX(0);
+}
+
+.panel h3 {
+    font-size: 14px;
+    margin-bottom: 12px;
+    color: #569cd6;
+}
+
+#file-list {
+    font-size: 13px;
+}
+
+#file-list .file-item {
+    padding: 4px 8px;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+#file-list .file-item:hover {
+    background: #3c3c3c;
+}
+
+#btn-upload {
+    width: 100%;
+    margin-top: 12px;
+    padding: 8px;
+    background: #3c3c3c;
+    color: #d4d4d4;
+    border: 1px solid #555;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #1e1e1e;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #3c3c3c;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #4c4c4c;
+}

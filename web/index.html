@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>i (lninl) - Web</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>i (lninl)</h1>
+            <div class="controls">
+                <button id="btn-download" title="Download results as ZIP">📦 Download</button>
+                <button id="btn-clear" title="Clear terminal">🗑️ Clear</button>
+                <button id="btn-new" title="Start a new model session">New session</button>
+                <button id="btn-cancel" disabled>Cancel</button>
+                <select id="lang-select" title="Language">
+                    <option value="en">English</option>
+                    <option value="zh-CN">简体中文</option>
+                    <option value="zh-TW">繁體中文</option>
+                    <option value="ja">日本語</option>
+                    <option value="ko">한국어</option>
+                    <option value="fr">Français</option>
+                    <option value="de">Deutsch</option>
+                </select>
+            </div>
+        </header>
+
+        <fieldset id="settings">
+            <legend>Chat Completions configuration</legend>
+            <label>Base URL <input id="base-url" type="url" placeholder="https://your-provider.example/v1" autocomplete="off"></label>
+            <label>Model <input id="model" autocomplete="off" placeholder="Model identifier"></label>
+            <label>API key (page memory only) <input id="api-key" type="password" autocomplete="off"></label>
+            <label>Max steps <input id="max-steps" type="number" min="1" max="32" value="32"></label>
+            <label>Max output tokens <input id="max-tokens" type="number" min="1" value="8192"></label>
+            <label><input id="use-max-tokens" type="checkbox" checked> Use max_tokens (uncheck for max_completion_tokens)</label>
+        </fieldset>
+
+        <div id="workspace-info">
+            <span id="workspace-path">Workspace: /workspace</span>
+            <span id="model-name">Model: -</span>
+        </div>
+
+        <div id="terminal">
+            <div id="output" role="log" aria-live="polite"></div>
+            <section id="approval-panel" hidden aria-label="Tool approval">
+                <pre id="approval-description"></pre>
+                <button id="approve">Allow</button><button id="deny">Deny</button>
+            </section>
+            <div id="input-line">
+                <span class="prompt">Task: </span>
+                <input type="text" id="input" aria-label="Task" autocomplete="off" autofocus>
+            </div>
+        </div>
+
+        <div id="status-bar">
+            <span id="status">Ready</span>
+            <span id="step-counter"></span>
+        </div>
+
+        <!-- File browser -->
+        <div id="file-panel" class="panel">
+            <h3>Files</h3>
+            <div id="file-list"></div>
+            <button id="btn-upload">📤 Upload</button>
+            <input type="file" id="file-input" multiple style="display: none">
+            <h3>Prepared downloads</h3>
+            <div id="downloads"></div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
