@@ -1,6 +1,6 @@
 # 浏览器 WASM 阶段设计
 
-状态：待用户审阅。本文确定设计，不代表功能已实现或验证。
+状态：设计已获用户确认；实现与验证结果见 `docs/wasm.md`。用户随后明确要求将整套浏览器 Harness 配置纳入 localStorage，以下采用显式记住开关，不再禁止用户主动持久化 API key。
 
 ## 1. 目标与边界
 
@@ -55,7 +55,7 @@ OPFS 不可用时禁用依赖它的任务、上传和导出，并展示原因，
 
 ## 6. 浏览器模型与终端 UI
 
-保留现有终端式页面布局，补充 endpoint、model、API key 和运行上限配置。API key 默认仅保存在当前页面内存，不写 OPFS、localStorage、会话、日志或 ZIP；非敏感设置可本地保存。切换 endpoint/model 时开始新会话，避免意外向新目标发送旧历史。
+保留现有终端式页面布局，补充 endpoint、model、API key 和运行上限配置。API key 默认仅保存在当前页面内存；用户勾选「记住本机配置（含 API key）」后，整套表单配置（endpoint、model、key、protocol、步数、token 上限/参数选项、语言）以带版本的记录存入 localStorage，下次打开自动恢复。取消勾选删除该记录但保留当前表单；清除配置删除记录并清除活动模型配置/历史，不删除 OPFS 文件。不写 OPFS、会话、日志或 ZIP。明确提醒同源脚本可读已保存 key；存储被拒绝/配额不足/记录损坏必须显示实际状态。切换 endpoint/model 时开始新会话，避免意外向新目标发送旧历史。
 
 浏览器 provider adapter 负责 Chat Completions 编解码；共享核心不包含服务商端点分支。浏览器通过 Fetch 发出真实请求，使用 AbortController 取消，禁止自动重定向；错误展示经过截断且不包含鉴权头。用户配置的服务需要允许页面 origin 的 CORS 请求；本阶段不隐式引入代理服务器。
 

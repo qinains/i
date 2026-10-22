@@ -16,7 +16,7 @@
 - 浏览器首个模型适配器支持 OpenAI-compatible Chat Completions；原生已有协议支持保持不变。
 - 浏览器默认每文件读写上限 8 MiB，工具文本输出上限 1 MiB，每任务最多 32 个模型回合。
 - 单次导出限制为未压缩内容总计 64 MiB、10000 个条目；stored ZIP，稳定排序、固定元数据。
-- API key 默认仅保存在当前页面内存，不写 OPFS、localStorage、会话、日志或 ZIP。
+- API key 默认仅保存在当前页面内存；用户后续明确授权新增「记住本机配置」开关，开启后整套浏览器 Harness 配置含 key 可存 localStorage。不开启时及 OPFS/会话/日志/ZIP 仍不得隐式保存 key。
 - 浏览器禁用 shell、进程插件及远端 Files 管理；不静默降级，不模拟成功。
 - 已有 Native 路径保护、审批、插件事件、工具批次、检查点与 provider 不透明字段保持行为兼容。
 - 不承诺浏览器跨刷新恢复模型历史；OPFS 已完成写入的文件必须持久化。
@@ -153,6 +153,8 @@
 - [ ] 提交 `docs: document browser WASM build and verified limitations`，将计划复选框与实际结果同步。
 
 ## 执行与审查交接
+
+用户追加的已批准范围：`web/config.js` 提供 version=1 的 `i_harness_config` localStorage 记录与 schema 校验，UI 提供 remember/clear；覆盖 Node 存取/损坏/存储拒绝测试与浏览器刷新恢复整套配置、取消记住、清除配置测试。`BrowserAgent.clear_configuration()` 同时清除活动配置与模型历史，不动 workspace。
 
 推荐本会话顺序执行：任务接口依赖紧密，且工作区有大量前人未提交文件，单执行者更容易保持变更边界。每个任务先红后绿，验证通过再进入下一项；最终独立审查需要在用户选定执行方式后按对应技能启动。
 
