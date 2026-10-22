@@ -57,11 +57,14 @@ async function refresh() {
 function currentConfiguration() {
     return {base_url:$('base-url').value.trim(),model:$('model').value.trim(),api_key:$('api-key').value,protocol:'openai',
         max_steps:Number($('max-steps').value),max_tokens:Number($('max-tokens').value),use_max_tokens:$('use-max-tokens').checked,
-        language:$('lang-select').value};
+        language:$('lang-select').value,transport:$('transport').value,stream:$('stream').checked,relay_token:$('relay-token').value};
 }
 function restoreConfiguration(config) {
     for (const [id,key] of [['base-url','base_url'],['model','model'],['api-key','api_key'],['max-steps','max_steps'],['max-tokens','max_tokens'],['lang-select','language']]) $(id).value = config[key];
     $('use-max-tokens').checked = config.use_max_tokens;
+    $('transport').value = config.transport;
+    $('stream').checked = config.stream;
+    $('relay-token').value = config.relay_token;
     document.documentElement.lang = config.language;
 }
 function persistConfiguration() {

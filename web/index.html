@@ -32,6 +32,11 @@
             <label>Base URL <input id="base-url" type="url" placeholder="https://your-provider.example/v1" autocomplete="off"></label>
             <label>Model <input id="model" autocomplete="off" placeholder="Model identifier"></label>
             <label>API key <input id="api-key" type="password" autocomplete="off"></label>
+            <label>Connection <select id="transport"><option value="direct">Direct (requires API CORS support)</option><option value="relay">Own same-origin relay</option></select></label>
+            <label><input id="stream" type="checkbox" checked> Stream model output</label>
+            <label>Relay access token (relay only) <input id="relay-token" type="password" autocomplete="off"></label>
+            <p class="config-note">PWA does not bypass CORS. Direct sends your key only to the model API. Relay sends it through your own server; switching is never automatic.</p>
+            <details><summary>PC CORS extension / iPhone</summary><p>Desktop Chrome/Edge users may install a trusted CORS extension themselves and restrict it to this page and the model API. This app cannot install or enable extensions. Disable it after use; do not globally disable browser security. iPhone users should use a CORS-enabled API or their own relay.</p></details>
             <label>Max steps <input id="max-steps" type="number" min="1" max="32" value="32"></label>
             <label>Max output tokens <input id="max-tokens" type="number" min="1" value="8192"></label>
             <label><input id="use-max-tokens" type="checkbox" checked> Use max_tokens (uncheck for max_completion_tokens)</label>
