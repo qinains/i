@@ -82,7 +82,7 @@ web-sys = { version = "0.3", optional = true, features = [
 default = ["native"]
 native = []
 bundled = ["native", "dep:i-plugins"]
-packaging = ["native", "dep:tar", "dep:flate2"]
+packaging = ["native", "dep:tar", "dep:flate2", "zip/deflate"]
 wasm = ["dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "dep:web-sys"]
 
 [workspace]
