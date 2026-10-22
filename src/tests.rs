@@ -350,6 +350,18 @@ async fn file_tools_round_trip() {
     assert!(ws.tool("unknown", &json!({}), &plugins, 8).await.is_err());
 }
 
+#[tokio::test]
+async fn native_write_and_edit_keep_original_output_size_policy() {
+    let (_dir, ws) = workspace();
+    let plugins = load_plugins(None).unwrap();
+    let content = "x".repeat(2_000_001);
+    ws.tool("write", &json!({"path":"large.txt","content":content}), &plugins, 8).await.unwrap();
+    assert_eq!(fs::metadata(ws.root.join("large.txt")).unwrap().len(),2_000_001);
+    fs::write(ws.root.join("small.txt"),"old").unwrap();
+    ws.tool("edit", &json!({"path":"small.txt","old":"old","new":content}), &plugins, 8).await.unwrap();
+    assert_eq!(fs::metadata(ws.root.join("small.txt")).unwrap().len(),2_000_001);
+}
+
 #[test]
 fn rejects_escaping_paths() {
     let (_dir, ws) = workspace();

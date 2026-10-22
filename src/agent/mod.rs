@@ -1,5 +1,8 @@
 pub mod history;
-use crate::workspace::{field, text::{clip, image_mime}};
+use crate::workspace::{
+    field,
+    text::{clip, image_mime},
+};
 use anyhow::{Context, Result, bail, ensure};
 use base64::{Engine, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
@@ -45,15 +48,21 @@ pub async fn run<H: AgentHost>(host: &mut H, messages: &mut Vec<Value>, max_step
         for call in calls {
             let name = field(&call["function"], "name")?;
             host.emit(json!({"type":"tool","name":name,"arguments":call["function"]["arguments"]}))?;
-            let result = if host.cancelled() { Err(anyhow::anyhow!("cancelled")) }
-                else { host.dispatch(&call, 8 - images.len() / 2).await };
-            let result = result.unwrap_or_else(|error| json!({"output":format!("ERROR: {error:#}")}));
+            // Hosts encode ordinary tool failures; hook/transport policy failures remain fatal.
+            let result = if host.cancelled() {
+                json!({"output":"ERROR: cancelled"})
+            } else {
+                host.dispatch(&call, 8 - images.len() / 2).await?
+            };
             for image in result.get("images").unwrap_or(&json!([])).as_array().context("invalid tool images")? {
                 ensure!(images.len() / 2 < 8 && image["type"] == "image_url", "invalid/excessive tool images");
                 let url = field(&image["image_url"], "url")?;
                 let (header, encoded) = url.split_once(";base64,").context("tool images must be data URLs")?;
                 let bytes = STANDARD.decode(encoded)?;
-                ensure!(bytes.len() <= 8 * 1024 * 1024 && header == format!("data:{}", image_mime(&bytes)?), "invalid image");
+                ensure!(
+                    bytes.len() <= 8 * 1024 * 1024 && header == format!("data:{}", image_mime(&bytes)?),
+                    "invalid image"
+                );
                 images.push(json!({"type":"text","text":format!("Image from tool {}",call["id"])}));
                 images.push(image.clone());
             }
@@ -61,7 +70,9 @@ pub async fn run<H: AgentHost>(host: &mut H, messages: &mut Vec<Value>, max_step
             host.emit(json!({"type":"tool_result","name":name,"text":clip(output,600)}))?;
             messages.push(json!({"role":"tool","tool_call_id":call["id"],"content":clip(output,limit)}));
         }
-        if !images.is_empty() { messages.push(json!({"role":"user","content":images})); }
+        if !images.is_empty() {
+            messages.push(json!({"role":"user","content":images}));
+        }
         host.checkpoint(messages).await?;
         ensure!(!host.cancelled(), "cancelled");
     }

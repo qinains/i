@@ -33,3 +33,4 @@ http.createServer(async (req, res) => {
         res.writeHead(200, {'content-type':types[path.extname(file)] ?? 'application/octet-stream'}); res.end(bytes);
     } catch { res.writeHead(404); res.end('Not found'); }
 }).listen(4173, '127.0.0.1');
+http.createServer((req,res) => {res.writeHead(200,{'content-type':'application/json'}); res.end(JSON.stringify(final('no CORS')));}).listen(4174,'127.0.0.1');

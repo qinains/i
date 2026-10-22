@@ -1,6 +1,6 @@
+pub mod archive;
 pub mod path;
 pub mod text;
-pub mod archive;
 
 use crate::platform::{Capabilities, FileSystem};
 use anyhow::{Context, Result, bail, ensure};
@@ -8,25 +8,47 @@ use base64::{Engine, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
 
 #[derive(Clone, Copy)]
-pub struct Limits { pub file_bytes: usize, pub output_bytes: usize }
-impl Limits {
-    pub fn browser() -> Self { Self { file_bytes: 8 * 1024 * 1024, output_bytes: 1024 * 1024 } }
+pub struct Limits {
+    pub file_bytes: usize,
+    pub write_bytes: usize,
+    pub output_bytes: usize,
 }
-pub struct Workspace<F> { pub fs: F, pub limits: Limits, pub exclude_downloads: bool }
+impl Limits {
+    pub fn browser() -> Self {
+        Self { file_bytes: 8 * 1024 * 1024, write_bytes: 8 * 1024 * 1024, output_bytes: 1024 * 1024 }
+    }
+}
+pub struct Workspace<F> {
+    pub fs: F,
+    pub limits: Limits,
+    pub exclude_downloads: bool,
+}
 impl<F: FileSystem> Workspace<F> {
-    pub fn new(fs: F, limits: Limits) -> Self { Self { fs, limits, exclude_downloads: false } }
+    pub fn new(fs: F, limits: Limits) -> Self {
+        Self { fs, limits, exclude_downloads: false }
+    }
     pub async fn execute(&self, name: &str, args: &Value) -> Result<Value> {
         ensure!(args.is_object(), "tool arguments must be an object");
         let output = match name {
             "list" => {
-                let dir = path::validate(args.get("path").map(|v| v.as_str().context("invalid path")).transpose()?.unwrap_or(""), true)?;
+                let dir = path::validate(
+                    args.get("path").map(|v| v.as_str().context("invalid path")).transpose()?.unwrap_or(""),
+                    true,
+                )?;
                 let mut entries = self.fs.read_dir(&dir).await?;
                 entries.sort();
                 let mut output = String::new();
                 for entry in entries {
                     let m = self.fs.metadata(&entry).await?.context("entry disappeared")?;
-                    output.push_str(&format!("{}{}\t{} bytes\n", entry.display(), if m.is_dir { "/" } else { "" }, m.len));
-                    if output.len() > self.limits.output_bytes { break; }
+                    output.push_str(&format!(
+                        "{}{}\t{} bytes\n",
+                        entry.display(),
+                        if m.is_dir { "/" } else { "" },
+                        m.len
+                    ));
+                    if output.len() > self.limits.output_bytes {
+                        break;
+                    }
                 }
                 output
             }
@@ -34,7 +56,7 @@ impl<F: FileSystem> Workspace<F> {
                 let path = path::validate(field(args, "path")?, false)?;
                 if name == "write" {
                     let content = field(args, "content")?;
-                    ensure!(content.len() <= self.limits.file_bytes, "file exceeds byte limit");
+                    ensure!(content.len() <= self.limits.write_bytes, "file exceeds byte limit");
                     self.fs.write_file(&path, content.as_bytes()).await?;
                     format!("Wrote {} bytes to {}", content.len(), path.display())
                 } else {
@@ -49,8 +71,11 @@ impl<F: FileSystem> Workspace<F> {
                     if name == "edit" {
                         let line = args.get("line_number").map(|_| number(args, "line_number", 0)).transpose()?;
                         let updated = text::replace_once(&original, field(args, "old")?, field(args, "new")?, line)?;
-                        ensure!(updated.len() <= self.limits.file_bytes, "file exceeds byte limit");
-                        ensure!(self.fs.read_file_limited(&path, self.limits.file_bytes).await? == original.as_bytes(), "file changed during edit; retry");
+                        ensure!(updated.len() <= self.limits.write_bytes, "file exceeds byte limit");
+                        ensure!(
+                            self.fs.read_file_limited(&path, self.limits.file_bytes).await? == original.as_bytes(),
+                            "file changed during edit; retry"
+                        );
                         self.fs.write_file(&path, updated.as_bytes()).await?;
                         format!("Edited {}", path.display())
                     } else {
@@ -61,7 +86,9 @@ impl<F: FileSystem> Workspace<F> {
                         let mut result = format!("{} lines total\n", lines.len());
                         for (i, line) in lines.iter().enumerate().skip(offset - 1).take(limit) {
                             result.push_str(&format!("{}: {}\n", i + 1, text::clip(line, self.limits.output_bytes)));
-                            if result.len() > self.limits.output_bytes { break; }
+                            if result.len() > self.limits.output_bytes {
+                                break;
+                            }
                         }
                         result
                     }

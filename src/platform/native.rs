@@ -1,17 +1,52 @@
 use super::*;
 use anyhow::{Context, ensure};
-use std::{fs, io::{self, Read, Write}, process::Command};
+use std::{
+    fs,
+    io::{self, Read, Write},
+    process::Command,
+};
 
-pub struct NativeFs { root: PathBuf }
+pub struct NativeFs {
+    root: PathBuf,
+}
 impl NativeFs {
+    pub fn archive_target(&self, relative: &Path) -> Result<PathBuf> {
+        let target = self.path(relative)?;
+        let mut current = self.root.clone();
+        for part in relative.components() {
+            current.push(part);
+            match fs::symlink_metadata(&current) {
+                Ok(meta) => ensure!(!meta.file_type().is_symlink(), "archive output cannot contain symbolic links"),
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                Err(e) => return Err(e.into()),
+            }
+        }
+        Ok(target)
+    }
+    pub fn write_archive(&self, relative: &Path, bytes: &[u8]) -> Result<()> {
+        let target = self.archive_target(relative)?;
+        let parent = target.parent().context("missing archive parent")?;
+        fs::create_dir_all(parent)?;
+        let mut temp = tempfile::NamedTempFile::new_in(parent)?;
+        temp.write_all(bytes)?;
+        temp.as_file().sync_all()?;
+        // Replacing the directory entry never writes through an existing hard link.
+        temp.persist(target)?;
+        Ok(())
+    }
     pub fn new(root: PathBuf) -> Result<Self> {
         let root = dunce::canonicalize(root)?;
         ensure!(root.is_dir(), "workspace must be a directory");
         Ok(Self { root })
     }
     pub fn path(&self, relative: &Path) -> Result<PathBuf> {
-        ensure!(!relative.is_absolute() && relative.components().all(|c| matches!(c,
-            std::path::Component::Normal(_) | std::path::Component::CurDir)), "invalid workspace path");
+        ensure!(
+            !relative.is_absolute()
+                && relative
+                    .components()
+                    .all(|c| matches!(c, std::path::Component::Normal(_) | std::path::Component::CurDir)),
+            "invalid workspace path"
+        );
         let candidate = self.root.join(relative);
         let mut ancestor = candidate.as_path();
         loop {
@@ -40,8 +75,12 @@ impl FileSystem for NativeFs {
         fs::write(target, content)?;
         Ok(())
     }
-    async fn create_dir_all(&self, path: &Path) -> Result<()> { Ok(fs::create_dir_all(self.path(path)?)?) }
-    async fn remove_file(&self, path: &Path) -> Result<()> { Ok(fs::remove_file(self.path(path)?)?) }
+    async fn create_dir_all(&self, path: &Path) -> Result<()> {
+        Ok(fs::create_dir_all(self.path(path)?)?)
+    }
+    async fn remove_file(&self, path: &Path) -> Result<()> {
+        Ok(fs::remove_file(self.path(path)?)?)
+    }
     async fn read_dir(&self, path: &Path) -> Result<Vec<PathBuf>> {
         let mut entries = Vec::new();
         for entry in fs::read_dir(self.path(path)?)? {
@@ -63,10 +102,17 @@ impl FileSystem for NativeFs {
         Ok(dunce::canonicalize(self.path(path)?)?.strip_prefix(&self.root)?.to_path_buf())
     }
 }
-pub struct NativeTerminal { pub readline: fn(&str) -> Result<String> }
+pub struct NativeTerminal {
+    pub readline: fn(&str) -> Result<String>,
+}
 impl Terminal for NativeTerminal {
-    async fn read_line(&self, prompt: &str) -> Result<String> { (self.readline)(prompt) }
-    fn write(&self, text: &str) -> Result<()> { io::stdout().write_all(text.as_bytes())?; Ok(()) }
+    async fn read_line(&self, prompt: &str) -> Result<String> {
+        (self.readline)(prompt)
+    }
+    fn write(&self, text: &str) -> Result<()> {
+        io::stdout().write_all(text.as_bytes())?;
+        Ok(())
+    }
     async fn approve(&self, description: &str) -> Result<bool> {
         Ok((self.readline)(&format!("{description}\nAllow? [y/N] "))?.eq_ignore_ascii_case("y"))
     }
@@ -77,15 +123,29 @@ impl ProcessRunner for NativeProcess {
         let out = Command::new(program).args(args).output()?;
         Ok(ProcessOutput { status: out.status.code().unwrap_or(-1), stdout: out.stdout, stderr: out.stderr })
     }
-    fn is_supported(&self) -> bool { true }
+    fn is_supported(&self) -> bool {
+        true
+    }
 }
-pub struct NativePlatform { pub fs: NativeFs, pub terminal: NativeTerminal, pub process: NativeProcess }
+pub struct NativePlatform {
+    pub fs: NativeFs,
+    pub terminal: NativeTerminal,
+    pub process: NativeProcess,
+}
 impl Platform for NativePlatform {
     type FileSystem = NativeFs;
     type Terminal = NativeTerminal;
     type Process = NativeProcess;
-    fn fs(&self) -> &NativeFs { &self.fs }
-    fn terminal(&self) -> &NativeTerminal { &self.terminal }
-    fn process(&self) -> &NativeProcess { &self.process }
-    fn capabilities(&self) -> Capabilities { Capabilities::NATIVE }
+    fn fs(&self) -> &NativeFs {
+        &self.fs
+    }
+    fn terminal(&self) -> &NativeTerminal {
+        &self.terminal
+    }
+    fn process(&self) -> &NativeProcess {
+        &self.process
+    }
+    fn capabilities(&self) -> Capabilities {
+        Capabilities::NATIVE
+    }
 }

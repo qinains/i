@@ -31,10 +31,14 @@
             <legend>Chat Completions configuration</legend>
             <label>Base URL <input id="base-url" type="url" placeholder="https://your-provider.example/v1" autocomplete="off"></label>
             <label>Model <input id="model" autocomplete="off" placeholder="Model identifier"></label>
-            <label>API key (page memory only) <input id="api-key" type="password" autocomplete="off"></label>
+            <label>API key <input id="api-key" type="password" autocomplete="off"></label>
             <label>Max steps <input id="max-steps" type="number" min="1" max="32" value="32"></label>
             <label>Max output tokens <input id="max-tokens" type="number" min="1" value="8192"></label>
             <label><input id="use-max-tokens" type="checkbox" checked> Use max_tokens (uncheck for max_completion_tokens)</label>
+            <label><input id="remember-config" type="checkbox"> Remember this browser's configuration (including API key)</label>
+            <button id="clear-config" type="button">Clear configuration</button>
+            <p class="config-note">Saved keys are readable by scripts on this origin. Do not enable on shared devices.</p>
+            <p id="config-status" role="status">Configuration is memory-only by default.</p>
         </fieldset>
 
         <div id="workspace-info">

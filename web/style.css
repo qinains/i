@@ -149,6 +149,7 @@ header h1 {
 
 #settings { display: flex; flex-wrap: wrap; gap: 10px; padding: 10px 16px; border: 1px solid #444; }
 #settings label { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.config-note, #config-status { width: 100%; font-size: 12px; color: #aaa; }
 #settings input { padding: 5px; color: #ddd; background: #252525; border: 1px solid #666; }
 #settings input[type="number"] { width: 80px; }
 #terminal { min-height: 220px; }

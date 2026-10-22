@@ -1,7 +1,9 @@
 use anyhow::{Result, bail, ensure};
 
 pub fn clip(text: &str, limit: usize) -> String {
-    if text.len() <= limit { return text.into(); }
+    if text.len() <= limit {
+        return text.into();
+    }
     format!("{}\n[truncated]", &text[..text.floor_char_boundary(limit)])
 }
 
@@ -11,14 +13,22 @@ pub fn replace_once(text: &str, old: &str, new: &str, line_number: Option<usize>
         let lines: Vec<&str> = text.lines().collect();
         ensure!(line >= 1 && line <= lines.len(), "line_number out of range");
         let target = lines[line - 1];
-        ensure!(target.contains(old) && target.find(old) == target.rfind(old), "old text not found exactly once on line");
+        ensure!(
+            target.contains(old) && target.find(old) == target.rfind(old),
+            "old text not found exactly once on line"
+        );
         let mut lines: Vec<String> = lines.iter().map(|l| l.to_string()).collect();
         lines[line - 1] = target.replacen(old, new, 1);
         let mut result = lines.join("\n");
-        if text.ends_with('\n') { result.push('\n'); }
+        if text.ends_with('\n') {
+            result.push('\n');
+        }
         return Ok(result);
     }
-    ensure!(text.find(old).is_some() && text.find(old) == text.rfind(old), "old text must match exactly once; provide line_number");
+    ensure!(
+        text.find(old).is_some() && text.find(old) == text.rfind(old),
+        "old text must match exactly once; provide line_number"
+    );
     Ok(text.replacen(old, new, 1))
 }
 

@@ -16,10 +16,10 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-mod net;
-mod worker;
 mod i18n;
+mod net;
 mod readline;
+mod worker;
 use worker::Worker;
 const SYSTEM: &str = "You are a coding agent. Inspect before editing; report tests honestly. Paths are workspace-relative. \
 Shell/plugins are NOT sandboxed. Never access secrets or perform destructive actions without explicit user request. \
@@ -96,7 +96,12 @@ struct Args {
     timeout: u64,
 }
 
-struct Workspace { io_limit: usize, root: PathBuf, yes: bool, timeout: Duration }
+struct Workspace {
+    io_limit: usize,
+    root: PathBuf,
+    yes: bool,
+    timeout: Duration,
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -184,20 +189,31 @@ async fn main() -> Result<()> {
     let mut host = NativeHost { api: &api, workspace: &workspace, session: args.session.as_deref(), i18n: &i18n };
     i::agent::run(&mut host, &mut messages, args.max_steps).await
 }
-struct NativeHost<'a> { api: &'a Api, workspace: &'a Workspace, session: Option<&'a Path>, i18n: &'a i18n::I18n }
+struct NativeHost<'a> {
+    api: &'a Api,
+    workspace: &'a Workspace,
+    session: Option<&'a Path>,
+    i18n: &'a i18n::I18n,
+}
 impl i::agent::AgentHost for NativeHost<'_> {
     async fn before_turn(&mut self, messages: &mut Vec<Value>) -> Result<()> {
-        *messages = checked_history(self.api.plugins.emit("before_turn", json!({"messages":messages}))?["messages"].take())?;
+        *messages =
+            checked_history(self.api.plugins.emit("before_turn", json!({"messages":messages}))?["messages"].take())?;
         self.api.plugins.save(self.session, messages)?;
         self.api.compact(messages, self.session).await
     }
-    async fn complete(&mut self, history: &[Value]) -> Result<Value> { self.api.complete(history, false).await }
+    async fn complete(&mut self, history: &[Value]) -> Result<Value> {
+        self.api.complete(history, false).await
+    }
     async fn before_tools(&mut self, history: &[Value], pending: usize) -> Result<usize> {
         let budget = self.api.budget(history, pending, false)?;
         Ok(number(&budget, "tool_output_bytes", self.workspace.io_limit)?.min(self.workspace.io_limit))
     }
     async fn dispatch(&mut self, call: &Value, slots: usize) -> Result<Value> {
-        let invocation = self.api.plugins.emit("before_tool", json!({"name":call["function"]["name"],"arguments":call["function"]["arguments"]}))?;
+        let invocation = self
+            .api
+            .plugins
+            .emit("before_tool", json!({"name":call["function"]["name"],"arguments":call["function"]["arguments"]}))?;
         let name = field(&invocation, "name")?;
         let arguments = field(&invocation, "arguments")?;
         let result = match serde_json::from_str(arguments).context("invalid tool arguments") {
@@ -208,24 +224,37 @@ impl i::agent::AgentHost for NativeHost<'_> {
         result["name"] = json!(name);
         self.api.plugins.emit("after_tool", result)
     }
-    async fn checkpoint(&mut self, history: &mut Vec<Value>) -> Result<()> { self.api.plugins.save(self.session, history) }
+    async fn checkpoint(&mut self, history: &mut Vec<Value>) -> Result<()> {
+        self.api.plugins.save(self.session, history)
+    }
     async fn finish(&mut self, history: &[Value]) -> Result<()> {
-        self.api.plugins.emit("finish", json!({"messages":history}))?; Ok(())
+        self.api.plugins.emit("finish", json!({"messages":history}))?;
+        Ok(())
     }
     fn emit(&mut self, event: Value) -> Result<()> {
         match event["type"].as_str() {
             Some("step") => {
-                let step = event["step"].to_string(); let max = event["max_steps"].to_string();
-                eprintln!("{}", if event["max_steps"] == json!(usize::MAX) { self.i18n.tf("status.step", &[&step]) }
-                    else { self.i18n.tf("status.step_of", &[&step, &max]) });
+                let step = event["step"].to_string();
+                let max = event["max_steps"].to_string();
+                eprintln!(
+                    "{}",
+                    if event["max_steps"] == json!(usize::MAX) {
+                        self.i18n.tf("status.step", &[&step])
+                    } else {
+                        self.i18n.tf("status.step_of", &[&step, &max])
+                    }
+                );
             }
-            Some("assistant") => println!("{}", field(&event,"text")?),
-            Some("tool") => eprintln!("tool: {} {}", field(&event,"name")?, clip(field(&event,"arguments")?,500)),
-            Some("tool_result") => eprintln!("{}",field(&event,"text")?),
+            Some("assistant") => println!("{}", field(&event, "text")?),
+            Some("tool") => eprintln!("tool: {} {}", field(&event, "name")?, clip(field(&event, "arguments")?, 500)),
+            Some("tool_result") => eprintln!("{}", field(&event, "text")?),
             _ => {}
-        } Ok(())
+        }
+        Ok(())
     }
-    fn cancelled(&self) -> bool { false }
+    fn cancelled(&self) -> bool {
+        false
+    }
 }
 struct Api {
     client: reqwest::Client,
@@ -250,12 +279,9 @@ impl Api {
         let anchor = data["budget_anchor"].clone();
         let mut plan = prepared.clone();
         plan["url"] = data["url"].clone();
-        let response = self.send(
-            &plan,
-            &serde_json::to_vec(&data["body"])?,
-            Some(&data["request_meta"]),
-            Duration::from_secs(180),
-        ).await?;
+        let response = self
+            .send(&plan, &serde_json::to_vec(&data["body"])?, Some(&data["request_meta"]), Duration::from_secs(180))
+            .await?;
         let data = self.plugins.emit(
             "after_response",
             json!({"response":response,"compact":compact,"request_meta":data["request_meta"]}),
@@ -265,7 +291,12 @@ impl Api {
         result["choices"][0]["message"]["_usage"] = json!({"tokens":data["response"]["usage"],"anchor":anchor});
         Ok(result)
     }
-    async fn prepare(&self, history: &[Value], compact: bool, management: Option<(&Value, &Workspace)>) -> Result<Value> {
+    async fn prepare(
+        &self,
+        history: &[Value],
+        compact: bool,
+        management: Option<(&Value, &Workspace)>,
+    ) -> Result<Value> {
         let mut input = json!({"base_url":self.url,"model":self.model,"history":history,
             "max_tokens":self.max_tokens,"tools":tools(),"compact":compact,
             "plugin_tools":self.plugins.tools.iter().map(tool_definition).collect::<Vec<_>>(),
@@ -299,7 +330,8 @@ impl Api {
             let remaining =
                 deadline.checked_duration_since(Instant::now()).context("provider operation deadline exceeded")?;
             input["operation_result"] = self
-                .send(&plan["operation"], &payload, None, remaining).await
+                .send(&plan["operation"], &payload, None, remaining)
+                .await
                 .context("provider operation failed; outcome may be unknown; NOT retried")?;
             input["operation_state"] = plan["state"].clone();
         }
@@ -344,9 +376,12 @@ impl Api {
         }
         let request = request.body(payload.to_vec())?;
         let response = match retry {
-            Some(meta) => net::send(&self.client, request, self.config.network_retries.unwrap_or(5), || {
-                self.plugins.emit("request_retry", json!({"request_meta":meta})).map(|_| ())
-            }).await?,
+            Some(meta) => {
+                net::send(&self.client, request, self.config.network_retries.unwrap_or(5), || {
+                    self.plugins.emit("request_retry", json!({"request_meta":meta})).map(|_| ())
+                })
+                .await?
+            }
             None => net::exchange(&self.client, request, timeout).await?,
         };
         ensure!(
@@ -495,7 +530,6 @@ impl Plugins {
 fn checked_history(value: Value) -> Result<Vec<Value>> {
     i::agent::history::checked_history(value)
 }
-#[cfg(test)]
 fn tool_calls(message: &Value) -> Result<Vec<Value>> {
     i::agent::history::tool_calls(message)
 }
@@ -635,7 +669,7 @@ impl Workspace {
         }
         let mut shared = i::workspace::Workspace::new(
             i::platform::native::NativeFs::new(self.root.clone())?,
-            i::workspace::Limits { file_bytes: 2_000_000, output_bytes: self.io_limit },
+            i::workspace::Limits { file_bytes: 2_000_000, write_bytes: usize::MAX, output_bytes: self.io_limit },
         );
         shared.exclude_downloads = true;
         if name == "download" {
@@ -648,16 +682,21 @@ impl Workspace {
                     ensure!(!Path::new(&relative).starts_with(source), "archive output overlaps selected source");
                 }
             }
-            let target = self.path(&relative)?;
+            let target = shared.fs.archive_target(Path::new(&relative))?;
             self.approve(&format!("OVERWRITE {}", target.display()), target.exists())?;
-            use i::platform::FileSystem;
-            shared.fs.write_file(Path::new(&relative), &archive.bytes).await?;
+            shared.fs.write_archive(Path::new(&relative), &archive.bytes)?;
             return Ok(json!({"output":format!("Saved ZIP: {} ({} entries)", target.display(), archive.entries)}));
         }
         if matches!(name, "read" | "write" | "edit" | "view_image" | "list") {
-            if name == "view_image" { ensure!(slots > 0, "at most 8 images per tool batch"); shared.limits.file_bytes = 8 * 1024 * 1024; }
+            if name == "view_image" {
+                ensure!(slots > 0, "at most 8 images per tool batch");
+                shared.limits.file_bytes = 8 * 1024 * 1024;
+            }
             if let Some(original) = original {
-                ensure!(read_text(&self.path(field(args,"path")?)?)? == original, "file changed during approval; retry");
+                ensure!(
+                    read_text(&self.path(field(args, "path")?)?)? == original,
+                    "file changed during approval; retry"
+                );
             }
             return shared.execute(name, args).await;
         }

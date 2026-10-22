@@ -1,4 +1,7 @@
-use i::{platform::{Capabilities, FileSystem, native::NativeFs}, workspace::{Workspace, Limits, path::validate, tool_schemas}};
+use i::{
+    platform::{Capabilities, FileSystem, native::NativeFs},
+    workspace::{Limits, Workspace, path::validate, tool_schemas},
+};
 use serde_json::json;
 use std::path::Path;
 
@@ -28,7 +31,9 @@ async fn unicode_binary_and_edit_semantics() {
 fn browser_schema_has_files_but_no_shell() {
     let schemas = tool_schemas(Capabilities::BROWSER);
     let names: Vec<_> = schemas.as_array().unwrap().iter().map(|s| s["function"]["name"].as_str().unwrap()).collect();
-    for name in ["read", "write", "edit", "view_image", "list", "download"] { assert!(names.contains(&name)); }
+    for name in ["read", "write", "edit", "view_image", "list", "download"] {
+        assert!(names.contains(&name));
+    }
     assert!(!names.contains(&"shell"));
 }
 #[cfg(unix)]
@@ -44,7 +49,10 @@ async fn native_symlink_escape() {
 #[tokio::test]
 async fn file_limit_prevents_write() {
     let root = tempfile::tempdir().unwrap();
-    let ws = Workspace::new(NativeFs::new(root.path().into()).unwrap(), Limits { file_bytes: 2, output_bytes: 100 });
+    let ws = Workspace::new(
+        NativeFs::new(root.path().into()).unwrap(),
+        Limits { file_bytes: 2, write_bytes: 2, output_bytes: 100 },
+    );
     assert!(ws.execute("write", &json!({"path":"x","content":"abc"})).await.is_err());
     assert!(!root.path().join("x").exists());
 }

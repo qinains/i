@@ -1,5 +1,14 @@
-use i::{platform::{FileSystem, native::NativeFs}, workspace::{Workspace, Limits, archive::{DownloadRequest, ArchiveLimits}}};
-use std::{io::{Cursor, Read}, path::Path};
+use i::{
+    platform::{FileSystem, native::NativeFs},
+    workspace::{
+        Limits, Workspace,
+        archive::{ArchiveLimits, DownloadRequest},
+    },
+};
+use std::{
+    io::{Cursor, Read},
+    path::Path,
+};
 
 #[tokio::test]
 async fn zip_roundtrip() {
@@ -24,7 +33,9 @@ async fn archive_limits_and_paths() {
     let root = tempfile::tempdir().unwrap();
     let ws = Workspace::new(NativeFs::new(root.path().into()).unwrap(), Limits::browser());
     ws.fs.write_file(Path::new("a"), b"abc").await.unwrap();
-    assert!(ws.archive_with_limits(&DownloadRequest::default(), ArchiveLimits { bytes: 2, entries: 10 }).await.is_err());
+    assert!(
+        ws.archive_with_limits(&DownloadRequest::default(), ArchiveLimits { bytes: 2, entries: 10 }).await.is_err()
+    );
     assert!(ws.archive_with_limits(&DownloadRequest::default(), ArchiveLimits { bytes: 3, entries: 0 }).await.is_err());
     assert!(ws.archive_with_limits(&DownloadRequest::default(), ArchiveLimits { bytes: 3, entries: 1 }).await.is_ok());
     for filename in ["../x.zip", "a/b.zip", "test.txt", "", "C:x.zip"] {
@@ -45,4 +56,42 @@ async fn native_default_excludes_generated_archives() {
     let mut reader = zip::ZipArchive::new(Cursor::new(zip.bytes)).unwrap();
     assert!(reader.by_name("result.txt").is_ok());
     assert!(reader.by_name(".i/downloads/old.zip").is_err());
+}
+
+#[tokio::test]
+async fn growth_after_metadata_cannot_bypass_archive_limit() {
+    use i::platform::FileMetadata;
+    use std::path::PathBuf;
+    struct GrowingFs(NativeFs);
+    impl FileSystem for GrowingFs {
+        async fn read_file_limited(&self, path: &Path, limit: usize) -> anyhow::Result<Vec<u8>> {
+            self.0.write_file(path, b"grown after metadata").await?;
+            self.0.read_file_limited(path, limit).await
+        }
+        async fn write_file(&self, p: &Path, b: &[u8]) -> anyhow::Result<()> {
+            self.0.write_file(p, b).await
+        }
+        async fn create_dir_all(&self, p: &Path) -> anyhow::Result<()> {
+            self.0.create_dir_all(p).await
+        }
+        async fn remove_file(&self, p: &Path) -> anyhow::Result<()> {
+            self.0.remove_file(p).await
+        }
+        async fn read_dir(&self, p: &Path) -> anyhow::Result<Vec<PathBuf>> {
+            self.0.read_dir(p).await
+        }
+        async fn metadata(&self, p: &Path) -> anyhow::Result<Option<FileMetadata>> {
+            self.0.metadata(p).await
+        }
+        async fn canonicalize(&self, p: &Path) -> anyhow::Result<PathBuf> {
+            self.0.canonicalize(p).await
+        }
+    }
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("x"), b"a").unwrap();
+    let ws = Workspace::new(GrowingFs(NativeFs::new(root.path().into()).unwrap()), Limits::browser());
+    assert!(
+        ws.archive_with_limits(&DownloadRequest::default(), ArchiveLimits { bytes: 2, entries: 10 }).await.is_err()
+    );
+    assert_eq!(std::fs::read(root.path().join("x")).unwrap(), b"grown after metadata");
 }

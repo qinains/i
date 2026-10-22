@@ -1,4 +1,5 @@
 import {publishArchive} from './download.js';
+import {saveConfiguration,loadConfiguration,clearConfiguration,DEFAULT_CONFIGURATION} from './config.js';
 
 const $ = id => document.getElementById(id);
 const output = $('output');
@@ -14,7 +15,9 @@ function line(text, type = 'system') {
 }
 function setBusy(value, cancellable = false) {
     busy = value;
-    for (const id of ['input','settings','btn-upload','file-input','btn-download','btn-new']) $(id).disabled = value || !agent;
+    for (const id of ['input','btn-upload','file-input','btn-download','btn-new']) $(id).disabled = value || !agent;
+    $('settings').disabled = value;
+    $('lang-select').disabled = value;
     $('btn-cancel').disabled = !value || !cancellable;
     $('status').textContent = value ? 'Processing...' : agent ? 'Ready' : 'Unavailable';
 }
@@ -51,9 +54,29 @@ async function refresh() {
         $('file-list').append(row);
     }
 }
+function currentConfiguration() {
+    return {base_url:$('base-url').value.trim(),model:$('model').value.trim(),api_key:$('api-key').value,protocol:'openai',
+        max_steps:Number($('max-steps').value),max_tokens:Number($('max-tokens').value),use_max_tokens:$('use-max-tokens').checked,
+        language:$('lang-select').value};
+}
+function restoreConfiguration(config) {
+    for (const [id,key] of [['base-url','base_url'],['model','model'],['api-key','api_key'],['max-steps','max_steps'],['max-tokens','max_tokens'],['lang-select','language']]) $(id).value = config[key];
+    $('use-max-tokens').checked = config.use_max_tokens;
+    document.documentElement.lang = config.language;
+}
+function persistConfiguration() {
+    if (!$('remember-config').checked) return;
+    try {
+        saveConfiguration(localStorage,currentConfiguration());
+        $('config-status').textContent = 'Configuration saved in this browser.';
+    } catch {
+        $('config-status').textContent = 'Configuration could not be saved. Check values and browser storage permissions.';
+    }
+}
 function configure() {
-    agent.configure(JSON.stringify({base_url:$('base-url').value.trim(),model:$('model').value.trim(),api_key:$('api-key').value,
-        max_steps:Number($('max-steps').value),max_tokens:Number($('max-tokens').value),use_max_tokens:$('use-max-tokens').checked}));
+    const {language,...config} = currentConfiguration();
+    agent.configure(JSON.stringify(config));
+    persistConfiguration();
     $('model-name').textContent = `Model: ${$('model').value.trim()}`;
 }
 async function operation(fn, cancellable = false) {
@@ -79,7 +102,7 @@ async function submit(text) {
     await operation(async () => { configure(); await agent.run(text); }, true);
 }
 input.addEventListener('keydown', async event => {
-    if (event.key !== 'Enter' || event.isComposing || busy || !agent) return;
+    if (event.key !== 'Enter' || event.isComposing || event.keyCode === 229 || busy || !agent) return;
     event.preventDefault(); const text = input.value.trim(); input.value = ''; await submit(text);
 });
 $('approve').addEventListener('click', () => settleApproval(true));
@@ -109,17 +132,45 @@ $('file-input').addEventListener('change', () => {
 $('lang-select').addEventListener('change', () => {
     try {localStorage.setItem('i_lang',$('lang-select').value);} catch { /* Optional preference storage. */ }
     document.documentElement.lang = $('lang-select').value;
+    persistConfiguration();
+});
+$('settings').addEventListener('input', persistConfiguration);
+$('remember-config').addEventListener('change', () => {
+    if ($('remember-config').checked) persistConfiguration();
+    else {
+        try {clearConfiguration(localStorage); $('config-status').textContent = 'Saved configuration removed; current values are memory-only.';}
+        catch {$('config-status').textContent = 'Could not remove saved configuration. Clear site storage in browser settings.';}
+    }
+});
+$('clear-config').addEventListener('click', () => {
+    try {
+        clearConfiguration(localStorage); localStorage.removeItem('i_lang');
+        agent?.clear_configuration();
+        restoreConfiguration(DEFAULT_CONFIGURATION); $('remember-config').checked = false;
+        $('model-name').textContent = 'Model: -';
+        $('config-status').textContent = 'Saved and active configuration cleared; workspace files retained.';
+    } catch {$('config-status').textContent = 'Could not clear configuration. Clear site storage in browser settings.';}
 });
 window.addEventListener('pagehide', () => {agent?.cancel(); for (const artifact of artifacts.values()) artifact.dispose();});
 
 async function main() {
     setBusy(false); $('status').textContent = 'Loading WASM...';
     try {
+        const saved = loadConfiguration(localStorage);
+        if (saved) {
+            restoreConfiguration(saved); $('remember-config').checked = true;
+            $('config-status').textContent = 'Saved configuration restored from this browser.';
+        } else {
+            const language = localStorage.getItem('i_lang');
+            if ([...$('lang-select').options].some(option => option.value === language)) $('lang-select').value = language;
+        }
+    } catch {$('config-status').textContent = 'Saved configuration unavailable or invalid. Clear it to start again.';}
+    try {
         const {default:init, BrowserAgent} = await import('./pkg/i.js');
         await init(); agent = await BrowserAgent.create(event, approve, publish);
         setBusy(false); await refresh();
         line('i — browser workspace. Shell is disabled; file tools use persistent OPFS.');
-        line('Configure a CORS-enabled Chat Completions endpoint and model. API key stays in this page only.');
+        line('Configure a CORS-enabled Chat Completions endpoint and model. Configuration is memory-only unless Remember is enabled.');
         line('Use /help for commands. Clearing site data deletes this workspace.');
     } catch (error) {
         agent = null; setBusy(false); line(`Initialization failed: ${error.message ?? error}. Build with scripts/build_web.sh and serve over localhost/HTTPS.`, 'error');

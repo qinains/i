@@ -32,10 +32,12 @@ export async function opfsRead(root, path, limit) {
 }
 export async function opfsWrite(root, path, bytes) {
     if (bytes.length > FILE_LIMIT) throw new Error('File exceeds 8 MiB');
+    // Imported slices borrow WASM memory, which may grow while awaiting handles.
+    const content = bytes.slice();
     const [dir, name] = await parent(root, path, true);
     const writer = await (await dir.getFileHandle(name, {create: true})).createWritable();
     try {
-        await writer.write(bytes);
+        await writer.write(content);
         await writer.close();
     } catch (error) {
         try { await writer.abort(); } catch { /* Preserve the original write failure. */ }
