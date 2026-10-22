@@ -1,0 +1,13 @@
+**/target/
+/dist/
+/.i/
+/.1k/
+.env
+__pycache__/
+*.pyc
+/plugins/*.local.json
+/plugins.local.json
+/web/pkg/
+/web/node_modules/
+/web/test-results/
+/web/playwright-report/
