@@ -33,8 +33,8 @@ export async function readChatCompletion(reader, {signal,onDelta = () => {},maxB
                 let tool = tools.get(fragment.index);
                 if (!tool) { tool = {id:'',type:'function',function:{name:'',arguments:''}}; tools.set(fragment.index,tool); }
                 if (fragment.id != null) {
-                    if (typeof fragment.id !== 'string' || (tool.id && tool.id !== fragment.id)) throw new Error('Conflicting tool ID');
-                    tool.id = fragment.id;
+                    if (typeof fragment.id !== 'string') throw new Error('Invalid tool ID');
+                    tool.id += fragment.id;
                 }
                 if (fragment.type != null && fragment.type !== 'function') throw new Error('Invalid tool type');
                 if (fragment.function != null) {
@@ -80,6 +80,7 @@ export async function readChatCompletion(reader, {signal,onDelta = () => {},maxB
                 if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('Invalid tool arguments');
                 return tool;
             });
+            if (new Set(message.tool_calls.map(tool => tool.id)).size !== tools.size) throw new Error('Duplicate tool ID');
         } else if (finish === 'tool_calls') throw new Error('Missing tool calls');
         return {choices:[{index:0,message,finish_reason:finish}],...(usage == null ? {} : {usage})};
     } catch (error) { await reader.cancel().catch(() => {}); throw error; }

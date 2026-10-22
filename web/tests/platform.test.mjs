@@ -51,6 +51,16 @@ test('Fetch respects an already aborted request', async () => {
     const controller = new AbortController(); controller.abort();
     await assert.rejects(fetchModel('http://127.0.0.1:1', '{}', '', controller.signal));
 });
+test('HTTP errors redact keys before clipping at the display boundary', async () => {
+    const key = 'PRIVATE_SECRET_KEY';
+    const server = http.createServer(async (req,res) => {for await (const c of req) {} res.writeHead(401); res.end('x'.repeat(2000-key.length+1)+key);});
+    await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
+    try {
+        await assert.rejects(fetchModel(`http://127.0.0.1:${server.address().port}`,'{}',key,new AbortController()),error => {
+            assert.ok(!error.message.includes(key.slice(0,-1))); assert.ok(error.message.includes('[redacted]')); return true;
+        });
+    } finally {server.closeAllConnections(); await new Promise(resolve => server.close(resolve));}
+});
 test('write copies borrowed WASM bytes before its first await', async () => {
     const bytes = new Uint8Array([1,2]); let written;
     const root = {getFileHandle: async () => ({createWritable: async () => ({write: async data => {written = [...data];}, close: async () => {}})})};

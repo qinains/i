@@ -1,4 +1,4 @@
-import {test, expect} from '@playwright/test';
+import {test, expect} from './fixtures.mjs';
 import {readFile} from 'node:fs/promises';
 import {execFileSync} from 'node:child_process';
 async function configure(page) {
@@ -13,6 +13,7 @@ test('stream displays before server release without duplicate final output; canc
     await configure(page); await submit(page,'STREAM');
     await expect(page.locator('#output')).toContainText('First visible');
     await expect(page.locator('#status')).toHaveText('Processing...');
+    await expect(page.locator('#btn-clear')).toBeDisabled();
     await page.request.get('/release-stream');
     await expect(page.locator('#status')).toHaveText('Ready');
     await expect(page.locator('.line.assistant')).toHaveCount(1);
@@ -62,7 +63,7 @@ test('CORS failures report an error without writing files or leaking credentials
     await configure(page);
     await page.locator('#base-url').fill('http://127.0.0.1:4174/mock/v1');
     await submit(page,'MAKE');
-    await expect(page.locator('#output')).toContainText('Failed to fetch');
+    await expect(page.locator('#output')).toContainText('Network request failed');
     await expect(page.locator('#status')).toHaveText('Ready');
     await expect(page.locator('#file-list')).toContainText('No files');
     await expect(page.locator('#output')).not.toContainText('TEST_SECRET_NOT_PERSISTED');

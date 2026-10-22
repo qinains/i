@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import {EventEmitter} from 'node:events';
+import {fileURLToPath} from 'node:url';
 import {createRelayServer} from '../relay.mjs';
 const token = 'a'.repeat(48), origin = 'https://harness.example', endpoint = 'https://api.example/v1/chat/completions';
 async function fixture(options={}) {
@@ -28,8 +29,8 @@ test('bounded requests, rate, concurrent requests, deadlines and disconnect abor
         assert.equal((await pending).status,504);
     } finally {await slow.close();}
     const abort = await fixture({lookup:async () => [{address:'8.8.8.8',family:4}],connect:(url,opts) => {
-        opts.signal.addEventListener('abort',() => {upstreamAborted = true;});
         const req = new EventEmitter();
+        opts.signal.addEventListener('abort',() => {upstreamAborted = true; req.emit('error',new Error('aborted'));});
         req.end = () => {}; return req;
     }});
     try {
@@ -49,6 +50,21 @@ test('auth, origin, endpoint, method, content type and SSRF fail before upstream
         assert.equal((await fetch(f.url)).status,405);
         assert.equal((await fetch(f.url.replace('/api/chat/completions','/.env'))).status,404);
     } finally {await f.close();}
+});
+test('static publish manifest serves assets, not repository or hidden files; response limit aborts', async () => {
+    const f = await fixture({staticRoot:fileURLToPath(new URL('../../web/',import.meta.url))});
+    const root = f.url.replace('/api/chat/completions','');
+    try {
+        assert.equal((await fetch(root+'/')).status,200);
+        assert.match((await fetch(root+'/pkg/i_bg.wasm')).headers.get('content-type'),/application\/wasm/);
+        for (const pathname of ['/.env','/tests/mock-server.mjs','/node_modules/@playwright/test/cli.js','/../server/main.mjs','/%2e%2e/server/main.mjs']) assert.equal((await fetch(root+pathname)).status,404);
+    } finally {await f.close();}
+    const upstream = http.createServer(async (req,res) => {for await (const c of req) {} res.end('response-too-large');});
+    await new Promise(resolve => upstream.listen(0,'127.0.0.1',resolve));
+    const limited = await fixture({limits:{bytes:4},lookup:async () => [{address:'8.8.8.8',family:4}],connect:(_url,opts,cb) => http.request(`http://127.0.0.1:${upstream.address().port}`,{...opts,lookup:undefined},cb)});
+    try {
+        await assert.rejects(async () => {const r = await fetch(limited.url,{method:'POST',headers,body:'{}'}); await r.text();});
+    } finally {await limited.close(); upstream.closeAllConnections(); await new Promise(resolve => upstream.close(resolve));}
 });
 test('upstream uses pinned DNS and restricted headers, preserves status; limits and redirect fail', async () => {
     let status = 200, observed;

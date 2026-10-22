@@ -10,7 +10,7 @@
 
 ## 当前能力
 
-- [浏览器 WASM 终端](docs/wasm.md)：真实模型请求、OPFS 持久化文件操作、审批及 ZIP 下载；浏览器禁用 shell/进程插件。执行 `./scripts/build_web.sh`，通过 localhost/HTTPS 提供 `web/` 即可使用。
+- [浏览器 WASM PWA](docs/wasm.md)：流式模型请求、OPFS 持久化文件操作、审批、ZIP 下载和离线启动；默认直连，缺少 CORS 时可选[自有同源转发](server/README.md)。浏览器禁用 shell/进程插件。执行 `./scripts/build_web.sh` 后通过 HTTPS 发布静态产物，localhost 用于开发。
 
 - 可替换的 OpenAI Chat/Responses、DeepSeek、Anthropic provider worker；核心不再包含服务商 wire-format 分支。详见[provider 契约与边界](docs/providers.md)。
 - 可显式启用 [DeepSeek Files 上传和作用域内 file_id 复用](docs/provider-files.md)；密钥与 HTTP 留在核心，上传失败不自动重试，默认仍用 Base64。[远端管理](docs/provider-files-management.md)支持列表、查询、强制确认删除和显式恢复映射，不调用模型。另支持 [OpenAI Responses/Anthropic Files 与可选生命周期管理](docs/files-lifecycle.md)，自动清理需单独授权。

@@ -15,17 +15,18 @@ test('single-byte UTF8, CRLF, heartbeat, multiline data, usage and deltas', asyn
     assert.equal(out.choices[0].message.reasoning_content,'opaque'); assert.equal(out.usage.total_tokens,3);
 });
 test('interleaved tools are assembled without dispatching them', async () => {
-    const raw = frame({tool_calls:[{index:0,id:'a',type:'function',function:{name:'write',arguments:'{"p'}},{index:1,id:'b',type:'function',function:{name:'read',arguments:'{}'}}]})
-        +frame({tool_calls:[{index:0,function:{arguments:'ath":"x"}'}}]})+frame({},'tool_calls')+'data: [DONE]\n\n';
+    const raw = frame({tool_calls:[{index:0,id:'call_',type:'function',function:{name:'write',arguments:'{"p'}},{index:1,id:'b',type:'function',function:{name:'read',arguments:'{}'}}]})
+        +frame({tool_calls:[{index:0,id:'123',function:{arguments:'ath":"x"}'}}]})+frame({},'tool_calls')+'data: [DONE]\n\n';
     const out = await readChatCompletion(reader(raw),{});
     assert.equal(out.choices[0].message.tool_calls[0].function.arguments,'{"path":"x"}');
     assert.equal(out.choices[0].message.tool_calls[1].id,'b');
+    assert.equal(out.choices[0].message.tool_calls[0].id,'call_123');
 });
 test('truncated, conflicting, error and unsupported streams fail closed', async () => {
     for (const raw of [frame({content:'partial'}),frame({},'stop'),frame({})+'data: [DONE]\n\n',
         frame({},'length')+'data: [DONE]\n\n','data: {"error":{"message":"bad"}}\n\n',
         'data: {"choices":[{"index":1,"delta":{}}]}\n\n',
-        frame({tool_calls:[{index:0,id:'a'}]})+frame({tool_calls:[{index:0,id:'b'}]}),
+        frame({tool_calls:[{index:0,type:'function'}]})+frame({tool_calls:[{index:0,type:'other'}]}),
         frame({},'stop')+frame({content:'late'})+'data: [DONE]\n\n']) {
         await assert.rejects(readChatCompletion(reader(raw),{}));
     }

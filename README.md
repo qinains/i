@@ -10,7 +10,7 @@ A plugin-first Rust coding agent with a shared Native/browser WASM core. Native 
 
 ## What is implemented
 
-- [Browser WASM terminal](docs/wasm.md): persistent OPFS file tools, real Chat Completions requests, approvals and ZIP workspace downloads. Shell/process plugins are disabled in the browser. Build with `./scripts/build_web.sh`, then serve `web/` over localhost/HTTPS.
+- [Browser WASM PWA](docs/wasm.md): streaming Chat Completions, persistent OPFS file tools, approvals, ZIP downloads and offline app startup. Direct mode is default; an [own same-origin relay](server/README.md) is optional for APIs without CORS. Shell/process plugins are disabled. Build with `./scripts/build_web.sh`, then publish the static assets over HTTPS (localhost for development).
 
 - Replaceable provider workers for OpenAI Chat/Responses, DeepSeek and Anthropic Messages; no vendor wire-format branches in the core. See [provider contracts and limits](docs/providers.md).
 - Opt-in [DeepSeek Files uploads and scoped file_id reuse](docs/provider-files.md), with host-held credentials and no automatic upload retries; Base64 remains the default. [Remote Files management](docs/provider-files-management.md) supports list/get/delete and explicit reconciliation without generating a model response; ordinary DELETE always asks. [OpenAI Responses/Anthropic Files and opt-in lifecycle maintenance](docs/files-lifecycle.md) are also supported; automated cleanup requires a separate host capability.

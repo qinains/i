@@ -110,7 +110,11 @@ export async function fetchModel(url, body, key, controller, options = {}, onEve
             return JSON.stringify(result);
         }
         const text = await readText(reader,signal);
-        if (!response.ok) throw new Error(`API ${response.status}: ${text.slice(0,2000)}`);
+        if (!response.ok) {
+            let detail = text;
+            for (const secret of [key,options.relayToken]) if (secret) detail = detail.split(secret).join('[redacted]');
+            throw new Error(`API ${response.status}: ${detail.slice(0,2000)}`);
+        }
         return text;
     } catch (error) {
         if (stream) notify('stream_error');
