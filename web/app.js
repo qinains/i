@@ -1,11 +1,13 @@
 import {publishArchive} from './download.js';
 import {saveConfiguration,loadConfiguration,clearConfiguration,DEFAULT_CONFIGURATION} from './config.js';
+import {registerPwa} from './pwa.js';
 
 const $ = id => document.getElementById(id);
 const output = $('output');
 const input = $('input');
 let agent;
 let busy = false;
+let updateLocked = false;
 let pendingApproval;
 let streamBlock;
 let streamedText = null;
@@ -18,7 +20,8 @@ function line(text, type = 'system') {
 }
 function setBusy(value, cancellable = false) {
     busy = value;
-    for (const id of ['input','btn-upload','file-input','btn-download','btn-new']) $(id).disabled = value || !agent;
+    value = value || updateLocked;
+    for (const id of ['input','btn-upload','file-input','btn-download','btn-new','btn-clear']) $(id).disabled = value || !agent;
     $('settings').disabled = value;
     $('lang-select').disabled = value;
     $('btn-cancel').disabled = !value || !cancellable;
@@ -104,7 +107,7 @@ function configure() {
     $('model-name').textContent = `Model: ${$('model').value.trim()}`;
 }
 async function operation(fn, cancellable = false) {
-    if (busy || !agent) return;
+    if (busy || updateLocked || !agent) return;
     setBusy(true, cancellable);
     try { await fn(); } catch (error) { line(`Error: ${error.message ?? error}`, 'error'); }
     finally {
@@ -114,7 +117,8 @@ async function operation(fn, cancellable = false) {
     }
 }
 async function submit(text) {
-    if (busy || !agent || !text) return;
+    if (busy || updateLocked || !agent || !text) return;
+    if (!navigator.onLine && !text.startsWith('/')) {line('Offline: AI needs a network connection. Local files and ZIP export remain available.','error'); return;}
     line(`> ${text}`, 'user');
     if (text.startsWith('!')) { line('Shell commands are disabled in browser mode.', 'error'); return; }
     if (text === '/help') { line('/help /clear /new /files /download. Shell is disabled.'); return; }
@@ -178,6 +182,8 @@ $('clear-config').addEventListener('click', () => {
 window.addEventListener('pagehide', () => {agent?.cancel(); for (const artifact of artifacts.values()) artifact.dispose();});
 
 async function main() {
+    registerPwa({isBusy:() => busy,onLock:value => {updateLocked = value; setBusy(busy);},onStatus:text => {$('pwa-status').textContent = text;}})
+        .catch(() => {$('pwa-status').textContent = 'PWA installation unavailable; browser workspace can still be used online.';});
     setBusy(false); $('status').textContent = 'Loading WASM...';
     try {
         const saved = loadConfiguration(localStorage);

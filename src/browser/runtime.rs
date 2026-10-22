@@ -91,6 +91,7 @@ impl BrowserAgent {
         if state.config.base_url != cfg.base_url
             || state.config.model != cfg.model
             || state.config.protocol != cfg.protocol
+            || state.config.transport != cfg.transport
         {
             state.history = initial_history();
         }

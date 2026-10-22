@@ -5,3 +5,4 @@ wasm-pack build --target web --out-dir web/pkg --out-name i --no-opt --no-defaul
 for bridge in web/pkg/snippets/*/web/platform.js; do
     cp web/sse.js "$(dirname "$bridge")/sse.js"
 done
+node scripts/build_pwa.mjs

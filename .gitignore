@@ -11,3 +11,7 @@ __pycache__/
 /web/node_modules/
 /web/test-results/
 /web/playwright-report/
+/web/assets.json
+/web/service-worker.js
+/web/icons/icon-192.png
+/web/icons/icon-512.png

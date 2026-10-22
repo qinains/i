@@ -1,4 +1,4 @@
-import {test, expect} from '@playwright/test';
+import {test, expect} from './fixtures.mjs';
 test('OPFS persists nested Unicode and binary data across reload', async ({page}) => {
     await page.goto('/');
     await page.evaluate(async () => {

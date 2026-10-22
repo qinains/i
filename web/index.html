@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>i (lninl) - Web</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#141414">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
 </head>
 <body>
     <div id="app">
@@ -26,6 +29,12 @@
                 </select>
             </div>
         </header>
+        <section id="pwa-panel" aria-label="App installation">
+            <button id="btn-install" hidden>Install app</button>
+            <button id="btn-update" hidden>Apply app update</button>
+            <span id="pwa-status" role="status"></span>
+            <details><summary>Install on iPhone / offline use</summary><p>Open this HTTPS page in Safari, tap Share, then Add to Home Screen. PWA does not bypass CORS. Open once online to cache the app; AI still needs a network connection. Installed app storage may differ from browser tabs. Back up files as ZIP; clearing site data or system eviction can delete them. Keep the app foregrounded during generation.</p></details>
+        </section>
 
         <fieldset id="settings">
             <legend>Chat Completions configuration</legend>

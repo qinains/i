@@ -16,6 +16,7 @@ body {
     display: flex;
     flex-direction: column;
     height: 100vh;
+    min-height: 100dvh;
 }
 
 header {
@@ -158,12 +159,24 @@ header h1 {
 #approval-description { white-space: pre-wrap; max-height: 160px; overflow: auto; }
 button { cursor: pointer; padding: 5px 10px; }
 button:disabled { opacity: .5; cursor: not-allowed; }
+#pwa-panel { padding: 8px 16px; background: #252525; font-size: 12px; }
+#pwa-panel details { margin-top: 6px; }
+details p { padding: 6px 0; line-height: 1.5; }
+button, select, input { max-width: 100%; }
 [hidden] { display: none !important; }
 @media (max-width: 700px) {
     header { flex-wrap: wrap; gap: 8px; }
     .controls { flex-wrap: wrap; }
     #settings label { width: 100%; }
     #settings input:not([type="checkbox"]) { flex: 1; min-width: 0; }
+    #input, #settings input, select { font-size: 16px; }
+    #input { min-width: 0; }
+    button { min-height: 40px; }
+    #settings, #workspace-info, #pwa-panel { overflow-wrap: anywhere; }
+    #workspace-info { flex-wrap: wrap; }
+    #app { height: auto; min-height: 100dvh; padding-bottom: env(safe-area-inset-bottom); }
+    #terminal { min-height: 320px; }
+    #output { max-height: 50dvh; }
 }
 
 .panel.open {
