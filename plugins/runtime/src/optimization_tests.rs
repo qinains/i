@@ -1,4 +1,6 @@
-use super::{brand, budget, cache, context, memory, paths::AppPaths, skills, state};
+#[cfg(unix)]
+use super::skills;
+use super::{brand, budget, cache, context, memory, paths::AppPaths, state};
 #[test]
 fn query_encoding_matches_the_previous_serializer() {
     fn check(value: Value) {
