@@ -459,7 +459,7 @@ fn generate_sha256sums(package_dir: &Path) -> Result<()> {
         hasher.update(&content);
         let hash = hasher.finalize();
         let hex = hex::encode(hash);
-        let relative = file.strip_prefix(package_dir)?.to_string_lossy();
+        let relative = file.strip_prefix(package_dir)?.to_string_lossy().replace('\\', "/");
         sums.push_str(&format!("{}  {}\n", hex, relative));
     }
 
@@ -615,10 +615,10 @@ fn add_dir_to_zip<W: Write + io::Seek>(
         let name = prefix.join(path.strip_prefix(dir)?);
 
         if path.is_dir() {
-            zip.add_directory(name.to_string_lossy(), *exec_options)?;
+            zip.add_directory(name.to_string_lossy().replace('\\', "/"), *exec_options)?;
             add_dir_to_zip(zip, &path, &name, exec_options, file_options)?;
         } else {
-            zip.start_file(name.to_string_lossy(), *file_options)?;
+            zip.start_file(name.to_string_lossy().replace('\\', "/"), *file_options)?;
             let content = fs::read(&path)?;
             zip.write_all(&content)?;
         }

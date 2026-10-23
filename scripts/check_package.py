@@ -21,6 +21,7 @@ def check(archive):
         bundle = next(root.iterdir())
         for line in (bundle / 'SHA256SUMS').read_text().splitlines():
             digest, name = line.split('  ', 1)
+            assert '\\' not in name, 'Package checksum paths must use portable forward slashes'
             assert hashlib.sha256((bundle / name).read_bytes()).hexdigest() == digest, name
         suffix = '.exe' if os.name == 'nt' else ''
         core = bundle / 'bin' / ('i' + suffix)
@@ -40,8 +41,10 @@ def check(archive):
         for name in ('CONFIG', 'DATA', 'CACHE', 'RUNTIME'):
             environment[f'I_{name}_DIR'] = str(root / name.lower())
         def run(argv):
-            return subprocess.run([str(value) for value in argv], env=environment, cwd=root,
-                                  stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=45, check=True)
+            result = subprocess.run([str(value) for value in argv], env=environment, cwd=root,
+                                    stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=45)
+            assert result.returncode == 0, (result.returncode, result.stdout, result.stderr)
+            return result
         assert 'i 0.1.0' in run([core, '--version']).stdout
         assert 'cx="171.5"' in run([*helper, 'logo', '--svg']).stdout
         run([*helper, 'init'])
