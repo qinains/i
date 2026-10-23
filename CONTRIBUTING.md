@@ -10,7 +10,7 @@ Source: https://github.com/qinains/i · Documentation: https://i.lninl.com/docs/
 - [Native worker contract](docs/plugins.md)
 - [Security reporting](SECURITY.md)
 
-Rust 1.91+, Node.js and Python 3 are development prerequisites. Do not use a real
+Rust 1.91+, Node.js 22+ and Python 3.11+ are development prerequisites. Do not use a real
 API key for unit/browser tests. Keep model traffic mocked unless a maintainer
 explicitly authorizes a paid integration test.
 
@@ -35,9 +35,9 @@ cd web
 npm run test:browser -- tests/plugin-agent.spec.mjs tests/plugin-broker.spec.mjs
 ```
 
-The complete browser suite has historical failing expectations documented in
-[browser verification notes](docs/wasm.md). Report exact commands and failures;
-do not hide failures or claim that a targeted run is the full suite.
+Run `npm run test:browser` for the complete Chromium/WebKit suite; see
+[browser verification notes](docs/wasm.md) for coverage and limitations. Report
+exact commands and failures; do not claim a targeted run is the full suite.
 
 ## Pull requests
 

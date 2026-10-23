@@ -13,7 +13,7 @@ RUSTFLAGS="${RUSTFLAGS:-} -C link-arg=--max-memory=67108864" cargo build --manif
 name=$(cargo metadata --manifest-path "$crate/Cargo.toml" --no-deps --format-version 1 | node -e 'let s="";process.stdin.on("data",v=>s+=v);process.stdin.on("end",()=>{const m=JSON.parse(s);const p=m.packages.find(p=>p.manifest_path===process.argv[1]+"/Cargo.toml");if(!p)process.exit(1);process.stdout.write(p.name.replaceAll("-","_"));});' "$crate")
 cp "$target/wasm32-unknown-unknown/release/$name.wasm" "$stage/plugin.wasm"
 cp "$crate/manifest.json" "$stage/manifest.json"
-cp "$crate/LICENSE" "$stage/LICENSE"
+python3 scripts/build_license_notices.py --manifest-path "$crate/Cargo.toml" --include-license "$crate/LICENSE" --output "$stage/LICENSE"
 filename=$(node -e 'const fs=require("fs");const m=JSON.parse(fs.readFileSync(process.argv[1]));if(!/^[a-z][a-z0-9.-]{0,63}$/.test(m.id)||!/^\d+\.\d+\.\d+$/.test(m.version))process.exit(1);process.stdout.write(m.id+"-"+m.version+".hplugin.zip");' "$stage/manifest.json")
 cargo run -q -p i-wasm-package --features cli --bin i-plugin-pack -- "$stage" "$stage/$filename"
 mv -f "$stage/$filename" "$output/$filename"

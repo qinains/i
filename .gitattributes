@@ -1,2 +1,4 @@
 # Preserve the audited upstream bytes on Windows checkouts as well.
 vendor/globset/** -text
+vendor/licenses/*.txt -text
+THIRD_PARTY_LICENSES.txt -text
