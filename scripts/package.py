@@ -48,9 +48,10 @@ needs manual review. /exit finishes a session; Ctrl-C aborts an active task.
 The installer copies a locally supplied executable; this is not a release downloader.
 SHA256SUMS detects corruption, not publisher authenticity. Verify download provenance.
 
-Networking uses synchronous HTTP and platform TLS, with certificate/hostname
-verification enabled. macOS/Windows use system TLS; Linux requires OpenSSL and
-system CA certificates. No external curl/Python process handles networking.
+Networking uses synchronous HTTP with certificate/hostname verification enabled.
+The core uses Rustls with Mozilla roots; the optional web worker uses system TLS
+(OpenSSL and system CA certificates on Linux). No external curl/Python process
+handles networking.
 API config supports proxy (HTTP CONNECT, SOCKS5, SOCKS5h), with an empty string
 forcing direct connections; omit it to inherit proxy environment variables.
 Web tools disable proxies and validate the actual resolved destination addresses.
@@ -116,11 +117,11 @@ Build profiles:
             panic=abort, no incremental compilation. Agent/plugin modules stay enabled.
   Optional --outline: additional AArch64 min-size machine outlining; flags are
             recorded in BUILD.json. Only macOS arm64 was locally exercised.
-Full regex Unicode syntax remains enabled. Globset uses unmodified upstream
-Rust sources with narrower backend features: literal prefiltering is retained,
-extra DFA/backtracking engines omitted. Search performance may differ.
-The globset MIT notice is included; this is not a complete dependency-license audit. TLS uses system trust. The pinned ureq version also bundles Mozilla root data;
-its native-tls feature must remain enabled for the actual HTTPS connector.
+Full regex Unicode syntax and performance backends remain enabled by the shared
+workspace search tool. Globset's upstream Rust sources remain unmodified.
+Project MIT and third-party copyright/license texts are included separately.
+The core uses Rustls with Mozilla roots; the optional ureq web worker uses
+platform-native TLS. Their trust stores can differ.
 BPE vocabularies are not bundled. Budgeting uses returned usage where valid,
 with conservative byte/image estimates for unmeasured history and new content.
 min-size trades compilation time/debuggability (and possibly execution speed)
@@ -139,7 +140,7 @@ Release build does not mean public-release readiness. Windows terminal execution
 has not been locally verified. Binaries are not Developer-ID signed or
 notarized for macOS distribution (toolchain ad-hoc signatures may be present).
 Only the recorded native target was built; this is not a universal binary.
-This local package is not a dependency-license audit/publication artifact.
+Preserve LICENSE.txt, THIRD_PARTY_LICENSES.txt and upstream notices when redistributing.
 
 Sizes exclude personal configuration, sessions, metrics, caches, and build
 artifacts. SHA256SUMS covers every other packaged file, including BUILD.json.
@@ -209,8 +210,10 @@ def main():
         (package / 'start.sh').chmod(0o755)
         shutil.copy2(ROOT / 'assets/lninl.svg', package / 'logo.svg')
         shutil.copy2(ROOT / 'vendor/globset/LICENSE-MIT', package / 'LICENSE-globset.txt')
+        shutil.copy2(ROOT / 'LICENSE', package / 'LICENSE.txt')
+        shutil.copy2(ROOT / 'THIRD_PARTY_LICENSES.txt', package / 'THIRD_PARTY_LICENSES.txt')
         metadata = dict(version=version, target=host, profile=args.profile, layout='bundled',
-                        tls='platform-native', rustc=rustc.splitlines()[0],
+                        tls='model-rustls-mozilla/web-platform-native', rustc=rustc.splitlines()[0],
                         rustc_flags=rustc_flags if not args.skip_build else None,
                         binary_bytes=sizes, binary_total_bytes=sum(sizes.values()),
                         known_issues=['Scalar-based editor, not full Unicode graphemes', 'Windows terminal execution not locally verified'],

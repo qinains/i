@@ -24,6 +24,8 @@ jobs:
           toolchain: '1.95.0'
           targets: wasm32-unknown-unknown
       - run: cargo install wasm-pack --version 0.15.0 --locked
+      - run: cargo fetch --locked
+      - run: python3 scripts/build_license_notices.py --check
       - run: sh scripts/build_web.sh
       - run: npm ci --prefix web
       - run: npm test --prefix web

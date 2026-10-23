@@ -19,6 +19,9 @@ def check(archive):
         with tarfile.open(archive) as package:
             package.extractall(root, filter='data')
         bundle = next(root.iterdir())
+        assert 'MIT License' in (bundle / 'LICENSE.txt').read_text(encoding='utf-8')
+        assert 'Third-party Rust dependency licenses' in (bundle / 'THIRD_PARTY_LICENSES.txt').read_text(encoding='utf-8')
+        assert (bundle / 'THIRD_PARTY_LICENSES.txt').read_bytes() == Path(__file__).resolve().parents[1].joinpath('THIRD_PARTY_LICENSES.txt').read_bytes(), 'Package contains stale third-party notices'
         for line in (bundle / 'SHA256SUMS').read_text().splitlines():
             digest, name = line.split('  ', 1)
             assert '\\' not in name, 'Package checksum paths must use portable forward slashes'

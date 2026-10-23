@@ -174,6 +174,7 @@ def main():
         toc = '<nav aria-label="本页目录"><strong>本页内容</strong>' + "".join(f'<a class="level-{level}" href="#{html.escape(identifier)}">{html.escape(title)}</a>' for level, title, identifier in sections) + "</nav>"
         emit(page["url"], page["title"] + " · i 文档", '<article>' + body + '<p class="source-link"><a href="' + REPOSITORY + '/edit/main/' + str(page["source"].relative_to(ROOT)) + '">在 GitHub 改进本页</a></p></article>', toc, True)
     shutil.copytree(ROOT / "site/assets", staging / "assets")
+    shutil.copyfile(ROOT / "THIRD_PARTY_LICENSES.txt", staging / "third-party-licenses.txt")
     (staging / "search-index.json").write_text(json.dumps([{key: page[key] for key in ["title", "url", "text"]} for page in pages], ensure_ascii=False))
     urls = ["/"] + [page["url"] for page in pages] + ["/app/"]
     (staging / "sitemap.xml").write_text('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + "".join("<url><loc>" + html.escape(origin + url) + "</loc></url>" for url in urls) + "</urlset>")

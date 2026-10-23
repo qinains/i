@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "extensions/cors-helper"
 OUTPUT = ROOT / "web/downloads"
 STAGE = ROOT / "dist/cors-helper"
-FILES = ["rules.js", "actions.js", "background.js", "popup.html", "popup.css", "popup.js", "README.md"]
+FILES = ["rules.js", "actions.js", "background.js", "popup.html", "popup.css", "popup.js", "README.md", "LICENSE"]
 
 
 def icon(size):
@@ -41,7 +41,7 @@ def main():
         if browser == "firefox":
             variant["browser_specific_settings"] = {"gecko": {"id": "harness-cors-helper@lninl.local", "strict_min_version": "142.0", "data_collection_permissions": {"required": ["none"]}}}
         for name in FILES:
-            shutil.copyfile(SOURCE / name, folder / name)
+            shutil.copyfile(ROOT / "LICENSE" if name == "LICENSE" else SOURCE / name, folder / name)
         for size in [48, 128]:
             (folder / f"icon-{size}.png").write_bytes(icon(size))
         (folder / "manifest.json").write_text(json.dumps(variant, indent=2) + "\n")

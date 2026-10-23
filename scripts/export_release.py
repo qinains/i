@@ -14,6 +14,8 @@ SKIP_PATHS = {"examples/plugins.json", "docs/tools-composer-verification.md", "d
 
 
 SKIP_PATHS |= {"docs/dependency-audit.md", "docs/dependency-size.md", "docs/size-report.md"}
+SKIP_PATHS |= {"web/LICENSE.txt", "web/THIRD_PARTY_LICENSES.txt"}
+FILES |= {"THIRD_PARTY_LICENSES.txt"}
 
 
 def included(relative):
