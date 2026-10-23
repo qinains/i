@@ -2,7 +2,7 @@
 
 ## 构建与启动
 
-需要 Rust 1.91+、`wasm32-unknown-unknown`、wasm-pack 和 Node.js 24+（构建静态 PWA）；纯直连的 Web 运行时不需要 npm 或服务端 Agent。
+需要 Rust 1.91+、`wasm32-unknown-unknown`、wasm-pack、Node.js 22+ 和 Python 3.11+（构建静态 PWA 与发布包）；纯直连的 Web 运行时不需要 npm 或服务端 Agent。
 
 ```sh
 rustup target add wasm32-unknown-unknown
