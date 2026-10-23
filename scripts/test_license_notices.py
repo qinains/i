@@ -2,6 +2,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -12,6 +13,19 @@ spec.loader.exec_module(notices)
 
 
 class LicenseNoticeTests(unittest.TestCase):
+    def test_git_autocrlf_preserves_hashed_notices(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(['git', 'init', '--quiet', str(root)], check=True)
+            subprocess.run(['git', '-C', str(root), 'config', 'core.autocrlf', 'true'], check=True)
+            (root / '.gitattributes').write_bytes((notices.ROOT / '.gitattributes').read_bytes())
+            path = root / 'vendor/licenses/fixture.txt'; path.parent.mkdir(parents=True)
+            data = b'upstream copyright\npermission\n'; path.write_bytes(data)
+            subprocess.run(['git', '-C', str(root), 'add', '.'], check=True, capture_output=True)
+            path.unlink()
+            subprocess.run(['git', '-C', str(root), 'checkout-index', '--all'], check=True)
+            self.assertEqual(path.read_bytes(), data)
+
     def package(self, root, name='fixture'):
         return {'name': name, 'version': '1.0.0', 'license': 'MIT', 'manifest_path': str(root / 'Cargo.toml')}
 
