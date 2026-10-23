@@ -1,0 +1,61 @@
+{
+  "app.name": "i (lninl)",
+  "app.tagline": "Kleiner Kern. Deine Werkzeuge. Dein Modell.",
+
+  "welcome": "Willkommen bei i!",
+  "welcome.first_run": "Es sieht so aus, als wäre dies dein erster Besuch. Lass uns einrichten.",
+
+  "install.title": "Installation",
+  "install.prompt": "i in {} installieren?",
+  "install.add_path": "Zu PATH hinzufügen?",
+  "install.success": "Installiert in {}",
+  "install.skipped": "Installation übersprungen.",
+
+  "setup.title": "Konfiguration",
+  "setup.provider": "Wähle deinen KI-Anbieter:",
+  "setup.provider.openai": "OpenAI",
+  "setup.provider.deepseek": "DeepSeek",
+  "setup.provider.anthropic": "Anthropic",
+  "setup.base_url": "API-Basis-URL:",
+  "setup.model": "Modellname:",
+  "setup.api_key": "API-Schlüssel (oder Enter zum Überspringen):",
+  "setup.api_key_env": "Oder setze die Umgebungsvariable {}.",
+  "setup.max_tokens": "Maximale Token pro Anfrage:",
+  "setup.success": "Konfiguration gespeichert in {}",
+
+  "error.title": "Fehler",
+  "error.no_locale": "Sprachdateien nicht gefunden. Überprüfe das Verzeichnis locales/.",
+  "error.no_config": "Keine Konfiguration gefunden. Führe zuerst die Einrichtung aus.",
+  "error.invalid_provider": "Ungültige Anbieterauswahl.",
+  "error.invalid_input": "Ungültige Eingabe. Bitte versuche es erneut.",
+  "error.file_not_found": "Datei nicht gefunden: {}",
+  "error.permission_denied": "Berechtigung verweigert: {}",
+  "error.task_empty": "Aufgabe darf nicht leer sein.",
+  "error.images_too_many": "Hänge maximal 8 Bilder pro Aufgabe an.",
+  "error.step_limit": "Schrittgrenze erreicht; fahre mit --session fort oder erhöhe --max-steps.",
+  "error.model_stopped": "Modell hat ohne Abschluss gestoppt: {}",
+  "error.user_denied": "Aktion vom Benutzer verweigert.",
+
+  "status.workspace": "Arbeitsbereich: {} | Modell: {}",
+  "status.warning_auto_approve": "WARNUNG: automatische Genehmigung aktiviert; Shell ist nicht sandboxed",
+  "status.step": "[Schritt {}]",
+  "status.step_of": "[Schritt {}/{}]",
+  "status.tool_call": "Werkzeug: {} {}",
+  "status.auto_compact": "[Auto-Komprimierung: {} Prefix-Nachrichten]",
+  "status.provider_cleanup": "Provider-Bereinigung: DELETE autorisiert; NICHT wiederholt",
+
+  "prompt.task": "Aufgabe: ",
+  "prompt.allow": "Erlauben? [y/N] ",
+
+  "common.yes": "Ja",
+  "common.no": "Nein",
+  "common.cancel": "Abbrechen",
+  "common.confirm": "Bestätigen",
+  "common.back": "Zurück",
+  "common.next": "Weiter",
+  "common.done": "Fertig",
+
+  "lang.switch": "Sprache wechseln",
+  "lang.current": "Aktuelle Sprache: {}",
+  "lang.select": "Sprache auswählen:"
+}

@@ -1,0 +1,61 @@
+{
+  "app.name": "i (lninl)",
+  "app.tagline": "Núcleo pequeño. Tus herramientas. Tu modelo.",
+
+  "welcome": "¡Bienvenido a i!",
+  "welcome.first_run": "Parece que es tu primera vez. Vamos a configurarte.",
+
+  "install.title": "Instalación",
+  "install.prompt": "¿Instalar i en {}?",
+  "install.add_path": "¿Agregar a PATH?",
+  "install.success": "Instalado en {}",
+  "install.skipped": "Instalación omitida.",
+
+  "setup.title": "Configuración",
+  "setup.provider": "Elige tu proveedor de IA:",
+  "setup.provider.openai": "OpenAI",
+  "setup.provider.deepseek": "DeepSeek",
+  "setup.provider.anthropic": "Anthropic",
+  "setup.base_url": "URL base de la API:",
+  "setup.model": "Nombre del modelo:",
+  "setup.api_key": "Clave API (o presiona Enter para omitir):",
+  "setup.api_key_env": "O establece la variable de entorno {} en su lugar.",
+  "setup.max_tokens": "Máximo de tokens por solicitud:",
+  "setup.success": "Configuración guardada en {}",
+
+  "error.title": "Error",
+  "error.no_locale": "Archivos de idioma no encontrados. Verifica el directorio locales/.",
+  "error.no_config": "No se encontró configuración. Ejecuta setup primero.",
+  "error.invalid_provider": "Selección de proveedor inválida.",
+  "error.invalid_input": "Entrada inválida. Por favor intenta de nuevo.",
+  "error.file_not_found": "Archivo no encontrado: {}",
+  "error.permission_denied": "Permiso denegado: {}",
+  "error.task_empty": "La tarea no puede estar vacía.",
+  "error.images_too_many": "Adjunta como máximo 8 imágenes por tarea.",
+  "error.step_limit": "Límite de pasos alcanzado; continúa con --session o aumenta --max-steps.",
+  "error.model_stopped": "El modelo se detuvo sin completar: {}",
+  "error.user_denied": "Acción denegada por el usuario.",
+
+  "status.workspace": "espacio de trabajo: {} | modelo: {}",
+  "status.warning_auto_approve": "ADVERTENCIA: aprobación automática habilitada; shell no está aislado",
+  "status.step": "[paso {}]",
+  "status.step_of": "[paso {}/{}]",
+  "status.tool_call": "herramienta: {} {}",
+  "status.auto_compact": "[auto-compactar: {} mensajes de prefijo]",
+  "status.provider_cleanup": "limpieza del proveedor: DELETE autorizado; NO reintentado",
+
+  "prompt.task": "Tarea: ",
+  "prompt.allow": "¿Permitir? [y/N] ",
+
+  "common.yes": "Sí",
+  "common.no": "No",
+  "common.cancel": "Cancelar",
+  "common.confirm": "Confirmar",
+  "common.back": "Atrás",
+  "common.next": "Siguiente",
+  "common.done": "Hecho",
+
+  "lang.switch": "Cambiar idioma",
+  "lang.current": "Idioma actual: {}",
+  "lang.select": "Seleccionar idioma:"
+}

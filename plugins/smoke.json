@@ -1,0 +1,8 @@
+{
+  "tools": [],
+  "hooks": [
+    {"events":["session_load","after_response","request_retry"],"exec":["../target/debug/i-plugins","cache","--config","smoke-cache.json"]},
+    {"events":["before_request","after_response"],"exec":["../target/debug/i-plugins","smoke"]},
+    {"events":["before_request"],"exec":["../target/debug/i-plugins","cache","--config","smoke-cache.json"]}
+  ]
+}

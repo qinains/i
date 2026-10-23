@@ -1,0 +1,6 @@
+{
+  "mode": "observe",
+  "namespace": "my-project",
+  "stats": "metrics/cache-stats.json",
+  "target_hit_ratio": 0.99
+}

@@ -1,0 +1,61 @@
+{
+  "app.name": "i (lninl)",
+  "app.tagline": "Küçük çekirdek. Araçlarınız. Modeliniz.",
+
+  "welcome": "i'ye hoş geldiniz!",
+  "welcome.first_run": "Bu ilk kez gibi görünüyor. Hadi sizi kuralım.",
+
+  "install.title": "Kurulum",
+  "install.prompt": "i'yi {}'e kur?",
+  "install.add_path": "PATH'e ekle?",
+  "install.success": "{}'e kuruldu",
+  "install.skipped": "Kurulum atlandı.",
+
+  "setup.title": "Yapılandırma",
+  "setup.provider": "AI sağlayıcınızı seçin:",
+  "setup.provider.openai": "OpenAI",
+  "setup.provider.deepseek": "DeepSeek",
+  "setup.provider.anthropic": "Anthropic",
+  "setup.base_url": "API Temel URL:",
+  "setup.model": "Model adı:",
+  "setup.api_key": "API Anahtarı (veya atlamak için Enter'a basın):",
+  "setup.api_key_env": "Veya bunun yerine {} ortam değişkenini ayarlayın.",
+  "setup.max_tokens": "İstek başına maksimum token:",
+  "setup.success": "Yapılandırma {}'e kaydedildi",
+
+  "error.title": "Hata",
+  "error.no_locale": "Dil dosyaları bulunamadı. locales/ dizinini kontrol edin.",
+  "error.no_config": "Yapılandırma bulunamadı. Önce setup'ı çalıştırın.",
+  "error.invalid_provider": "Geçersiz sağlayıcı seçimi.",
+  "error.invalid_input": "Geçersiz giriş. Lütfen tekrar deneyin.",
+  "error.file_not_found": "Dosya bulunamadı: {}",
+  "error.permission_denied": "İzin reddedildi: {}",
+  "error.task_empty": "Görev boş olamaz.",
+  "error.images_too_many": "Görev başına en fazla 8 resim ekleyin.",
+  "error.step_limit": "Adım sınırına ulaşıldı; --session ile devam edin veya --max-steps'i artırın.",
+  "error.model_stopped": "Model tamamlamadan durdu: {}",
+  "error.user_denied": "Kullanıcı eylemi reddetti.",
+
+  "status.workspace": "çalışma alanı: {} | model: {}",
+  "status.warning_auto_approve": "UYARI: otomatik onay etkin; shell yalıtılmış değil",
+  "status.step": "[adım {}]",
+  "status.step_of": "[adım {}/{}]",
+  "status.tool_call": "araç: {} {}",
+  "status.auto_compact": "[otomatik-sıkıştır: {} önek mesaj]",
+  "status.provider_cleanup": "sağlayıcı temizliği: DELETE yetkilendirildi; YENİDEN DENENMEDİ",
+
+  "prompt.task": "Görev: ",
+  "prompt.allow": "İzin ver? [y/N] ",
+
+  "common.yes": "Evet",
+  "common.no": "Hayır",
+  "common.cancel": "İptal",
+  "common.confirm": "Onayla",
+  "common.back": "Geri",
+  "common.next": "İleri",
+  "common.done": "Bitti",
+
+  "lang.switch": "Dili değiştir",
+  "lang.current": "Mevcut dil: {}",
+  "lang.select": "Dil seçin:"
+}

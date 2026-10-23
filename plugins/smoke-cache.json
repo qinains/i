@@ -1,0 +1,5 @@
+{
+  "mode": "observe",
+  "stats": "metrics/smoke-cache.json",
+  "target_hit_ratio": 0.99
+}

@@ -1,0 +1,15 @@
+{
+  "protocol": "openai",
+  "base_url": "https://api.deepseek.com",
+  "model": "deepseek-flash",
+  "api_key": "",
+  "api_key_env": "DEEPSEEK_TEST_API_KEY",
+  "max_tokens": 1024,
+  "network_retries": 0,
+  "use_max_tokens": true,
+  "plugins": "../plugins/smoke-thinking.json",
+  "extra_body": {
+    "thinking": {"type": "enabled"},
+    "reasoning_effort": "low"
+  }
+}

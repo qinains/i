@@ -1,0 +1,53 @@
+import {readFile,writeFile,readdir,mkdir,copyFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {deflateSync} from 'node:zlib';
+import {execFileSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+execFileSync('python3',[fileURLToPath(new URL('./build_cors_extension.py',import.meta.url))]);
+const root = new URL('../web/',import.meta.url);
+const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+function crc(bytes) {
+    let c = 0xffffffff;
+    for (const byte of bytes) {c ^= byte; for (let bit=0; bit<8; bit++) c = (c >>> 1) ^ ((c & 1) ? 0xedb88320 : 0);}
+    return (c ^ 0xffffffff) >>> 0;
+}
+function chunk(type,bytes) {
+    const tag = Buffer.from(type), length = Buffer.alloc(4), checksum = Buffer.alloc(4);
+    length.writeUInt32BE(bytes.length); checksum.writeUInt32BE(crc(Buffer.concat([tag,bytes])));
+    return Buffer.concat([length,tag,bytes,checksum]);
+}
+// Rasterize the repo-native geometric SVG without platform-specific image tooling.
+function icon(size) {
+    const rows = Buffer.alloc((size*3+1)*size);
+    for (let y=0; y<size; y++) for (let x=0; x<size; x++) {
+        const sx = x*512/size, sy = y*512/size;
+        const green = sx>=224 && sx<288 && ((sy>=144 && sy<208) || (sy>=240 && sy<384));
+        const offset = y*(size*3+1)+1+x*3;
+        rows.set(green ? [134,239,172] : [20,20,20],offset);
+    }
+    const header = Buffer.alloc(13); header.writeUInt32BE(size); header.writeUInt32BE(size,4); header[8]=8; header[9]=2;
+    return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',header),chunk('IDAT',deflateSync(rows)),chunk('IEND',Buffer.alloc(0))]);
+}
+await mkdir(new URL('icons/',root),{recursive:true});
+for (const size of [192,512]) await writeFile(new URL(`icons/icon-${size}.png`,root),icon(size));
+async function walk(dir) {
+    const found = [];
+    for (const item of await readdir(new URL(dir,root),{withFileTypes:true})) {
+        const name = dir+item.name;
+        if (item.isDirectory()) found.push(...await walk(name+'/'));
+        else if (/\.(js|wasm)$/u.test(name)) found.push(name);
+    }
+    return found;
+}
+const pkg = await walk('pkg/');
+for (const bridge of pkg.filter(p => p.endsWith('/web/platform.js'))) for(const dependency of ['sse.js','anthropic-sse.js','transport.js','workspaces.js','memory-fs.js','opfs-locks.js']) await copyFile(new URL(dependency,root),new URL(bridge.replace(/platform.js$/u,dependency),root));
+const modules=(await readdir(root)).filter(name=>name.endsWith('.js')&&!['sw.js','service-worker.js'].includes(name));
+const downloads=(await readdir(new URL('downloads/',root))).filter(name=>/^harness-cors-helper-(chromium|firefox|safari)-[\d.]+\.zip$/u.test(name)||name==='cors-helper.json').map(name=>'downloads/'+name);
+const assets = ['index.html','commands.json','module-lexer.LICENSE','module-lexer.NOTICE',...modules,...await walk('state/'),...await walk('plugins/'),...await walk('plugin-pkg/'),'style.css','manifest.webmanifest','icons/icon.svg','icons/icon-192.png','icons/icon-512.png',...await walk('pkg/')].sort();
+assets.push(...downloads);assets.sort();
+const precache = await Promise.all(assets.map(async url => ({url,sha256:hash(await readFile(new URL(url,root)))})));
+const source = await readFile(new URL('sw.js',root),'utf8');
+const version = hash(JSON.stringify(precache)+source).slice(0,24);
+await writeFile(new URL('service-worker.js',root),`self.HARNESS_BUILD = ${JSON.stringify({version,precache})};\n${source}`);
+await writeFile(new URL('assets.json',root),JSON.stringify({version,precache,assets:[...assets,'service-worker.js']},null,2)+'\n');
+process.stdout.write(`PWA ${version}: ${assets.length} verified static resources\n`);

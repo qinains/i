@@ -1,0 +1,61 @@
+{
+  "app.name": "i (lninl)",
+  "app.tagline": "小巧核心，专属工具，自选模型。",
+
+  "welcome": "欢迎使用 i！",
+  "welcome.first_run": "看起来这是你首次使用。让我们完成初始设置。",
+
+  "install.title": "安装",
+  "install.prompt": "是否安装 i 到 {}？",
+  "install.add_path": "是否添加到 PATH？",
+  "install.success": "已安装到 {}",
+  "install.skipped": "已跳过安装。",
+
+  "setup.title": "配置",
+  "setup.provider": "选择 AI 提供商：",
+  "setup.provider.openai": "OpenAI",
+  "setup.provider.deepseek": "DeepSeek",
+  "setup.provider.anthropic": "Anthropic",
+  "setup.base_url": "API 地址：",
+  "setup.model": "模型名称：",
+  "setup.api_key": "API Key（按回车跳过）：",
+  "setup.api_key_env": "或者设置环境变量 {}。",
+  "setup.max_tokens": "每次请求最大 token 数：",
+  "setup.success": "配置已保存到 {}",
+
+  "error.title": "错误",
+  "error.no_locale": "未找到语言文件，请检查 locales/ 目录。",
+  "error.no_config": "未找到配置，请先运行设置。",
+  "error.invalid_provider": "无效的提供商选择。",
+  "error.invalid_input": "输入无效，请重试。",
+  "error.file_not_found": "文件未找到：{}",
+  "error.permission_denied": "权限被拒绝：{}",
+  "error.task_empty": "任务不能为空。",
+  "error.images_too_many": "每个任务最多附加 8 张图片。",
+  "error.step_limit": "已达到步骤上限；使用 --session 恢复或增加 --max-steps。",
+  "error.model_stopped": "模型未完成：{}",
+  "error.user_denied": "用户拒绝操作。",
+
+  "status.workspace": "工作区：{} | 模型：{}",
+  "status.warning_auto_approve": "警告：已启用自动批准；shell 未沙箱化",
+  "status.step": "[步骤 {}]",
+  "status.step_of": "[步骤 {}/{}]",
+  "status.tool_call": "工具：{} {}",
+  "status.auto_compact": "[自动压缩：{} 条前缀消息]",
+  "status.provider_cleanup": "提供商清理：DELETE 已授权；未重试",
+
+  "prompt.task": "任务：",
+  "prompt.allow": "允许？[y/N] ",
+
+  "common.yes": "是",
+  "common.no": "否",
+  "common.cancel": "取消",
+  "common.confirm": "确认",
+  "common.back": "返回",
+  "common.next": "下一步",
+  "common.done": "完成",
+
+  "lang.switch": "切换语言",
+  "lang.current": "当前语言：{}",
+  "lang.select": "选择语言："
+}

@@ -1,0 +1,6 @@
+{
+  "tools": [],
+  "hooks": [
+    {"events":["tool_approval"],"exec":["../target/debug/i-plugins","approval"],"module":"approval"}
+  ]
+}

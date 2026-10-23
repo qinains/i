@@ -1,0 +1,54 @@
+name: CI
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  check:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
+        with:
+          toolchain: '1.95.0'
+          components: rustfmt, clippy
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Provide python3 executable for cross-platform test fixtures
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $python = (Get-Command python).Source
+          $alias = Join-Path (Split-Path $python) 'python3.exe'
+          if (-not (Test-Path $alias)) { Copy-Item $python $alias }
+      - run: python3 scripts/check_globset.py
+      - run: python3 scripts/check_globset.py --test
+      - run: cargo fmt --all --check
+      - run: cargo fmt --manifest-path examples/rust-plugin/Cargo.toml --check
+      - name: Install Linux native TLS build prerequisites
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev ca-certificates
+      - run: cargo clippy --workspace --locked --all-targets --features bundled -- -D warnings
+      - run: cargo build --workspace --locked --features bundled
+      - run: python3 scripts/check_globset.py --graph
+      - run: cargo test --workspace --locked --features bundled
+      - run: cargo check --locked --no-default-features -p i
+      - name: Verify interactive editor with a pseudo-terminal
+        if: runner.os != 'Windows'
+        run: python3 scripts/check_console.py
+      - name: Verify hidden setup input and terminal restoration
+        if: runner.os != 'Windows'
+        run: python3 scripts/check_setup.py target/debug/i
+      - name: Verify native TLS rejection offline
+        if: runner.os != 'Windows'
+        run: python3 scripts/check_tls.py --web
+      - run: python3 -m unittest discover -s examples -p 'test_*.py'
+      - name: Build complete min-size packages in both formats
+        run: python3 scripts/package.py --profile min-size
+      - name: Verify gzip and xz packages offline
+        run: python3 scripts/check_package.py "dist/*.tar.gz" "dist/*.tar.xz"

@@ -1,0 +1,63 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
+        with:
+          toolchain: '1.95.0'
+      - name: Install native TLS build prerequisites
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev ca-certificates
+      - run: cargo build --locked --features bundled,packaging --bin i --bin i-package --profile min-size
+      - name: Package the runner's native architecture
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then
+            target/min-size/i-package.exe --skip-build --profile min-size
+          else
+            target/min-size/i-package --skip-build --profile min-size
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: packages-${{ matrix.os }}
+          path: |
+            dist/*.tar.gz
+            dist/*.tar.xz
+            dist/*.zip
+          if-no-files-found: error
+  release:
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: release
+          merge-multiple: true
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          files: release/*
+          draft: true
+          generate_release_notes: true
+          body: |
+            Native packages are built for each runner's recorded host architecture.
+            Check build.json in the archive; these are not universal binaries.
+
+            Source installation from this repository:
+            `cargo install --path . --locked --features bundled --bin i`
+
+            Browser workbench and plugin documentation: https://i.lninl.com

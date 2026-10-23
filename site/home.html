@@ -1,0 +1,15 @@
+<section class="hero"><div class="eyebrow">RUST CORE · NATIVE + WEBASSEMBLY · MIT</div><h1>你的工具，<br>你的模型。<span class="accent">一个小而清晰的核心。</span></h1><p class="lead">i 是可扩展的编码 Agent。终端与浏览器共享执行理念：明确的工具、可审查的权限，以及属于你的工作区。</p><div class="hero-actions"><a class="button" href="/app/">在浏览器开始 →</a><a class="button secondary" href="/docs/plugin-development/">编写第一个插件</a></div><p class="muted">自带模型连接 · 无需注册本站账号 · 浏览器文件保存在设备上</p><div class="terminal" aria-label="示例操作"><div class="terminal-heading"><span>i / workspace</span><span>示例，不是实时模型输出</span></div><pre><code>&gt; 找到相关文件，批量读取，只修改必要的地方。
+
+glob → read ranges → edit → download ZIP
+
+小范围上下文。明确的副作用。可继续的会话。</code></pre></div></section>
+<section class="section"><div class="section-title"><span class="eyebrow">ONE SYSTEM, CLEAR BOUNDARIES</span><h2>用你习惯的方式工作</h2></div><div class="cards"><article class="card"><span class="number">01 / NATIVE</span><h3>在终端里</h3><p>Rust CLI、常驻 NDJSON worker、可替换 provider。以标准输入输出连接自己的工具，而不是把所有能力塞进核心。</p><a href="/docs/deployment/">安装与启动 →</a></article><article class="card"><span class="number">02 / BROWSER</span><h3>在浏览器里</h3><p>WASM 工作台、OPFS 文件、多个会话、流式回复与 ZIP。可安装为 PWA；离线文件操作与模型联网各有边界。</p><a href="/docs/wasm/">浏览器指南 →</a></article><article class="card"><span class="number">03 / PLUGINS</span><h3>以插件扩展</h3><p>纯计算、工作区文件、私有 KV。选择原生 worker 或受限的 Rust/WASM 包，用可验证的契约构建工具。</p><a href="/docs/plugin-development/">开发教程 →</a></article></div></section>
+<section class="section split"><div><span class="eyebrow">LESS CONTEXT, FEWER ROUND TRIPS</span><h2>先定位，再读取。<br>一次完成相关修改。</h2><p>递归 glob、带定位的 search、批量范围读取、同文件批量编辑和有界输出，让工具承担检索与裁剪，而不是让模型反复猜路径。</p><a href="/docs/file-tools/">查看文件工具契约 →</a></div><div class="code-block"><span>workflow</span><pre><code>1. glob / search：定位相关路径
+2. read：批量读取需要的范围
+3. edit：校验并应用一组修改
+4. download：打包可交付结果
+
+不是性能承诺：实际轮次取决于任务与模型。</code></pre></div></section>
+<section class="section"><div class="section-title"><span class="eyebrow">BUILD, DON'T GUESS</span><h2>给插件作者一条完整路径</h2><p>从一个读取 UTF-8 文件的 Rust 工具开始，构建、校验、安装、测试，再了解状态机与权限边界。</p></div><div class="cards"><a class="card link-card" href="/docs/plugin-development/"><h3>动手教程 ↗</h3><p>字数统计示例与桌面 worker，从源码到运行。</p></a><a class="card link-card" href="/docs/wasm-plugin-reference/"><h3>WASM API 参考 ↗</h3><p>manifest、ABI、host 调用、限制和错误语义。</p></a><a class="card link-card" href="/docs/plugins/"><h3>原生 worker 参考 ↗</h3><p>NDJSON、hooks、provider 与路径上下文。</p></a></div></section>
+<section class="section callout"><div><h2>连接由你决定，边界写在文档里。</h2><p>直连需要 API 支持 CORS。可选择自建 Relay 或显式启用桌面 CORS Helper；插件不能修复认证、TLS 或被拒绝的预检。</p><a href="/docs/cors-extension/">浏览器扩展安装与验证范围 →</a></div><div class="downloads"><a href="/downloads/harness-cors-helper-chromium-0.1.0.zip" download>Chrome / Edge ZIP ↓</a><a href="/downloads/harness-cors-helper-firefox-0.1.0.zip" download>Firefox 开发包 ↓</a><a href="/downloads/harness-cors-helper-safari-0.1.0.zip" download>Safari 源码 ZIP ↓</a></div></section>
+<section class="section final-cta"><h2>从一个工作区开始。</h2><p>没有本站托管的模型账号。配置你的接口，在自己的设备上管理文件与会话。</p><a class="button" href="/app/">打开 WASM 工作台 →</a><a href="https://github.com/qinains/i">查看 MIT 源码 ↗</a></section>

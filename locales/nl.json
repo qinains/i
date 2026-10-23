@@ -1,0 +1,61 @@
+{
+  "app.name": "i (lninl)",
+  "app.tagline": "Kleine kern. Jouw tools. Jouw model.",
+
+  "welcome": "Welkom bij i!",
+  "welcome.first_run": "Dit lijkt je eerste keer te zijn. Laten we je instellen.",
+
+  "install.title": "Installatie",
+  "install.prompt": "Installeer i in {}?",
+  "install.add_path": "Toevoegen aan PATH?",
+  "install.success": "Geïnstalleerd in {}",
+  "install.skipped": "Installatie overgeslagen.",
+
+  "setup.title": "Configuratie",
+  "setup.provider": "Kies je AI-provider:",
+  "setup.provider.openai": "OpenAI",
+  "setup.provider.deepseek": "DeepSeek",
+  "setup.provider.anthropic": "Anthropic",
+  "setup.base_url": "API Base URL:",
+  "setup.model": "Modelnaam:",
+  "setup.api_key": "API-sleutel (of druk op Enter om over te slaan):",
+  "setup.api_key_env": "Of stel in plaats daarvan omgevingsvariabele {} in.",
+  "setup.max_tokens": "Max tokens per verzoek:",
+  "setup.success": "Configuratie opgeslagen in {}",
+
+  "error.title": "Fout",
+  "error.no_locale": "Taalbestanden niet gevonden. Controleer de locales/ directory.",
+  "error.no_config": "Geen configuratie gevonden. Voer eerst setup uit.",
+  "error.invalid_provider": "Ongeldige provider selectie.",
+  "error.invalid_input": "Ongeldige invoer. Probeer het opnieuw.",
+  "error.file_not_found": "Bestand niet gevonden: {}",
+  "error.permission_denied": "Toestemming geweigerd: {}",
+  "error.task_empty": "Taak mag niet leeg zijn.",
+  "error.images_too_many": "Voeg maximaal 8 afbeeldingen toe per taak.",
+  "error.step_limit": "Staplimiet bereikt; hervat met --session of verhoog --max-steps.",
+  "error.model_stopped": "Model gestopt zonder te voltooien: {}",
+  "error.user_denied": "Actie geweigerd door gebruiker.",
+
+  "status.workspace": "werkruimte: {} | model: {}",
+  "status.warning_auto_approve": "WAARSCHUWING: automatische goedkeuring ingeschakeld; shell is niet geïsoleerd",
+  "status.step": "[stap {}]",
+  "status.step_of": "[stap {}/{}]",
+  "status.tool_call": "tool: {} {}",
+  "status.auto_compact": "[auto-compact: {} prefix berichten]",
+  "status.provider_cleanup": "provider opruiming: DELETE geautoriseerd; NIET opnieuw geprobeerd",
+
+  "prompt.task": "Taak: ",
+  "prompt.allow": "Toestaan? [y/N] ",
+
+  "common.yes": "Ja",
+  "common.no": "Nee",
+  "common.cancel": "Annuleren",
+  "common.confirm": "Bevestigen",
+  "common.back": "Terug",
+  "common.next": "Volgende",
+  "common.done": "Klaar",
+
+  "lang.switch": "Taal wisselen",
+  "lang.current": "Huidige taal: {}",
+  "lang.select": "Selecteer taal:"
+}

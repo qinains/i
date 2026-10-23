@@ -1,0 +1,20 @@
+[package]
+name = "wasm-word-count"
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.91"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+i-wasm-sdk = { path = "../../plugins/wasm-sdk" }
+
+[profile.release]
+panic = "abort"
+opt-level = "z"
+lto = true
+strip = true
+
+[workspace]

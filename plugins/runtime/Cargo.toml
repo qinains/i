@@ -1,0 +1,33 @@
+[package]
+name = "i-plugins"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[[bin]]
+name = "i-plugins"
+path = "src/main.rs"
+
+[dependencies]
+base64 = "0.23"
+anyhow = "1"
+command-group = "5"
+ctrlc = { version = "3", features = ["termination"] }
+dunce = "1"
+fs2 = "0.4"
+globset = "=0.4.20"
+# Keep the complete Unicode language; omit optional acceleration engines for size.
+regex = { version = "1", default-features = false, features = ["std", "unicode"] }
+ureq = { version = "=3.4.2", default-features = false, features = ["native-tls"] }
+url = "2"
+ryu = "1" # Already required by YAML; preserve exact GET float formatting.
+serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+sha2 = "0.10"
+tempfile = "3"
+uuid = { version = "1", features = ["v4"] }
+walkdir = "2"
+
+[dev-dependencies]
+serde_urlencoded = "0.7" # Reference oracle only, not linked into release programs.

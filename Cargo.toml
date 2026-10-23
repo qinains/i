@@ -1,0 +1,110 @@
+[package]
+name = "i"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.91"
+description = "A plugin-first Rust coding agent for native terminals and browser WASM"
+license = "MIT"
+default-run = "i"
+repository = "https://github.com/qinains/i"
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[[bin]]
+name = "i"
+path = "src/main.rs"
+required-features = ["native"]
+
+[[bin]]
+name = "i-package"
+path = "src/bin/package.rs"
+required-features = ["packaging"]
+
+[[bin]]
+name = "i-completions"
+path = "src/bin/completions.rs"
+required-features = ["native"]
+
+[dependencies]
+anyhow = "1"
+base64 = "0.23"
+http = "1"
+url = "2"
+httpdate = "1"
+serde_json = "1"
+sha2 = "0.10"
+serde = { version = "1", features = ["derive"] }
+globset = { version = "0.4", default-features = false }
+regex = { version = "1", default-features = false, features = ["std", "perf", "unicode-case", "unicode-perl"] }
+i-wasm-protocol = { path = "plugins/wasm-protocol", optional = true }
+
+
+# Packaging dependencies (optional)
+tar = { version = "0.4", optional = true }
+flate2 = { version = "1", optional = true }
+zip = { version = "2", default-features = false }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+command-group = "5"
+dunce = "1"
+clap = { version = "4", features = ["derive"] }
+clap_complete = "4.5"
+rustyline = "17"
+dirs-next = "2"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "socks"] }
+rustls = { version = "0.23", default-features = false }
+tokio = { version = "1", features = ["full"] }
+i-plugins = { path = "plugins/runtime", optional = true }
+tempfile = "3"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+
+# WASM dependencies (optional)
+wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+js-sys = { version = "0.3", optional = true }
+web-sys = { version = "0.3", optional = true, features = [
+    "Window",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "HtmlAnchorElement",
+    "Blob",
+    "BlobPropertyBag",
+    "Url",
+    "console",
+    "Storage",
+    "HtmlInputElement",
+    "HtmlTextAreaElement",
+    "Event",
+    "KeyboardEvent",
+    "MouseEvent",
+] }
+
+[features]
+default = ["native"]
+native = []
+bundled = ["native", "dep:i-plugins"]
+packaging = ["native", "dep:tar", "dep:flate2", "zip/deflate"]
+wasm = ["dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "dep:web-sys", "dep:i-wasm-protocol"]
+
+[workspace]
+members = ["plugins/runtime", "plugins/wasm-protocol", "plugins/wasm-package", "plugins/wasm-sdk"]
+default-members = ["."]
+exclude = ["examples/rust-plugin", "examples/wasm-word-count", "examples/wasm-json-format", "vendor/globset"]
+resolver = "2"
+
+# Upstream Rust sources unchanged; narrow globset's regex backend features only.
+[patch.crates-io]
+globset = { path = "vendor/globset" }
+
+# Optional distribution profile; keeps all tools/plugins, trades build time for size.
+[profile.min-size]
+inherits = "release"
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+incremental = false

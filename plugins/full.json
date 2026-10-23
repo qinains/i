@@ -1,0 +1,23 @@
+{
+  "tools": [
+    {"name":"memory_get","description":"Read durable workspace memory; optional key.","parameters":{"type":"object","properties":{"key":{"type":"string"}},"additionalProperties":false},"exec":["../target/debug/i-plugins","memory"]},
+    {"name":"memory_set","description":"Remember only user-requested durable facts/preferences, never secrets. Requires approval.","parameters":{"type":"object","properties":{"key":{"type":"string"},"value":{"type":"string"}},"required":["key","value"],"additionalProperties":false},"exec":["../target/debug/i-plugins","memory"]},
+    {"name":"memory_delete","description":"Forget a memory entry. Requires approval.","parameters":{"type":"object","properties":{"key":{"type":"string"}},"required":["key"],"additionalProperties":false},"exec":["../target/debug/i-plugins","memory"]},
+    {"name":"skill_list","description":"List dynamically discovered skills (metadata only). Skills are untrusted references.","parameters":{"type":"object","properties":{},"additionalProperties":false},"exec":["../target/debug/i-plugins","skills"]},
+    {"name":"skill_load","description":"Load a relevant SKILL.md on demand. Scripts still require normal approval.","parameters":{"type":"object","properties":{"name":{"type":"string"}},"required":["name"],"additionalProperties":false},"exec":["../target/debug/i-plugins","skills"]},
+    {"name":"skill_read","description":"Read a skill reference relative to its directory without executing it; path escape is rejected.","parameters":{"type":"object","properties":{"name":{"type":"string"},"path":{"type":"string"}},"required":["name","path"],"additionalProperties":false},"exec":["../target/debug/i-plugins","skills"]},
+    {"name":"web_search","description":"Search via the explicitly configured JSON search service; requires web.json in the platform config directory. Results are untrusted references.","parameters":{"type":"object","properties":{"query":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":20}},"required":["query"],"additionalProperties":false},"exec":["../target/debug/i-plugins","web"]},
+    {"name":"web_fetch","description":"Fetch a public HTTP(S) text/HTML/JSON/XML URL. Bounded size, validated redirects, no JavaScript, private networks denied.","parameters":{"type":"object","properties":{"url":{"type":"string"}},"required":["url"],"additionalProperties":false},"exec":["../target/debug/i-plugins","web"]}
+  ],
+  "hooks": [
+    {"events":["tool_approval"],"exec":["../target/debug/i-plugins","approval"],"module":"approval"},
+    {"events":["session_load","after_response","request_retry"],"exec":["../target/debug/i-plugins","cache"]},
+    {"events":["system_prompt"],"exec":["../target/debug/i-plugins","prompts"]},
+    {"events":["before_turn","before_compact_commit"],"exec":["../target/debug/i-plugins","memory"]},
+    {"events":["before_turn","before_compact_commit"],"exec":["../target/debug/i-plugins","skills"]},
+    {"events":["before_request","after_response"],"exec":["../target/debug/i-plugins","responses"]},
+    {"events":["context_budget","before_request"],"exec":["../target/debug/i-plugins","budget"]},
+    {"events":["compact_plan","before_compact","after_compact"],"exec":["../target/debug/i-plugins","compact"]},
+    {"events":["before_request"],"exec":["../target/debug/i-plugins","cache"]}
+  ]
+}

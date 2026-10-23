@@ -1,0 +1,61 @@
+{
+  "app.name": "i (lninl)",
+  "app.tagline": "نواة صغيرة. أدواتك. نموذجك.",
+
+  "welcome": "مرحبًا بك في i!",
+  "welcome.first_run": "يبدو أن هذه هي المرة الأولى لك. دعنا نساعدك في الإعداد.",
+
+  "install.title": "التثبيت",
+  "install.prompt": "تثبيت i في {}؟",
+  "install.add_path": "إضافة إلى PATH؟",
+  "install.success": "تم التثبيت في {}",
+  "install.skipped": "تم تخطي التثبيت.",
+
+  "setup.title": "التكوين",
+  "setup.provider": "اختر مزود الذكاء الاصطناعي:",
+  "setup.provider.openai": "OpenAI",
+  "setup.provider.deepseek": "DeepSeek",
+  "setup.provider.anthropic": "Anthropic",
+  "setup.base_url": "عنوان URL الأساسي لـ API:",
+  "setup.model": "اسم النموذج:",
+  "setup.api_key": "مفتاح API (أو اضغط Enter للتخطي):",
+  "setup.api_key_env": "أو قم بتعيين متغير البيئة {} بدلاً من ذلك.",
+  "setup.max_tokens": "الحد الأقصى للرموز لكل طلب:",
+  "setup.success": "تم حفظ التكوين في {}",
+
+  "error.title": "خطأ",
+  "error.no_locale": "لم يتم العثور على ملفات اللغة. تحقق من دليل locales/.",
+  "error.no_config": "لم يتم العثور على تكوين. قم بتشغيل setup أولاً.",
+  "error.invalid_provider": "اختيار مزود غير صالح.",
+  "error.invalid_input": "إدخال غير صالح. يرجى المحاولة مرة أخرى.",
+  "error.file_not_found": "الملف غير موجود: {}",
+  "error.permission_denied": "تم رفض الإذن: {}",
+  "error.task_empty": "لا يمكن أن تكون المهمة فارغة.",
+  "error.images_too_many": "أرفق 8 صور كحد أقصى لكل مهمة.",
+  "error.step_limit": "تم الوصول إلى حد الخطوات؛ استأنف باستخدام --session أو زد --max-steps.",
+  "error.model_stopped": "توقف النموذج دون إكمال: {}",
+  "error.user_denied": "رفض المستخدم الإجراء.",
+
+  "status.workspace": "مساحة العمل: {} | النموذج: {}",
+  "status.warning_auto_approve": "تحذير: تم تمكين الموافقة التلقائية؛ shell غير معزول",
+  "status.step": "[خطوة {}]",
+  "status.step_of": "[خطوة {}/{}]",
+  "status.tool_call": "أداة: {} {}",
+  "status.auto_compact": "[ضغط تلقائي: {} رسائل بادئة]",
+  "status.provider_cleanup": "تنظيف المزود: DELETE مصرح به؛ لم تتم إعادة المحاولة",
+
+  "prompt.task": "المهمة: ",
+  "prompt.allow": "السماح؟ [y/N] ",
+
+  "common.yes": "نعم",
+  "common.no": "لا",
+  "common.cancel": "إلغاء",
+  "common.confirm": "تأكيد",
+  "common.back": "رجوع",
+  "common.next": "التالي",
+  "common.done": "تم",
+
+  "lang.switch": "تغيير اللغة",
+  "lang.current": "اللغة الحالية: {}",
+  "lang.select": "اختر اللغة:"
+}

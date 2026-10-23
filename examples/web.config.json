@@ -1,0 +1,12 @@
+{
+  "endpoint": "https://search.example.invalid/search",
+  "method": "GET",
+  "query_param": "q",
+  "limit_param": "count",
+  "extra": {"format": "json"},
+  "results_pointer": "/results",
+  "title_field": "title",
+  "url_field": "url",
+  "snippet_field": "content",
+  "allow_private_network": false
+}

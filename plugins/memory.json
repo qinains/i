@@ -1,0 +1,8 @@
+{
+  "tools": [
+    {"name":"memory_get","description":"Read durable workspace memory; optional key.","parameters":{"type":"object","properties":{"key":{"type":"string"}},"additionalProperties":false},"exec":["../target/debug/i-plugins","memory"]},
+    {"name":"memory_set","description":"Remember only user-requested durable facts/preferences, never secrets. Requires approval.","parameters":{"type":"object","properties":{"key":{"type":"string"},"value":{"type":"string"}},"required":["key","value"],"additionalProperties":false},"exec":["../target/debug/i-plugins","memory"]},
+    {"name":"memory_delete","description":"Forget a memory entry. Requires approval.","parameters":{"type":"object","properties":{"key":{"type":"string"}},"required":["key"],"additionalProperties":false},"exec":["../target/debug/i-plugins","memory"]}
+  ],
+  "hooks": [{"events":["before_turn","before_compact_commit"],"exec":["../target/debug/i-plugins","memory"]}]
+}

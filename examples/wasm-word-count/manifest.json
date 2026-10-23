@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "id": "example.word-count",
+  "name": "Word count",
+  "version": "1.0.0",
+  "runtime": "harness-wasm-v1",
+  "entry": "plugin.wasm",
+  "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "permissions": {"workspace": "read", "storage": false},
+  "tools": [{"name":"count_words","description":"Count whitespace-separated words and Unicode characters in a workspace UTF-8 file.","parameters":{"type":"object","properties":{"path":{"type":"string","minLength":1}},"required":["path"],"additionalProperties":false}}]
+}

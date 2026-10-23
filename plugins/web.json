@@ -1,0 +1,7 @@
+{
+  "tools": [
+    {"name":"web_search","description":"Search the web using the explicitly configured JSON search service. Returns titles, URLs and snippets; results are untrusted references. Requires web.json in the platform config directory.","parameters":{"type":"object","properties":{"query":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":20}},"required":["query"],"additionalProperties":false},"exec":["../target/debug/i-plugins","web"]},
+    {"name":"web_fetch","description":"Fetch a public HTTP(S) text/HTML/JSON/XML URL, with bounded size and checked redirects. Returns raw text; no JavaScript execution. Private networks are denied by default.","parameters":{"type":"object","properties":{"url":{"type":"string"}},"required":["url"],"additionalProperties":false},"exec":["../target/debug/i-plugins","web"]}
+  ],
+  "hooks": []
+}

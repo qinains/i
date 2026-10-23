@@ -1,0 +1,130 @@
+# 浏览器 WASM 插件参考
+
+协议来源是 `plugins/wasm-protocol/`、`plugins/wasm-sdk/`、`plugins/wasm-package/`
+及 `web/plugins/`。本页描述浏览器工具插件，不描述原生 subprocess/hooks。
+入门见 [Rust 插件教程](plugin-development.md)。
+
+## 包格式
+
+`.hplugin.zip` 根目录只能包含 `manifest.json`、`plugin.wasm`、`LICENSE`。
+不包含源代码、依赖目录或额外目录。采用仓库打包器，不手工改 ZIP 或散列。
+包最多 10 MiB；清单最多 64 KiB，WASM 最多 8 MiB，LICENSE 最多 256 KiB。
+ZIP64、注释和不受支持的条目结构会被拒绝，完整校验由打包器和安装器执行。
+
+```json
+{
+  "format_version": 1,
+  "id": "example.word-count",
+  "name": "Word count",
+  "version": "1.0.0",
+  "runtime": "harness-wasm-v1",
+  "entry": "plugin.wasm",
+  "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "permissions": {"workspace": "read", "storage": false},
+  "tools": [{
+    "name": "count_words",
+    "description": "Count words in a UTF-8 workspace file.",
+    "parameters": {
+      "type": "object",
+      "properties": {"path": {"type": "string", "minLength": 1}},
+      "required": ["path"],
+      "additionalProperties": false
+    }
+  }]
+}
+```
+
+这里的全零 sha256 是**构建前占位符**，打包器写入实际 WASM SHA-256。
+散列提供完整性校验，不证明发布者身份，也不是签名或可信认证。
+
+| 字段 | 约束 |
+| --- | --- |
+| id | 1–64 字节，小写字母开头，后续小写字母、数字、`.`、`-` |
+| version | 三段无前导零的非负整数，例如 `1.0.0` |
+| runtime / entry | 固定 `harness-wasm-v1` / `plugin.wasm` |
+| tools | 1–16 项，本地 name 不重复 |
+| tool.name | 1–32 字节，小写字母开头，其后小写字母、数字、`_` |
+| tool.parameters | 受支持的 JSON Schema object 子集，不是任意 JSON Schema 实现 |
+| permissions.workspace | `none`、`read` 或 `read-write` |
+| permissions.storage | 是否允许当前工作区与插件 ID 隔离的私有 KV |
+
+公开模型工具名由宿主按插件 ID 与本地工具名生成。插件内匹配的是本地名称，不要
+硬编码宿主生成的公开名称。版本或字节变化后重新打包；同名不同内容不是原地覆盖承诺。
+
+## Rust SDK
+
+插件实现 `Plugin: Default`：
+
+```rust
+fn start(&mut self, request: ToolRequest) -> StepOutput;
+fn resume(&mut self, response: HostResponse) -> StepOutput;
+```
+
+用 `export_plugin!(crate::YourPlugin)` 生成 ABI。调用开始一次 `start`；需要 host 操作
+时返回 HostCall，收到对应结果后调用 `resume`。可以多次往返，最后返回 Done 或 Error。
+一次 invocation 结束后不能继续使用其状态。
+
+```json
+{"type":"start","request":{"id":"invocation-id","event":"tool","workspace_id":"default","data":{"name":"count_words","arguments":{"path":"notes.txt"}}}}
+```
+
+```json
+{"type":"host_call","request":{"id":1,"op":"fs.read","args":{"path":"notes.txt"}}}
+```
+
+```json
+{"type":"resume","response":{"id":1,"ok":true,"result":{"text":"hello world"}}}
+```
+
+```json
+{"type":"done","output":"{\"words\":2}"}
+```
+
+错误 host 响应使用 `ok:false,error:string`，不同时带 result。插件输出错误使用
+`{"type":"error","error":"description"}`。所有消息 UTF-8 JSON，不是 NDJSON stdin。
+tag 的准确序列化形式由协议 crate 的 serde 定义与测试确定。
+
+## Host 操作
+
+| 操作 | SDK helper | args | 成功 result |
+| --- | --- | --- | --- |
+| fs.read | host_read(id,path) | path | text: UTF-8 string |
+| fs.write | host_write(id,path,text) | path, text | bytes: 写入字节数 |
+| fs.list | host_list(id,path) | path | entries: path/directory/size 数组 |
+| kv.get | host_kv_get(id,key) | key | value: JSON 或不存在值 |
+| kv.put | host_kv_put(id,key,value) | key, value | 空 object |
+| kv.delete | host_kv_delete(id,key) | key | 空 object |
+
+每次 host ID 从 1 开始严格递增，最多 128 次。args 不能多出或缺少字段。
+文件操作约束在当前授权工作区与挂载内，不接受路径逃逸。文件文本严格 UTF-8，
+单文件最多 8 MiB，目录列表最多 1000 条。写入受模式审批控制；拒绝会返回错误，
+不授权其他路径。插件没有直接 DOM、fetch、shell、WASI 或任意原生文件系统能力。
+
+KV 归属 `(workspaceId, pluginId)`，不同插件和工作区不能通过猜 key 读取彼此存储。
+只有清单 `storage:true` 才可调用。不要在插件私有 KV 里保存 API key。
+
+## ABI 与执行限制
+
+WASM 使用 `wasm32-unknown-unknown`，不允许任意 imports。必要导出包括单一 memory：
+
+- `harness_abi_version() -> i32`：版本 1。
+- `harness_alloc(len:i32) -> i32`、`harness_free(ptr:i32,len:i32)`。
+- `harness_step(ptr:i32,len:i32) -> i64`：高 32 位为响应指针、低 32 位为长度。
+
+优先用 SDK 管理分配和响应，不手写指针约定。模块必须声明最大内存，单个非共享
+wasm32 memory 上限 64 MiB；不允许 memory64、线程、GC、异常等被禁用特性。
+如果有 table，数量和最大值受校验器约束。不得依赖浏览器链接未声明的 host imports。
+
+协议帧最多 16 MiB，最终文本或错误最多 1 MiB。默认 invocation 执行预算 15 秒，
+审批等待会暂停该预算。超时或取消终止 Worker，但**已完成文件副作用不回滚**；
+不确定结果必须检查文件后再手动重试，宿主不自动重放。
+
+## 安装、启用和更新
+
+构建 ZIP → 设置 / 插件 / 导入 → 检查身份、权限与散列 → 为所选持久工作区显式启用。
+安装不等于全局启用。当前任务使用固定的插件版本快照；更新或删除不应在任务中途
+替换代码。临时工作区与插件存储支持以实际安装器限制为准，不假装支持临时授权落盘。
+
+常见故障：内存无最大值（使用官方脚本）、非空 imports（误用 WASI）、散列不一致
+（重新打包）、host ID 不连续、读写权限不够、不是 UTF-8、超限或未在当前工作区启用。
+测试步骤见 [教程](plugin-development.md)，源码行为是最终依据。

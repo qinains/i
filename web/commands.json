@@ -1,0 +1,15 @@
+[
+  {"name":"/help","description":"Show available commands","platforms":["web","console","readline"],"arguments":[]},
+  {"name":"/new","description":"Start a new conversation","platforms":["web"],"arguments":[]},
+  {"name":"/mode","description":"View or change approval mode","platforms":["web","console"],"arguments":["ask","auto","status"]},
+  {"name":"/clear","description":"Clear the display","platforms":["web","readline"],"arguments":[]},
+  {"name":"/files","description":"Open workspace files","platforms":["web"],"arguments":[]},
+  {"name":"/download","description":"Download workspace or selected path as ZIP","platforms":["web"],"arguments":[]},
+  {"name":"/resume","description":"Show saved conversations","platforms":["web","readline"],"arguments":[]},
+  {"name":"/config","description":"Open settings","platforms":["web"],"arguments":[]},
+  {"name":"/queue","description":"Queue a follow-up task","platforms":["console"],"arguments":[]},
+  {"name":"/steer","description":"Send steering instructions","platforms":["console"],"arguments":[]},
+  {"name":"/approve","description":"Allow the pending request","platforms":["console"],"arguments":[]},
+  {"name":"/deny","description":"Deny the pending request","platforms":["console"],"arguments":[]},
+  {"name":"/exit","description":"Exit the client","platforms":["console","readline"],"arguments":[]}
+]

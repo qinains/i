@@ -1,0 +1,1 @@
+{"tools":[],"hooks":[{"events":["context_budget","before_request"],"exec":["../target/debug/i-plugins","budget"]}]}

@@ -1,0 +1,19 @@
+{
+  "protocol": "openai",
+  "base_url": "https://api.deepseek.com",
+  "model": "deepseek-flash",
+  "api_key": "",
+  "api_key_env": "DEEPSEEK_API_KEY",
+  "max_tokens": 8192,
+  "io_limit_bytes": 1048576,
+  "plugins": "../plugins/responses-compact.json",
+  "budget": {
+    "context_window": 1048576,
+    "compact_ratio": 0.8,
+    "safety_ratio": 0.02,
+    "tool_output_ratio": 0.02,
+    "image_tokens": 16384,
+    "images": "keep"
+  },
+  "extra_body": { "reasoning": { "effort": "none" } }
+}

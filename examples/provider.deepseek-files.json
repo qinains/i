@@ -1,0 +1,5 @@
+{
+  "images": "files",
+  "account_scope": "deepseek-personal",
+  "expires_after_seconds": 3600
+}
