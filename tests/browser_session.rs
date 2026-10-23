@@ -18,6 +18,7 @@ fn browser_mounts_do_not_relax_native_paths() {
     assert_eq!(browser_path("/tmp", false).unwrap().to_str().unwrap(), "/tmp/");
     assert_eq!(browser_path("/workspace/a", false).unwrap().to_str().unwrap(), "a");
     assert_eq!(browser_path("tmp/a", false).unwrap().to_str().unwrap(), "tmp/a");
+    assert_eq!(browser_path("/workspace/nested/a", false).unwrap().to_str().unwrap(), "nested/a");
     assert!(browser_path("/tmp/../a", false).is_err());
     assert!(browser_path("/etc/a", false).is_err());
     assert!(i::workspace::path::validate("/tmp/a", false).is_err());

@@ -21,6 +21,7 @@ def check(archive):
         bundle = next(root.iterdir())
         for line in (bundle / 'SHA256SUMS').read_text().splitlines():
             digest, name = line.split('  ', 1)
+            assert '\\' not in name, 'Package checksum paths must use portable forward slashes'
             assert hashlib.sha256((bundle / name).read_bytes()).hexdigest() == digest, name
         suffix = '.exe' if os.name == 'nt' else ''
         core = bundle / 'bin' / ('i' + suffix)
@@ -40,8 +41,10 @@ def check(archive):
         for name in ('CONFIG', 'DATA', 'CACHE', 'RUNTIME'):
             environment[f'I_{name}_DIR'] = str(root / name.lower())
         def run(argv):
-            return subprocess.run([str(value) for value in argv], env=environment, cwd=root,
-                                  stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=45, check=True)
+            result = subprocess.run([str(value) for value in argv], env=environment, cwd=root,
+                                    stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=45)
+            assert result.returncode == 0, (result.returncode, result.stdout, result.stderr)
+            return result
         assert 'i 0.1.0' in run([core, '--version']).stdout
         assert 'cx="171.5"' in run([*helper, 'logo', '--svg']).stdout
         run([*helper, 'init'])
@@ -98,13 +101,18 @@ def check(archive):
             result = run([*helper,'console','--no-logo','--config',config,'-C',workspace,'--max-steps','2','--dangerously-skip-permissions',
                           '--task=Remember the package_check preference as ok.'])
             assert 'packaged-ok' in result.stdout
-            assert len(requests) == 2 and len(requests[0]['tools']) == 15
+            assert len(requests) == 2
+            schemas = json.loads((Path(__file__).resolve().parent.parent / 'src/tools.json').read_text())
+            expected_tools = {tool['function']['name'] for tool in schemas} | {tool['name'] for tool in manifest['tools']}
+            actual_tools = [tool['function']['name'] for tool in requests[0]['tools']]
+            assert len(actual_tools) == len(set(actual_tools)), 'duplicate tool names in packaged request'
+            assert set(actual_tools) == expected_tools, (actual_tools, sorted(expected_tools))
             assert any(message.get('role')=='tool' for message in requests[1]['messages'])
             memory = next((root/'data/workspaces').glob('*/memory.json'))
             assert json.loads(memory.read_text())['package_check'] == 'ok'
             report = json.loads(run([*helper,'cache-report','-C',workspace]).stdout)
             assert report['totals']['observed_responses'] == 2
-            print(f'{archive.name}: PASS — hashes, self-install/source relocation, portable bindings, single executable, console task, 15 tools, bundled memory/steering workers, Unicode search, usage-based budget, cache accounting')
+            print(f'{archive.name}: PASS — hashes, self-install/source relocation, portable bindings, single executable, console task, {len(actual_tools)} tools, bundled memory/steering workers, Unicode search, usage-based budget, cache accounting')
         finally:
             server.shutdown()
             server.server_close()

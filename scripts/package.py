@@ -217,7 +217,7 @@ def main():
                         developer_id_signed=False, notarized=False)
         (package / 'BUILD.json').write_text(json.dumps(metadata, indent=2) + '\n')
         files = sorted(path for path in package.rglob('*') if path.is_file())
-        (package / 'SHA256SUMS').write_text(''.join(f'{digest(path)}  {path.relative_to(package)}\n' for path in files))
+        (package / 'SHA256SUMS').write_text(''.join(f'{digest(path)}  {path.relative_to(package).as_posix()}\n' for path in files))
         unpacked = sum(path.stat().st_size for path in package.rglob('*') if path.is_file())
         # Canonical headers avoid leaking host usernames/paths and make repeat packaging stable.
         def canonical(info):
