@@ -99,6 +99,10 @@ resolver = "2"
 [patch.crates-io]
 globset = { path = "vendor/globset" }
 
+[profile.dev]
+# Keep stack traces without full dependency DWARF in the installable test binary.
+debug = 1
+
 # Optional distribution profile; keeps all tools/plugins, trades build time for size.
 [profile.min-size]
 inherits = "release"

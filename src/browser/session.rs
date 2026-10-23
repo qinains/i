@@ -23,10 +23,12 @@ pub fn browser_path(name: &str, allow_root: bool) -> Result<std::path::PathBuf> 
     use crate::workspace::path::validate;
     if name == "/tmp" || name.starts_with("/tmp/") {
         let path = validate(name.strip_prefix("/tmp").unwrap().trim_start_matches('/'), true)?;
-        return Ok(std::path::Path::new("/tmp").join(path));
+        return Ok(std::path::PathBuf::from(format!("/tmp/{}", path.to_string_lossy().replace('\\', "/"))));
     }
     if name == "/workspace" || name.starts_with("/workspace/") {
-        return validate(name.strip_prefix("/workspace").unwrap().trim_start_matches('/'), allow_root);
+        let path = validate(name.strip_prefix("/workspace").unwrap().trim_start_matches('/'), allow_root)?;
+        return Ok(std::path::PathBuf::from(path.to_string_lossy().replace('\\', "/")));
     }
-    validate(name, allow_root)
+    let path = validate(name, allow_root)?;
+    Ok(std::path::PathBuf::from(path.to_string_lossy().replace('\\', "/")))
 }
