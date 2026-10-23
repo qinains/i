@@ -98,13 +98,18 @@ def check(archive):
             result = run([*helper,'console','--no-logo','--config',config,'-C',workspace,'--max-steps','2','--dangerously-skip-permissions',
                           '--task=Remember the package_check preference as ok.'])
             assert 'packaged-ok' in result.stdout
-            assert len(requests) == 2 and len(requests[0]['tools']) == 15
+            assert len(requests) == 2
+            schemas = json.loads((Path(__file__).resolve().parent.parent / 'src/tools.json').read_text())
+            expected_tools = {tool['function']['name'] for tool in schemas} | {tool['name'] for tool in manifest['tools']}
+            actual_tools = [tool['function']['name'] for tool in requests[0]['tools']]
+            assert len(actual_tools) == len(set(actual_tools)), 'duplicate tool names in packaged request'
+            assert set(actual_tools) == expected_tools, (actual_tools, sorted(expected_tools))
             assert any(message.get('role')=='tool' for message in requests[1]['messages'])
             memory = next((root/'data/workspaces').glob('*/memory.json'))
             assert json.loads(memory.read_text())['package_check'] == 'ok'
             report = json.loads(run([*helper,'cache-report','-C',workspace]).stdout)
             assert report['totals']['observed_responses'] == 2
-            print(f'{archive.name}: PASS — hashes, self-install/source relocation, portable bindings, single executable, console task, 15 tools, bundled memory/steering workers, Unicode search, usage-based budget, cache accounting')
+            print(f'{archive.name}: PASS — hashes, self-install/source relocation, portable bindings, single executable, console task, {len(actual_tools)} tools, bundled memory/steering workers, Unicode search, usage-based budget, cache accounting')
         finally:
             server.shutdown()
             server.server_close()

@@ -42,6 +42,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev ca-certificates
       - run: cargo clippy --workspace --locked --all-targets --features bundled -- -D warnings
       - run: cargo build --workspace --locked --features bundled
+      - name: Report the installable debug executable size
+        run: python3 -c "from pathlib import Path; p=Path('target/debug/i.exe' if __import__('os').name=='nt' else 'target/debug/i'); print('Debug executable bytes:', p.stat().st_size)"
       - run: python3 scripts/check_globset.py --graph
       - run: cargo test --workspace --locked --features bundled
       - run: cargo check --locked --no-default-features -p i

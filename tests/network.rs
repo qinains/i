@@ -142,7 +142,7 @@ fn run_observed(root: &Path, base: &str, mut config: Value, retry: Option<std::s
 fn disconnect_after_tool_retries_identical_request_without_replaying_tool_or_hiding_usage() {
     let root = tempfile::tempdir().unwrap();
     let worker = support::python(
-        "import json,sys\nfrom pathlib import Path\ne=json.load(sys.stdin); p=Path(e['workspace'])/'calls.txt'\nwith p.open('a') as f: f.write('once\\n')\njson.dump({'output':'done'},sys.stdout)",
+        "import json,sys\nfrom pathlib import Path\ne=json.load(sys.stdin); p=Path(e['workspace'])/'calls.txt'\nwith p.open('a', newline='') as f: f.write('once\\n')\njson.dump({'output':'done'},sys.stdout)",
     );
     fs::write(root.path().join("worker.py"), worker).unwrap();
     let mut manifest: Value = serde_json::from_str(include_str!("../plugins/cache.json")).unwrap();
