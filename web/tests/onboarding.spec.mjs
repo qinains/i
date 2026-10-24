@@ -1,6 +1,18 @@
 import {test,expect} from './fixtures.mjs';
 import {DEFAULT_CONFIGURATION} from '../config.js';
 
+for(const [locale,language]of [['zh-CN','zh-CN'],['zh-HK','zh-TW'],['ja-JP','ja']])test(`first visit follows system ${locale}`,async({page})=>{
+    await page.addInitScript(locale=>Object.defineProperty(navigator,'languages',{get:()=>[locale,'en-US']}),locale);
+    await page.goto('/');await expect(page.locator('#welcome-connection')).toBeVisible();await expect(page.locator('html')).toHaveAttribute('lang',language);await expect(page.locator('#lang-select')).toHaveValue(language);
+});
+
+test('manual language preference wins over system language after reload',async({page})=>{
+    await page.addInitScript(()=>Object.defineProperty(navigator,'languages',{get:()=>['zh-CN']}));
+    await page.goto('/');await expect(page.locator('#welcome-connection')).toContainText('欢迎');
+    await page.locator('[data-settings-tab=appearance]').click();await page.locator('#lang-select').selectOption('en');await page.reload();
+    await expect(page.locator('#input')).toBeEnabled();await expect(page.locator('html')).toHaveAttribute('lang','en');await expect(page.locator('#lang-select')).toHaveValue('en');
+});
+
 test('first visit guides setup, remembers explicitly saved credentials and makes no model request',async({page})=>{
     const external=[];page.on('request',request=>{if(request.url().startsWith('https://model.invalid'))external.push(request.url());});
     await page.goto('/');await expect(page.locator('#input')).toBeEnabled();

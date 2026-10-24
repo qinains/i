@@ -15,7 +15,7 @@ import {updateTitle,compactTitleFromHistory} from './titles.js';
 import {SessionController,connectionIdentity} from './sessions.js';
 import {node,renderMessage} from './render.js';
 import {legacyWorkspace} from './state/migration.js';
-import {applyWorkspaceTranslations,uiText} from './i18n.js';
+import {applyWorkspaceTranslations,uiText,detectLanguage} from './i18n.js';
 import {openPluginStore} from './plugins/store.js';
 import {PluginManager} from './plugins/manager.js';
 import {inspectPluginPackage} from './plugins/runner.js';
@@ -503,7 +503,7 @@ function renderWorkspaces(){
     $('workspace-select').replaceChildren(...options);
 }
 async function main(){
-    bind();restoreConfiguration(DEFAULT_CONFIGURATION);
+    bind();applied={...DEFAULT_CONFIGURATION,language:detectLanguage(navigator.languages?.length?navigator.languages:[navigator.language],[...$('lang-select').options].map(option=>option.value))};restoreConfiguration(applied);
     try{
         await opfsOpenWorkspace('default');store=await openStateStore();const saved=await store.load();workspaces=new Map(saved.workspaces.map(record=>[record.id,record]));
         if(!workspaces.has('default')){const record={id:'default',name:'Default',createdAt:Date.now(),storageKind:'persistent'};await store.createWorkspace(record);workspaces.set('default',record);}
