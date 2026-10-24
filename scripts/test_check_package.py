@@ -36,7 +36,9 @@ class ArchiveTests(unittest.TestCase):
                 root = Path(temporary)
                 archive = root / 'bad.zip'
                 with zipfile.ZipFile(archive, 'w') as package:
-                    package.writestr(name, 'bad')
+                    info = zipfile.ZipInfo()
+                    info.filename = name
+                    package.writestr(info, 'bad')
                 output = root / 'out'
                 output.mkdir()
                 with self.assertRaises(ValueError):

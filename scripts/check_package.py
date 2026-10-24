@@ -22,10 +22,11 @@ def extract_package(archive, root):
             if len(entries) > 10000 or sum(entry.file_size for entry in entries) > 512 * 1024 * 1024:
                 raise ValueError('Package exceeds extraction limits')
             for entry in entries:
-                path = PurePosixPath(entry.filename)
+                original = entry.orig_filename
+                path = PurePosixPath(original)
                 key = str(path).casefold()
                 if (not path.parts or path.is_absolute() or '..' in path.parts
-                        or '\\' in entry.filename or ':' in entry.filename or key in seen
+                        or '\\' in original or '\0' in original or ':' in original or key in seen
                         or any(part.endswith(('.', ' ')) for part in path.parts)
                         or (entry.external_attr >> 16) & 0o170000 == 0o120000):
                     raise ValueError('Unsafe package member')

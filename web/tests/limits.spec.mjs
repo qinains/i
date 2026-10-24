@@ -23,7 +23,7 @@ test('browser tasks exceed 32 rounds, DeepSeek maximum and thinking controls sur
     await expect(page.locator('#max-tokens')).toHaveValue('393216');
     await expect(page.locator('#use-max-tokens')).toBeChecked();
     await page.locator('#reasoning-effort').selectOption('low');
-    expect(await page.locator('#reasoning-effort option').evaluateAll(options=>options.map(option=>option.value))).toEqual(['default','none','low','high','max']);
+    expect(await page.locator('#reasoning-effort option').evaluateAll(options=>options.filter(option=>!option.hidden).map(option=>option.value))).toEqual(['default','none','low','high','max']);
     await page.locator('[data-settings-tab=connection]').click();await page.locator('#remember-config').check();
     await page.locator('#save-config').click();await page.locator('#close-settings').click();
     await page.locator('#input').fill('Continue for 35 tool rounds');await page.locator('#btn-send').click();

@@ -16,7 +16,7 @@ test('saved credentials are not included in guest frames or exposed by host oper
         const store=await openPluginStore(),frames=[],original=Worker.prototype.postMessage;
         Worker.prototype.postMessage=function(message,...rest){frames.push({type:message.type,request:message.request,descriptor:message.descriptor,response:message.response});return original.call(this,message,...rest);};
         try{
-            let callback;const agent={api_key:secret,relay_token:relay,set_plugin_tools:(_,fn)=>{callback=fn;},run:()=>callback(descriptor.publicName,JSON.stringify({path:'notes.txt'}))};
+            let callback;const agent={api_key:secret,relay_token:relay,set_system_prompt:()=>{},set_plugin_tools:(_,fn)=>{callback=fn;},run:()=>callback(descriptor.publicName,JSON.stringify({path:'notes.txt'}))};
             const output=await runPluginTask({agent,manager:{withSnapshot:(_,run)=>run(snapshot),loadModule:async()=>verified.wasm},store,record:{workspaceId:'default',id:'session',mode:'auto'},text:'count',signal:new AbortController().signal});
             const privileged={...descriptor,permissions:{workspace:'read-write',storage:true}},broker=createPluginBroker({snapshot:{workspaceId:'default',tools:[privileged]},descriptor:privileged,store,context:{workspaceId:'default',mode:'auto'}});
             const denied=[];let id=0;

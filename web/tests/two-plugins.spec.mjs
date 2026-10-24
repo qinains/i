@@ -12,7 +12,7 @@ test('two real Rust WASM plugins install together, execute with scoped permissio
         await page.locator('#plugin-install').click();const card=page.locator(`[data-plugin-id="${plugin.id}"]`);await expect(card).toContainText('Disabled');
         page.once('dialog',dialog=>dialog.accept());await card.locator('[data-plugin-action=enable]').click();await expect(card).toContainText('Enabled');
     }
-    await expect(page.locator('#plugin-list [data-plugin-id]')).toHaveCount(2);
+    await expect(page.locator('#plugin-list [data-plugin-id]')).toHaveCount(3);await expect(page.locator('[data-plugin-id="builtin.prompts"]')).toContainText('Enabled');
     await page.locator('[data-settings-tab=connection]').click();await page.locator('#base-url').fill('http://127.0.0.1:4173/mock/v1');await page.locator('#model').fill('fixture');await page.locator('#save-config').click();await page.locator('#close-settings').click();
     for(const [name,content] of [['notes.txt','hello world'],['input.json','{"b":2,"a":1}']]){
         await page.locator('#file-input').setInputFiles({name,mimeType:'text/plain',buffer:Buffer.from(content)});await expect(page.locator(`[data-file="${name}"]`)).toHaveCount(1);
@@ -21,7 +21,7 @@ test('two real Rust WASM plugins install together, execute with scoped permissio
         const {openPluginStore}=await import('/plugins/store.js'),{PluginManager}=await import('/plugins/manager.js'),{inspectPluginPackage}=await import('/plugins/runner.js');
         const store=await openPluginStore();try{return await new PluginManager({store,inspectPackage:inspectPluginPackage}).withSnapshot('default',snapshot=>Object.fromEntries(snapshot.tools.map(tool=>[tool.pluginId,tool.publicName])));}finally{store.close();}
     });
-    expect(Object.keys(names).sort()).toEqual(packages.map(p=>p.id).sort());const requests=[];
+    expect(Object.keys(names).sort()).toEqual([...packages.map(p=>p.id),'builtin.prompts'].sort());const requests=[];
     await page.route('**/mock/v1/chat/completions',route=>{
         const body=route.request().postDataJSON();requests.push(body);const first=body.messages.at(-1).role==='user';
         const calls=first?[[names['example.word-count'],{path:'notes.txt'}],[names['example.json-format'],{path:'input.json',output_path:'formatted.json'}]].map(([name,args],index)=>({index,id:`plugin-${index}`,type:'function',function:{name,arguments:JSON.stringify(args)}})):[];

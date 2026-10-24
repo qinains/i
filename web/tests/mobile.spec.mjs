@@ -9,6 +9,8 @@ test('phone layout has no horizontal overflow and task, approval, cancel and ZIP
     await expect(page.locator('#approval-panel')).toBeVisible(); await page.locator('#approve').click();
     await expect(page.locator('#approval-panel')).toBeVisible(); await page.locator('#approve').click();
     await expect(page.locator('#status')).toHaveText('Ready');
+    if(await page.locator('#file-panel').isVisible())await page.locator('#close-files').click();
+    await page.locator('#conversation-menu>summary').click();
     const download = page.waitForEvent('download'); await page.locator('#btn-download').click(); await download;
 });
 test('new browser profile does not inherit other profile credentials or workspace', async ({page}) => {
