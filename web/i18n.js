@@ -244,6 +244,20 @@ function t(key, lang, values={}) {
 }
 export function uiText(key,values={}){return t(key,document.documentElement.lang,values);}
 
+export function detectLanguage(languages,supported){
+    for(const preference of languages??[]){
+        if(typeof preference!=='string')continue;
+        const tag=preference.toLowerCase(),parts=tag.split('-');
+        const exact=supported.find(language=>language.toLowerCase()===tag);if(exact)return exact;
+        const family=parts[0];
+        const candidate=family==='zh'
+            ? parts.includes('hans')?'zh-CN':parts.includes('hant')||parts.some(part=>['tw','hk','mo'].includes(part))?'zh-TW':'zh-CN'
+            : supported.find(language=>language.toLowerCase()===family);
+        if(supported.includes(candidate))return candidate;
+    }
+    return supported.includes('en')?'en':supported[0]??'en';
+}
+
 export function applyTranslations(lang) {
     // Update all elements with data-i18n attribute
     document.querySelectorAll('[data-i18n]').forEach(el => {

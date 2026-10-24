@@ -38,6 +38,8 @@ OpenAI-compatible 默认使用 `max_tokens`；服务要求 `max_completion_token
 
 首次打开且没有已保存连接时，会自动显示设置并聚焦 API URL，提示填写 URL、模型和 API key；默认勾选 **Remember credentials on this device**，但只有点击保存后才写入密钥。保存后自动关闭首次引导，刷新或重启浏览器可恢复；也可关闭引导稍后再配，或取消记住、仅在当前页面内存使用。Settings 按 Model connection、Workspace & recovery、Appearance、Advanced 分组；修改后点击 Save changes 应用。记住时，整套连接配置保存到当前 origin 的 localStorage `i_harness_profiles`：API URL、模型、API key、协议、思考档位、token 上限、token 参数选项、语言、transport、stream、relay token 和 custom headers，不写入 OPFS 工作区文件或会话数据库。旧 `i_harness_config` v1/v2 自动迁移，丢弃已移除的 max_steps，缺失思考档位补“接口默认”，保留原有密钥及显式 token 额度，不自动发请求或更换 key 接收方。连接测试和正式请求共用端点归一化及传输实现；测试会发小额模型请求。
 
+首次界面语言按浏览器的 `navigator.languages` 偏好顺序匹配当前支持的语言；区域变体匹配基础语言，中文区分简繁（Hans/CN/SG 为简体，Hant/TW/HK/MO 为繁体）。没有可用匹配时才回退英语。已手动选择并保存的 `i_lang` 优先，其次保留已保存连接中的语言，不会被系统偏好覆盖。自动检测本身不写入密钥或触发模型请求。
+
 已安装的 Rust/WASM 插件不接收连接配置或 API/Relay 密钥：guest 模块禁止所有 imports，只能通过固定宿主操作访问授权工作区和隔离的插件 KV，不能直接调用 JavaScript、DOM、localStorage 或 IndexedDB；配置读取、网络请求和越界文件路径会被拒绝。同源页面脚本仍可读取本地存储，浏览器扩展和被篡改的宿主代码不属于这一 guest 隔离保证。不要主动把密钥粘贴进消息或工作区文件。
 
 取消勾选会删除保存的连接凭据，当前页面的值仍可继续使用；Advanced → Danger zone → **Clear all credentials** 删除旧配置及所有 profiles，并清空活动凭据，但不删除会话历史或 OPFS 文件。删除连接后，旧会话不能静默使用其他连接；在设置中明确 Attach selected connection 才能换绑。修改已有会话的账号/租户凭据需确认。浏览器阻止存储、配额不足、JSON 损坏或版本不兼容时显示状态，不伪称保存成功。
