@@ -139,6 +139,8 @@ Clear 仅清终端显示；Reset conversation 需确认并清当前模型上下�
 
 iframe 使用独立 opaque origin，不授予 `allow-same-origin`、forms、popups、下载或顶层导航权限。子文档 CSP 限制普通外部资源/网络，父页面 `frame-src about:` 阻止预览自行导航到 HTTP 页面。Harness 配置、API key、会话数据库从不传入预览。**CSP 不等于完整网络沙箱**，尤其不能保证可信脚本模式下所有浏览器特有通信通道都被禁用；不要将此模式用于执行敌对代码。
 
+脚本模式为预览页提供独立的内存 `localStorage/sessionStorage`，支持常用 Storage 方法和命名属性；两者共享 1 MiB UTF-16 配额，超额写入抛出 `QuotaExceededError`，不覆盖已有值。它们不是工作台的真实浏览器存储，不读取或写入父页面配置，不支持跨窗口 storage 事件或 IndexedDB。刷新/关闭预览会清空，仅影响预览临时状态，不删除 OPFS 文件、会话或密钥。纯预览模式不再构建隐藏源码高亮；超过 128 KiB 的源码按完整纯文本显示，减少大量高亮节点带来的卡顿。
+
 本地 ES Module 支持内联或 `src` 入口、相对/根路径 `import`、`export ... from`、默认/命名导出、循环依赖、共享模块状态、顶层 await，以及固定字符串的动态 `import('./lib.js')`。`import.meta` 提供虚拟工作区 `url`（不是页面真实地址），可通过 `fetch(new URL('./data.json', import.meta.url))` 读取本地数据；不提供 `import.meta.resolve` 等其他能力。模块图由随站点缓存的 es-module-lexer 1.7.0 定位依赖，再通过 import map 交给浏览器原生模块引擎运行，不使用正则转译 import/export，不依赖运行时 Node 或 CDN。第三方原始文件、许可证与校验值见 `web/module-lexer.*`。
 
 不支持 npm 裸包名、外部 CDN、计算式动态导入、自定义 import map、JSON/CSS 模块导入属性或 source/defer 阶段导入；需要先将这类项目构建为本地 JavaScript 文件。缺失模块或不支持的导入在执行脚本前报错，中文界面显示中文原因。关闭脚本时不解析或加载模块依赖。模块预加载提示移除，依赖从本次快照提供；模块 URL（含查询参数）最多 1000 个，展开后的模块资源最多 48 MiB。

@@ -1,5 +1,6 @@
 export const copy={
     'zh-CN':{
+        'Preview storage is temporary and isolated; refreshing the preview clears it.':'预览存储独立且临时，刷新预览即清空，不会访问工作台配置。',
         'OpenAI (Responses)':'OpenAI（Responses）',
         'Reasoning effort (Responses)':'思考强度（Responses）',
         'Thinking medium':'中等强度','Thinking extra high':'超高强度',

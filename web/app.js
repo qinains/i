@@ -486,6 +486,7 @@ function bind(){
     $('btn-history').addEventListener('click',showHistory);$('close-history').addEventListener('click',()=>$('history-modal').close());
     $('settings-btn').addEventListener('click',openSettings);$('close-settings').addEventListener('click',()=>{dismissWelcome();$('settings-modal').close();});
     $('settings-modal').addEventListener('cancel',dismissWelcome);
+    $('connection-form').addEventListener('submit',event=>event.preventDefault());
     $('settings-modal').addEventListener('close',()=>{dismissWelcome();const focused=document.activeElement;if(focused===document.body||$('settings-modal').contains(focused))$('settings-btn').focus();});
     for(const button of document.querySelectorAll('[data-settings-tab]'))button.addEventListener('click',()=>{for(const panel of document.querySelectorAll('[data-settings-panel]'))panel.hidden=panel.dataset.settingsPanel!==button.dataset.settingsTab;for(const item of document.querySelectorAll('[data-settings-tab]'))item.setAttribute('aria-selected',String(item===button));document.querySelector('#settings-modal .dialog-footer').hidden=button.dataset.settingsTab==='plugins';if(button.dataset.settingsTab==='plugins')pluginUi.refresh();});
     $('transport').addEventListener('change',updateTransport);

@@ -92,6 +92,7 @@
         <div class="form-field"><label for="profile-select" data-i18n="Connection">Connection</label><select id="profile-select"><option value="" data-i18n="This session only">This session only</option></select></div>
         <div class="connection-buttons"><button id="save-as-profile" data-i18n="Add connection">Add connection</button><button id="delete-profile" data-i18n="Delete this connection">Delete this connection</button></div>
       </div>
+      <form id="connection-form" method="dialog" autocomplete="off" novalidate>
       <fieldset id="settings">
         <legend class="sr-only" data-i18n="Model connection">Model connection</legend>
         <div class="form-field"><label for="protocol" data-i18n="API protocol">API protocol</label><select id="protocol"><option value="openai" data-i18n="OpenAI-compatible (Chat Completions)">OpenAI-compatible (Chat Completions)</option><option value="responses" data-i18n="OpenAI (Responses)">OpenAI (Responses)</option><option value="anthropic" data-i18n="Anthropic (Messages)">Anthropic (Messages)</option></select></div>
@@ -134,6 +135,7 @@
         <div class="actions"><button id="test-connection" type="button" data-i18n="Test connection">Test connection</button><button id="cancel-test" type="button" hidden data-i18n="Cancel test">Cancel test</button><span id="test-result" role="status"></span></div>
         <p class="note" data-i18n="Test sends a small model request and may incur a charge. Reload never tests or sends automatically.">Test sends a small model request and may incur a charge. Reload never tests or sends automatically.</p>
       </fieldset>
+      </form>
     </section>
     <section data-settings-panel="recovery" hidden>
       <h2 data-i18n="Saved locally">Saved locally</h2>

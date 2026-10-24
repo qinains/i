@@ -1,6 +1,30 @@
 import {test,expect} from './fixtures.mjs';
 async function open(page){await page.goto('/');await expect(page.locator('#input')).toBeEnabled();await page.locator('#settings-btn').click();}
 async function chinese(page){await page.locator('[data-settings-tab=appearance]').click();await page.locator('#lang-select').selectOption('zh-CN');}
+test('credential inputs belong to a form without implicit submission, navigation or model requests',async({page,context,browserName})=>{
+    const warnings=[],requests=[];
+    if(browserName==='chromium'){
+        const logs=await context.newCDPSession(page);await logs.send('Log.enable');logs.on('Log.entryAdded',({entry})=>warnings.push(entry.text));
+    }
+    page.on('request',request=>{if(request.method()==='POST')requests.push(request.url());});
+    await open(page);
+    expect(await page.evaluate(()=>{
+        const key=document.getElementById('api-key'),relay=document.getElementById('relay-token');
+        return !!key.form&&key.form===relay.form&&key.form.id==='connection-form';
+    })).toBe(true);
+    const url=page.url();await page.locator('#base-url').fill('https://api.example/v1');await page.locator('#model').fill('fixture');await page.locator('#api-key').fill('DUMMY_FORM_KEY');await page.locator('#remember-config').uncheck();
+    await page.locator('#api-key').press('Enter');await expect(page.locator('#settings-modal')).toBeVisible();
+    await page.locator('#transport').selectOption('relay');await page.locator('#relay-token').fill('DUMMY_RELAY_TOKEN');await page.locator('#relay-token').press('Enter');
+    expect(await page.evaluate(()=>{
+        const form=document.getElementById('connection-form');let cancelled=false;
+        form.addEventListener('submit',event=>{cancelled=event.defaultPrevented;},{once:true});form.requestSubmit();return cancelled;
+    })).toBe(true);
+    await expect(page.locator('#settings-modal')).toBeVisible();expect(page.url()).toBe(url);expect(requests).toHaveLength(0);
+    expect(await page.evaluate(()=>JSON.stringify(localStorage).includes('DUMMY_FORM_KEY'))).toBe(false);
+    await page.locator('#transport').selectOption('direct');await page.locator('#remember-config').check();await page.locator('#save-config').click();
+    expect(await page.evaluate(()=>JSON.stringify(localStorage).includes('DUMMY_FORM_KEY'))).toBe(true);expect(requests).toHaveLength(0);
+    expect(warnings.filter(text=>/Password field is not contained in a form/iu.test(text))).toEqual([]);
+});
 test('connection options stay together, direct-only help toggles and saved values survive reload',async({page},testInfo)=>{
     await page.setViewportSize({width:390,height:844});await open(page);await chinese(page);await page.locator('[data-settings-tab=connection]').click();
     const panel=page.locator('[data-settings-panel=connection]');

@@ -1,6 +1,29 @@
 import {test,expect} from './fixtures.mjs';
 async function seed(page,files){await page.goto('/');await expect(page.locator('#status')).toHaveText('Ready');await page.evaluate(async files=>{const fs=await import('/platform.js'),root=await fs.opfsOpen();for(const [path,text]of Object.entries(files))await fs.opfsWrite(root,path,new TextEncoder().encode(text));},files);}
 async function enableScripts(page){page.once('dialog',dialog=>dialog.accept());await page.locator('#preview-scripts').check();}
+test('preview has temporary local and session storage without access to workbench credentials',async({page})=>{
+    const errors=[];page.on('pageerror',error=>errors.push(error.message));
+    await seed(page,{'index.html':`<p id="result"></p><script>
+    const absent=localStorage.getItem('preview-secret')===null;
+    const count=Number(localStorage.getItem('count')||0)+1;
+    localStorage.setItem('count',count);localStorage.theme='dark';sessionStorage.setItem('draft','temporary');
+    let parentBlocked=false;try{parent.localStorage.getItem('preview-secret')}catch{parentBlocked=true}
+    document.getElementById('result').textContent=[absent,count,localStorage.theme,sessionStorage.getItem('draft'),parentBlocked].join(':');
+    </script>`});
+    await page.evaluate(()=>localStorage.setItem('preview-secret','DUMMY_PARENT_SECRET'));
+    await page.locator('#btn-preview').click();await enableScripts(page);
+    await expect(page.frameLocator('#preview-frame').locator('#result')).toHaveText('true:1:dark:temporary:true');
+    await expect(page.locator('#preview-frame')).toHaveAttribute('sandbox','allow-scripts');
+    await page.locator('#refresh-preview').click();await expect(page.frameLocator('#preview-frame').locator('#result')).toHaveText('true:1:dark:temporary:true');
+    expect(await page.evaluate(()=>({secret:localStorage.getItem('preview-secret'),count:localStorage.getItem('count'),draft:sessionStorage.getItem('draft')}))).toEqual({secret:'DUMMY_PARENT_SECRET',count:null,draft:null});
+    expect(errors).toEqual([]);
+});
+test('preview skips hidden source highlighting and large source uses a single plain text node',async({page})=>{
+    const html='<h1>Large file</h1>'+('<!-- padding -->\n'.repeat(10000));
+    await seed(page,{'index.html':html});await page.locator('#btn-preview').click();await expect(page.frameLocator('#preview-frame').locator('h1')).toHaveText('Large file');
+    expect(await page.locator('#preview-source').textContent()).toBe('');
+    await page.locator('#preview-mode').selectOption('source');await expect(page.locator('#preview-source')).toHaveText(html);await expect(page.locator('#preview-source span')).toHaveCount(0);
+});
 test('snapshot hash links stay inside the preview without navigating to the virtual workspace origin',async({page})=>{
     await seed(page,{'index.html':'<a href="#target">Jump</a><div style="height:1200px"></div><h2 id="target">Target</h2>'});
     const violations=[];page.on('console',message=>{if(message.text().includes('frame-src'))violations.push(message.text());});
@@ -28,7 +51,7 @@ test('preview has no network, parent scripting, form, worker or iframe privilege
     await seed(page,{'index.html':`<h1 id="result">running</h1><img src="data:image/png;base64,broken"><script>
     (async()=>{let parentAccess=false;try{parent.document.body.dataset.compromised='1';parentAccess=true}catch{};
     let network=false;try{await fetch('https://outside.invalid/leak')}catch{network=true};
-    let storage=false;try{localStorage.setItem('leak','x')}catch{storage=true};
+    localStorage.setItem('leak','x');let storage=localStorage.getItem('leak')==='x';
     document.querySelector('#result').textContent=JSON.stringify({parentAccess,network,storage});
     const xhr=new XMLHttpRequest();xhr.open('GET','https://outside.invalid/xhr');try{xhr.send()}catch{};
     })();</script>`});

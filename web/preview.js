@@ -8,6 +8,7 @@ import {markdownHtml,staticDocument,textDocument} from './file-content.js';
 import {moduleGraph} from './preview-modules.js';
 import {highlightSource} from './highlight.js';
 import {bindResponsiveDisclosure} from './responsive-ui.js';
+import {installPreviewStorage} from './preview-storage.js';
 const ORIGIN='https://workspace.invalid';
 const SNAPSHOT_LIMIT=16*1024*1024,OUTPUT_LIMIT=48*1024*1024;
 const types={html:'text/html',htm:'text/html',css:'text/css',js:'text/javascript',mjs:'text/javascript',json:'application/json',txt:'text/plain',svg:'image/svg+xml',png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp',ico:'image/x-icon',woff:'font/woff',woff2:'font/woff2',mp3:'audio/mpeg',mp4:'video/mp4'};
@@ -102,7 +103,7 @@ export async function compilePreview({files,entry},{scripts=false}={}){
     document.head.prepend(policy,baseElement);
     if(graph){const map=document.createElement('script');map.type='importmap';map.textContent=JSON.stringify({imports:graph.imports}).replaceAll('<','\\u003c');baseElement.after(map);}
     if(scripts){const encoded=Object.fromEntries(Object.entries(files).map(([path,file])=>[path,{type:file.type,base64:base64(file.bytes)}]));
-        const bootstrap=document.createElement('script');bootstrap.src=dataUrl('text/javascript',`(${virtualServer.toString()})(${JSON.stringify(encoded)},${JSON.stringify(entry)});`);baseElement.after(bootstrap);}
+        const bootstrap=document.createElement('script');bootstrap.src=dataUrl('text/javascript',`(${installPreviewStorage.toString()})();(${virtualServer.toString()})(${JSON.stringify(encoded)},${JSON.stringify(entry)});`);baseElement.after(bootstrap);}
     const html='<!doctype html>'+document.documentElement.outerHTML;
     if(new TextEncoder().encode(html).length>OUTPUT_LIMIT)throw new Error('Expanded preview exceeds 48 MiB.');
     return html;
@@ -162,10 +163,15 @@ export function mountPreview({owner,isBusy,onError,onChange=()=>{},onBack=()=>{}
             if(result.snapshot){result.html=await compilePreview(result.snapshot,{scripts:execute});delete result.snapshot;}
             if(id!==generation)return;
             const ext=selectedEntry.split('.').at(-1)?.toLowerCase()||'';
-            source.innerHTML=highlightSource(result.text,ext);source.hidden=selectedMode==='preview'&&!!result.html;
+            source.hidden=selectedMode==='preview'&&!!result.html;
+            if(!source.hidden){
+                if(result.text.length>128*1024)source.textContent=result.text;
+                else source.innerHTML=highlightSource(result.text,ext);
+            }
             frame.setAttribute('sandbox',execute&&selectedMode!=='source'?'allow-scripts':'');
             if(result.html){frame.srcdoc=result.html;frame.hidden=selectedMode==='source';}
             status.textContent=uiText(kind==='html'&&selectedMode!=='source'?(execute?'Read-only snapshot. Trusted JS, local ES modules and fetch enabled. No backend or CDN. CSP is not a complete network sandbox.':'Read-only snapshot. Scripts disabled. Local HTML / CSS / images supported; no backend.'):'Read-only file preview.');
+            if(execute&&selectedMode!=='source')status.textContent+=' '+uiText('Preview storage is temporary and isolated; refreshing the preview clears it.');
         }
         catch(error){if(id===generation){
             options.open=true;
