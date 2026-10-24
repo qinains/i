@@ -1,6 +1,6 @@
 export const copy={
     'zh-CN':{
-        'Chrome / Edge: OPTIONS 401/403/405 can use the separately confirmed Preflight repair mode. Requires debugger permission; real API authentication is unchanged.':'Chrome / Edge：若 OPTIONS 返回 401/403/405，可在新版扩展中单独确认开启“预检修复”。需要高权限调试器；实际 API 鉴权与错误不变。普通模式仍只能修改响应头。',
+        'Chrome / Edge: OPTIONS 401/403/405 can use the separately confirmed Preflight repair mode. Requires debugger permission; real API authentication is unchanged.':'新版扩展只需点击“启动”，确认后同时开启预检修复。运行后同一按钮变为“停止”。Chrome / Edge 需要高权限调试器；实际 API 鉴权与错误不变。',
         'A previous attempt could not read the API URL. Open settings to check your API URL, API key and model.':'此前的一次尝试无法读取 API URL。请打开设置，检查 API URL、API 密钥和模型名称。',
         'Historical error. Nothing has been resent.':'这是之前保存的历史错误，没有自动重发请求。',
         'Open settings':'打开设置',
@@ -14,7 +14,7 @@ export const copy={
         'Chrome / Edge: unzip, open chrome://extensions or edge://extensions, enable Developer mode, then Load unpacked.':'Chrome / Edge：解压，打开 chrome://extensions 或 edge://extensions，开启开发者模式，选择“加载已解压的扩展”。',
         'Firefox: about:debugging, This Firefox, Load Temporary Add-on. Unsigned packages last until restart.':'Firefox：打开 about:debugging → 此 Firefox → 临时载入附加组件。未签名包在浏览器重启后失效。',
         'Safari: ZIP is source, not an installer. Convert and build with Xcode, then enable the containing app extension. See README in the ZIP. iPhone requires a signed containing app.':'Safari：ZIP 是源码而非安装包，需使用 Xcode 转换、构建，再启用容器应用中的扩展，步骤见包内 README。iPhone 需要已签名的容器应用。',
-        'Save the API settings first, then click the extension on the Harness tab. It reads only the public request URL; click Enable and grant permission. Use manual entry only if detection fails. Keep Direct selected and retry manually.':'先保存网页的 API 设置，再点击扩展图标。扩展仅读取公开的请求地址，点击“启用”并授权即可；识别不到时才需手动填写。网页保持“直连”，回到网页手动重试。',
+        'Save API settings, open the extension, click Start, and confirm. The button becomes Stop. Keep Direct selected and retry manually. It reads only the public API URL from the page.':'先保存网页 API 设置，打开扩展，点击“启动”并确认。运行后同一按钮变为“停止”。网页保持“直连”，回去手动重试；扩展从页面仅读取公开的 API 地址。',
         'More connection options':'更多连接选项',
         'Conversation actions':'会话操作','Toggle fullscreen':'切换全屏','Preview options':'预览选项',
         'Thinking…':'思考中…','Thinking':'思考内容',

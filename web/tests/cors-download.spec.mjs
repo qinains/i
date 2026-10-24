@@ -5,6 +5,6 @@ test('CORS helper packages download from localized installation instructions',as
     const links=page.locator('#cors-help a[download]');await expect(links).toHaveCount(3);
     for(const link of await links.all()){
         const waiting=page.waitForEvent('download');await link.click();const download=await waiting;
-        expect(download.suggestedFilename()).toMatch(/^harness-cors-helper-(chromium|firefox|safari)-0\.3\.0\.zip$/u);expect(await download.failure()).toBeNull();
+        expect(download.suggestedFilename()).toMatch(/^harness-cors-helper-(chromium|firefox|safari)-0\.3\.1\.zip$/u);expect(await download.failure()).toBeNull();
     }
 });

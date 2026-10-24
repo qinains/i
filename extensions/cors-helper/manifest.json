@@ -1,9 +1,9 @@
 {
   "manifest_version":3,
   "name":"Harness CORS Helper",
-  "version":"0.3.0",
+  "version":"0.3.1",
   "icons":{"48":"icon-48.png","128":"icon-128.png"},
-  "description":"Opt-in, tab-scoped CORS headers with separately enabled Chromium preflight repair. No credentials are persisted.",
+  "description":"One-button, tab-scoped CORS helper with explicitly confirmed Chromium preflight repair. No credentials are persisted.",
   "minimum_chrome_version":"111",
   "permissions":["activeTab","scripting","storage","declarativeNetRequestWithHostAccess"],
   "optional_host_permissions":["https://*/*","http://localhost/*","http://127.0.0.1/*"],
