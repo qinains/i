@@ -18,8 +18,10 @@ for(const width of [1280,900,390])test(`grouped toolbars stay compact and access
     await page.setViewportSize({width,height:900});await page.goto('/');await expect(page.locator('#status')).toHaveText('Ready');
     await page.locator('#settings-btn').click();await page.locator('[data-settings-tab=appearance]').click();await page.locator('#lang-select').selectOption('zh-CN');await page.locator('#theme-select').selectOption('light');await page.locator('#close-settings').click();
     await page.locator('#file-input').setInputFiles({name:'index.html',mimeType:'text/html',buffer:Buffer.from('<h1>Preview</h1>')});
+    if(width<=700)await page.locator('#conversation-menu>summary').click();
     await page.locator('#btn-preview').click();await expect(page.frameLocator('#preview-frame').locator('h1')).toHaveText('Preview');
     await expect(page.locator('.context-actions .action-group')).toHaveCount(2);
+    if(width<=700)await page.locator('#preview-options>summary').click();
     for(const id of ['refresh-preview','preview-fullscreen','close-preview']){
         const button=page.locator('#'+id);await expect(button.locator('svg')).toHaveCount(1);
         expect(await button.getAttribute('aria-label')).toBeTruthy();expect(await button.textContent()).toBe('');

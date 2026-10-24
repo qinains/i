@@ -70,6 +70,7 @@ color-scheme:light;
 .plugin-warning {color:var(--warning)}
 #plugin-file {max-width:100%;box-sizing:border-box}
 #preview-panel {
+position:relative;
 display:flex;
 flex-direction:column;
 width:46%;
@@ -148,6 +149,11 @@ font-size:13px
 .preview-actions {display:flex;align-items:center;gap:3px;flex:none}
 .preview-actions #preview-mode {width:94px;height:32px;min-height:32px;font-size:12px;padding:5px 27px 5px 8px;background-position:calc(100% - 14px) 50%,calc(100% - 9px) 50%;border-color:transparent;background-color:transparent}
 .preview-options {display:flex;flex-wrap:wrap;align-items:center;gap:5px 12px;min-width:0}
+#preview-options>summary,#conversation-menu>summary {display:none;list-style:none;cursor:pointer}
+#preview-options>summary::-webkit-details-marker,#conversation-menu>summary::-webkit-details-marker {display:none}
+.preview-extra-controls:empty {display:none}
+#settings-btn {gap:5px}
+#settings-btn svg {display:none}
 #preview-status {flex:1 1 180px;font-size:11px;line-height:1.5;margin:0;min-width:0;overflow-wrap:anywhere}
 .icon-action {display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
 .icon-action svg {width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
@@ -818,34 +824,55 @@ padding:7px;
 flex-wrap:wrap;
 gap:5px
 }
+#settings-btn {width:40px;height:40px;padding:0;margin-left:auto;border-color:transparent;background:transparent}
+#settings-btn>span {display:none}
+#settings-btn svg {display:block;width:19px;height:19px}
 #workspace-select {
 max-width:140px
 }
 #session-tabs {
 order:4;
-flex-basis:calc(100% - 48px)
+flex-basis:100%;min-height:36px
 }
 #btn-new-session {
-order:5
+order:0
 }
 #context-bar {
 padding:6px 8px;
-flex-wrap:wrap;
-gap:5px
+flex-wrap:nowrap;
+gap:5px;min-height:48px
 }
 #conversation-title {
-max-width:45vw
+display:none
 }
-.context-location {flex-basis:100%}
-.context-actions {width:100%;justify-content:flex-end;gap:6px}
-.context-actions button,.context-actions .icon-action {min-height:44px;height:44px}
-.context-actions .icon-action {width:44px}
-.action-group+.action-group {padding-left:6px}
-.preview-toolbar {flex-wrap:wrap;gap:6px}
-.preview-toolbar #preview-entry {width:0;min-height:44px;font-size:16px;flex:1}
-.preview-actions {width:100%;justify-content:flex-end;border-top:1px solid var(--line);padding-top:5px}
+.context-location {flex-basis:auto;min-width:0;gap:7px}
+#current-path {overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0}
+#btn-files {height:36px;min-height:36px;padding:5px 9px;font-size:13px}
+#conversation-menu {position:relative;flex:none}
+#conversation-menu>summary {display:flex;width:36px;height:36px;border-radius:5px;color:var(--muted)}
+#conversation-menu[open]>summary {background:var(--selected);color:var(--accent)}
+.context-actions {position:absolute;right:0;top:calc(100% + 6px);z-index:15;width:min(260px,calc(100vw - 20px));padding:8px;display:flex;flex-direction:column;align-items:stretch;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 32px #0004;gap:0}
+.context-actions .action-group {display:flex;flex-direction:column;align-items:stretch;gap:2px}
+.context-actions button,.context-actions .icon-action {width:100%;height:44px;min-height:44px;text-align:left;justify-content:flex-start;padding:8px 10px;font-size:13px}
+.context-actions .icon-action:after {content:attr(aria-label);margin-left:8px}
+.context-actions .action-group+.action-group {padding:5px 0 0;margin-top:5px;border-left:0;border-top:1px solid var(--line)}
+#preview-panel {padding:6px;gap:6px}
+.preview-toolbar {flex-wrap:nowrap;gap:4px;min-height:44px}
+.preview-toolbar #preview-entry {width:0;min-height:44px;height:44px;font-size:16px;flex:1}
+#preview-back {width:44px;height:44px;min-height:44px;padding:0;font-size:12px}
+.preview-actions {width:auto;gap:0;justify-content:flex-end;border:0;padding:0}
 .preview-actions .icon-action {width:44px;height:44px;min-height:44px}
-.preview-actions #preview-mode {margin-right:auto;min-height:44px;height:44px;font-size:16px;width:112px}
+#close-preview {margin-left:44px}
+#preview-options {position:absolute;right:50px;top:6px;z-index:12}
+#preview-options>summary {display:flex;width:44px;height:44px;color:var(--muted);border-radius:5px}
+#preview-options[open]>summary {background:var(--selected);color:var(--accent)}
+#preview-options>.preview-options {position:absolute;top:calc(100% + 6px);right:-40px;width:min(340px,calc(100vw - 20px));display:flex;align-items:stretch;flex-direction:column;padding:12px;gap:12px;border:1px solid var(--line);background:var(--panel);border-radius:8px;box-shadow:0 8px 32px #0004;max-height:65dvh;overflow:auto}
+.preview-extra-controls {display:flex;align-items:center;justify-content:space-between;gap:8px}
+.preview-extra-controls #preview-mode {width:160px;max-width:calc(100% - 48px);height:40px;font-size:16px}
+.preview-extra-controls #preview-fullscreen {width:40px;height:40px;min-height:40px;padding:0}
+#preview-status {flex:none;font-size:12px}
+.preview-scripts-label {min-height:40px;font-size:13px}
+#preview-options summary:focus-visible,#conversation-menu summary:focus-visible {outline:2px solid var(--accent);outline-offset:2px}
 button,select {
 min-height:40px
 }
@@ -865,17 +892,24 @@ padding:14px 12px
 }
 #input-line {
 padding:9px 10px;
-padding-bottom:calc(9px + env(safe-area-inset-bottom));
 flex-shrink:0
 }
 #input {
 min-height:40px
 }
 #status-bar {
-gap:8px;
+gap:7px;flex-wrap:nowrap;min-height:calc(36px + env(safe-area-inset-bottom));max-height:calc(44px + env(safe-area-inset-bottom));overflow:hidden;padding:3px 8px;
 font-size:10px;
 padding-bottom:env(safe-area-inset-bottom)
 }
+#mode-control {flex:none;margin-right:0}
+#execution-mode {max-width:112px;font-size:11px;min-height:30px}
+#status,#save-status {flex:none;white-space:nowrap;font-size:10px}
+#save-status {flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+#status-bar:has(#btn-update:not([hidden])) #model-name {display:none}
+#model-name {flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:10px}
+#step-counter,#status-bar .spacer {display:none}
+#status-bar button {flex:none;white-space:nowrap;min-height:30px;font-size:10px;padding:3px 6px}
 #pwa-status {
 display:none
 }

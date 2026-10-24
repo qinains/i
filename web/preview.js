@@ -7,6 +7,7 @@ import {fileKind} from './file-browser.js';
 import {markdownHtml,staticDocument,textDocument} from './file-content.js';
 import {moduleGraph} from './preview-modules.js';
 import {highlightSource} from './highlight.js';
+import {bindResponsiveDisclosure} from './responsive-ui.js';
 const ORIGIN='https://workspace.invalid';
 const SNAPSHOT_LIMIT=16*1024*1024,OUTPUT_LIMIT=48*1024*1024;
 const types={html:'text/html',htm:'text/html',css:'text/css',js:'text/javascript',mjs:'text/javascript',json:'application/json',txt:'text/plain',svg:'image/svg+xml',png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp',ico:'image/x-icon',woff:'font/woff',woff2:'font/woff2',mp3:'audio/mpeg',mp4:'video/mp4'};
@@ -126,8 +127,13 @@ export function mountPreview({owner,isBusy,onError,onChange=()=>{},onBack=()=>{}
     const content=node('div','','preview-content');content.append(source,frame);
     const trust=node('label','','preview-scripts-label');const caption=node('span','允许JS');caption.dataset.i18n=caption.textContent;const scripts=node('input');scripts.id='preview-scripts';scripts.type='checkbox';scripts.checked=false;trust.append(scripts,caption);
     const actions=node('div','','preview-actions');actions.append(mode,refresh,fullscreen,close);
-    const options=node('div','','preview-options');options.append(trust,status);
+    const options=node('details');options.id='preview-options';options.open=true;
+    const optionToggle=node('summary','','icon-action');optionToggle.setAttribute('aria-label',uiText('Preview options'));optionToggle.dataset.i18nAriaLabel='Preview options';optionToggle.title=uiText('Preview options');optionToggle.dataset.i18nTitle='Preview options';
+    const toggleIcon=document.createElementNS('http://www.w3.org/2000/svg','svg');toggleIcon.setAttribute('viewBox','0 0 24 24');toggleIcon.setAttribute('aria-hidden','true');
+    const togglePath=document.createElementNS(toggleIcon.namespaceURI,'path');togglePath.setAttribute('d','M4 7h16M4 17h16M8 4v6m8 4v6');toggleIcon.append(togglePath);optionToggle.append(toggleIcon);
+    const optionBody=node('div','','preview-options'),extraControls=node('div','','preview-extra-controls');optionBody.append(extraControls,trust,status);options.append(optionToggle,optionBody);
     tools.append(back,entry,actions);panel.append(tools,options,content);document.getElementById('main-content').append(panel);
+    bindResponsiveDisclosure(options,{onLayout:mobile=>{if(mobile)extraControls.append(mode,fullscreen);else{actions.prepend(mode);actions.insertBefore(fullscreen,close);}}});
     const button=node('button','Preview HTML');button.id='btn-preview';document.getElementById('btn-download').before(button);
     button.dataset.i18n=button.textContent;
     entry.dataset.i18nAriaLabel='HTML entry path';
@@ -162,6 +168,7 @@ export function mountPreview({owner,isBusy,onError,onChange=()=>{},onBack=()=>{}
             status.textContent=uiText(kind==='html'&&selectedMode!=='source'?(execute?'Read-only snapshot. Trusted JS, local ES modules and fetch enabled. No backend or CDN. CSP is not a complete network sandbox.':'Read-only snapshot. Scripts disabled. Local HTML / CSS / images supported; no backend.'):'Read-only file preview.');
         }
         catch(error){if(id===generation){
+            options.open=true;
             if(error?.name==='NotFoundError'){
                 const location=browserPath(selectedEntry),path=`/${location.mount}/${location.path}`;
                 status.textContent=uiText('Preview file not found: {path}. It may not have been created or may have been moved. Select an existing file; no file was created or deleted.',{path});

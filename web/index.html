@@ -22,19 +22,19 @@
     <button id="btn-new-session" aria-label="New conversation" title="New conversation; shares workspace files" data-i18n-aria-label="New conversation" data-i18n-title="New conversation; shares workspace files">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
     </button>
-    <button id="settings-btn" data-i18n="Settings">Settings</button>
+    <button id="settings-btn" class="icon-action" aria-label="Settings" title="Settings" data-i18n-aria-label="Settings" data-i18n-title="Settings"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m10 3-1 3-3 1-2 3 2 2-1 3 3 2 3-1 2 2 3-2 1-3 3-1V9l-3-1-1-3-3 1-3-3z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="Settings">Settings</span></button>
   </header>
   <div id="context-bar">
     <div class="context-location"><button id="btn-files" aria-expanded="false" data-i18n="Files">Files</button>
       <span id="current-path">/workspace</span><span id="conversation-title"></span></div>
-    <div class="context-actions" role="toolbar" aria-label="Conversation actions" data-i18n-aria-label="Conversation actions">
+    <details id="conversation-menu" open><summary class="icon-action" aria-label="Conversation actions" title="Conversation actions" data-i18n-aria-label="Conversation actions" data-i18n-title="Conversation actions"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h.01M12 12h.01M19 12h.01" stroke-width="4"/></svg></summary><div class="context-actions" role="toolbar" aria-label="Conversation actions" data-i18n-aria-label="Conversation actions">
       <div class="action-group">
         <button id="btn-history" data-i18n="History">History</button>
         <button id="btn-clear" class="icon-action" aria-label="Clear" title="Clear display, not model history" data-i18n-aria-label="Clear" data-i18n-title="Clear display, not model history"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m4 14 9-10 7 6-9 10H8l-4-4zm5-5 7 6M11 20h10"/></svg></button>
         <button id="btn-reset" class="icon-action" aria-label="Reset conversation" title="Reset conversation" data-i18n-aria-label="Reset conversation" data-i18n-title="Reset conversation"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 10a8 8 0 1 1 1 8M4 4v6h6"/></svg></button>
       </div>
       <div class="action-group"><button id="btn-download" data-i18n="Download ZIP">Download ZIP</button></div>
-    </div>
+    </div></details>
   </div>
   <div id="main-content">
     <aside id="file-panel" hidden aria-label="Workspace files" data-i18n-aria-label="Workspace files">

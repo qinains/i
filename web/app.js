@@ -9,6 +9,7 @@ import {opfsOpenWorkspace,opfsClearTmp,opfsFileVersion} from './platform.js';
 import {FileRefresh} from './file-refresh.js';
 import {mountScratchControls} from './scratch-ui.js';
 import {mountPreview} from './preview.js';
+import {bindResponsiveDisclosure} from './responsive-ui.js';
 import {renderFileTree,viewState,persistentView} from './file-browser.js';
 import {mountCommands} from './commands.js';
 import {updateTitle,compactTitleFromHistory} from './titles.js';
@@ -438,6 +439,7 @@ function showHistory(){
     $('history-modal').showModal();
 }
 function bind(){
+    bindResponsiveDisclosure($('conversation-menu'),{closeOnAction:true});
     theme.subscribe(mode=>{$('theme-select').value=mode;});
     $('theme-select').addEventListener('change',()=>{const saved=theme.setMode($('theme-select').value);setText('config-status',saved?'Theme saved locally; connection changes still require Save.':'Theme applied for this page; browser storage is unavailable.');});
     composerUi=mountComposer({input:$('input'),list:$('composer-attachments'),getRecord:active,isDisabled:()=>preparingId===activeId||runningId===activeId&&messageTaskId!==activeId||!!testController||pluginBusy||updateLocked||!ready,onError:report,onChange:(record,value)=>{record.draft=value;controller.later(record);commandMenu?.hide();updateComposerAction();}});
