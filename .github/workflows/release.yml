@@ -18,6 +18,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
         with:
           toolchain: '1.95.0'
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
       - name: Install native TLS build prerequisites
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev ca-certificates
@@ -30,6 +33,12 @@ jobs:
           else
             target/min-size/i-package --skip-build --profile min-size
           fi
+      - name: Verify packaged clients offline
+        shell: bash
+        run: |
+          for archive in dist/*.tar.gz dist/*.zip; do
+            if [ -f "$archive" ]; then python scripts/check_package.py "$archive"; fi
+          done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: packages-${{ matrix.os }}
@@ -37,6 +46,7 @@ jobs:
             dist/*.tar.gz
             dist/*.tar.xz
             dist/*.zip
+            dist/*.sha256
           if-no-files-found: error
   release:
     needs: package
@@ -55,7 +65,9 @@ jobs:
           generate_release_notes: true
           body: |
             Native packages are built for each runner's recorded host architecture.
-            Check build.json in the archive; these are not universal binaries.
+            Check BUILD.json in the archive; these are not universal binaries.
+            Adjacent .sha256 files verify archive integrity, not publisher identity.
+            macOS packages are not Developer-ID signed or notarized.
 
             Source installation from this repository:
             `cargo install --path . --locked --features bundled --bin i`
