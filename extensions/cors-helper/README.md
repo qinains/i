@@ -1,4 +1,19 @@
-# Harness CORS Helper 0.2.0
+# Harness CORS Helper 0.3.0
+
+## 预检修复（仅 Chrome / Edge）
+
+普通模式只改响应头。若 OPTIONS 返回 401/403/405，先点击“启用”，再展开“预检修复”，
+点击“开启预检修复”并确认。仅对当前标签页、当前 origin 与指定 API 完整 URL 的
+POST 预检合成 204，真实 POST 的鉴权、状态、正文、回复及 SSE 保持原样。
+不会自动重试请求，也不会自动保存/恢复调试授权。关闭修复、关闭浏览器调试提示、
+关闭标签页或跳转到其他 origin 都会停用；更换 API 后需再次明确开启。
+
+Chromium 包要求 Chrome / Edge 118+，安装时额外声明 `debugger` 权限（Chrome 不允许
+将此权限设为 optional）。浏览器会显示调试横幅；其他调试器或 DevTools 可能与之冲突。
+该权限能力强于普通 CORS 规则，不是“只能访问预检”的浏览器权限沙箱。
+实现仅对精确 URL 开启 Fetch 拦截，并按 OPTIONS/Origin/POST 过滤；普通请求立即继续。
+调试协议可能把匹配请求的认证头等元数据交给后台，但实现不记录、存储或转发这些数据。
+Firefox/Safari 包不声明 debugger，也不提供此模式，不应把 Chromium 测试当成跨浏览器验证。
 
 ## Chrome / Edge (desktop)
 
@@ -48,7 +63,7 @@ Access-Control-Allow-Origin is fixed to the selected page's complete origin,
 including its port. HTTP is permitted only for localhost testing. HTTPS is
 required for remote sites. No file:// or opaque origins are supported.
 
-The extension changes response headers only. It does not read, store or forward
+Ordinary mode changes response headers only. It does not read, store or forward
 API keys, request bodies or model replies; it does not change real HTTP status,
 cookies, Origin, Authorization or TLS validation. Only API URL preferences are
 stored along with the page origin. A one-off script uses scripting + activeTab
@@ -62,15 +77,18 @@ To update an unpacked 0.1.0 installation, replace its files and reload it in the
 extension manager, or remove the old version before loading the new directory.
 Update the workbench PWA too if automatic detection is unavailable.
 
-OPTIONS must already return a successful status. Missing CORS response headers
+In ordinary mode, OPTIONS must already return a successful status. Missing CORS response headers
 can be repaired; server-side OPTIONS rejection, redirects, invalid credentials,
-quota errors and network/TLS failures cannot. It does not make every API usable
+quota errors and network/TLS failures cannot. The separately confirmed Chromium
+preflight repair described above can synthesize OPTIONS 204, but cannot fix actual
+POST authentication, quota or TLS failures. It does not make every API usable
 in a browser. Credentials/cookies are not enabled by the helper.
 
 网页不能自动安装扩展。解压后通过浏览器开发者入口安装；扩展默认关闭。
 先保存网页 API 设置，再在 Harness 标签页点击扩展；自动读取地址后点击“启用”并授权。
 识别不到时才展开手动填写。旧版扩展需更新文件并重新加载，旧版工作台需应用更新。
-仅修正 CORS 响应头，OPTIONS 被服务器拒绝时仍会失败，不会伪造成功响应。
+普通模式仅修正 CORS 响应头，OPTIONS 被服务器拒绝时仍会失败；Chrome / Edge
+可单独确认开启上述预检修复，但不会改变真实 POST 的状态和鉴权结果。
 Safari 必须通过 Xcode/容器应用启用；Firefox 未签名包只能临时加载。
 
 ## Official references

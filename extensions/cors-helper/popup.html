@@ -5,9 +5,9 @@
 <output id="detected-url" hidden></output><p id="hint" class="muted">只读取工作台公开的请求地址，不读取 API key。</p>
 <p id="status" role="status" aria-live="polite">正在读取当前页面…</p>
 <div class="actions"><button id="enable" disabled>启用</button><button id="disable" disabled>关闭</button></div>
+<details id="repair" hidden><summary>预检修复（高级 · Chrome / Edge）</summary><p>仅对当前标签页和指定 API 的 OPTIONS 合成 204，不修改真实 POST 的状态或内容。需要高权限调试器，浏览器会显示调试提示。调试器可能接收匹配请求的认证头等元数据；本实现不记录或保存密钥、正文或回复。不用于不可信页面。</p><div class="actions"><button id="repair-enable" disabled>开启预检修复</button><button id="repair-disable" disabled>关闭修复</button></div><p id="repair-status" role="status">默认关闭，需要单独确认。</p></details>
 <details id="manual"><summary>手动修改地址</summary><label for="endpoint">完整 API 请求 URL</label><input id="endpoint" type="url" placeholder="https://api.deepseek.com/chat/completions" autocomplete="off"><p>仅在自动识别失败时填写。包含 /chat/completions 或 /v1/messages 等实际请求路径，不要填写密钥。</p></details>
 <details><summary>范围与限制</summary>
-<p>默认关闭。只修改本标签页到此 API URL 的 CORS 响应头；不读取请求正文、API key 或回复，不修改真实 HTTP 状态。浏览器重启后需重新启用。</p>
-<p>仅用于可信的 Harness 页面。服务器拒绝 OPTIONS、证书错误、401/403 或额度问题不能靠本扩展修复。保持网页连接方式为「直连」。不支持 file://。</p>
-<p>Only the selected tab and exact API URL are enabled. No API keys are stored. Non-successful OPTIONS, TLS and authentication failures are not repaired.</p>
+<p>普通模式只修改本标签页到此 API URL 的 CORS 响应头，不修改 HTTP 状态。高级预检修复需单独开启，仅合成 OPTIONS 成功响应；真实 API 鉴权、TLS 和额度错误不会改变。浏览器重启后需重新启用。</p>
+<p>仅用于可信的 Harness 页面。保持网页连接方式为「直连」。不支持 file://。Firefox / Safari 包不含调试器预检修复功能。</p>
 </details></main><script type="module" src="popup.js"></script></html>

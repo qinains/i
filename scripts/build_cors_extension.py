@@ -35,12 +35,18 @@ def main():
         folder = STAGE / browser
         folder.mkdir(parents=True, exist_ok=True)
         variant = dict(manifest)
+        files = list(FILES)
+        if browser == "chromium":
+            variant['permissions'] = [*manifest['permissions'], 'debugger']
+            variant['minimum_chrome_version'] = '118'
+            variant['background'] = {'service_worker': 'background-debugger.js', 'type': 'module'}
+            files += ['preflight.js', 'background-debugger.js']
         if browser != "chromium":
             variant.pop("minimum_chrome_version", None)
             variant["background"] = {"scripts": ["background.js"]}
         if browser == "firefox":
             variant["browser_specific_settings"] = {"gecko": {"id": "harness-cors-helper@lninl.local", "strict_min_version": "142.0", "data_collection_permissions": {"required": ["none"]}}}
-        for name in FILES:
+        for name in files:
             shutil.copyfile(ROOT / "LICENSE" if name == "LICENSE" else SOURCE / name, folder / name)
         for size in [48, 128]:
             (folder / f"icon-{size}.png").write_bytes(icon(size))
@@ -48,7 +54,7 @@ def main():
         name = f"harness-cors-helper-{browser}-{manifest['version']}.zip"
         path = OUTPUT / name
         with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
-            for filename in sorted(FILES + ["manifest.json", "icon-48.png", "icon-128.png"]):
+            for filename in sorted(files + ["manifest.json", "icon-48.png", "icon-128.png"]):
                 info = zipfile.ZipInfo(filename, (2026, 1, 1, 0, 0, 0))
                 info.compress_type = zipfile.ZIP_DEFLATED
                 info.external_attr = 0o100644 << 16

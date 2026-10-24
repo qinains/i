@@ -1,9 +1,9 @@
 {
   "manifest_version":3,
   "name":"Harness CORS Helper",
-  "version":"0.2.0",
+  "version":"0.3.0",
   "icons":{"48":"icon-48.png","128":"icon-128.png"},
-  "description":"Opt-in, tab-scoped CORS response headers for an exact model API URL. No API keys are read or stored.",
+  "description":"Opt-in, tab-scoped CORS headers with separately enabled Chromium preflight repair. No credentials are persisted.",
   "minimum_chrome_version":"111",
   "permissions":["activeTab","scripting","storage","declarativeNetRequestWithHostAccess"],
   "optional_host_permissions":["https://*/*","http://localhost/*","http://127.0.0.1/*"],
