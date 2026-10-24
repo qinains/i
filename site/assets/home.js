@@ -20,3 +20,17 @@ function updateCopy(){
 for(const button of document.querySelectorAll('[data-demo-task]'))button.addEventListener('click',()=>{selected=button.dataset.demoTask;update();updateCopy();});
 document.addEventListener('site-language-change',updateCopy);
 update();updateCopy();
+const clientTabs=[...document.querySelectorAll('[data-client-tab]')];
+function selectClient(selected){
+    for(const button of clientTabs){
+        const active=button===selected;button.setAttribute('aria-selected',String(active));button.tabIndex=active?0:-1;
+        document.getElementById(button.getAttribute('aria-controls')).hidden=!active;
+    }
+}
+for(const [index,button]of clientTabs.entries()){
+    button.addEventListener('click',()=>selectClient(button));
+    button.addEventListener('keydown',event=>{
+        const next=event.key==='ArrowRight'?(index+1)%clientTabs.length:event.key==='ArrowLeft'?(index+clientTabs.length-1)%clientTabs.length:event.key==='Home'?0:event.key==='End'?clientTabs.length-1:null;
+        if(next===null)return;event.preventDefault();selectClient(clientTabs[next]);clientTabs[next].focus();
+    });
+}

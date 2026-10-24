@@ -14,11 +14,20 @@ try{
         try{
             await page.goto(origin+'/');await page.locator('.home-hero h1').waitFor();await page.locator('html[lang=en]').waitFor();
             assert.ok((await page.locator('.home-hero h1').textContent()).includes('Small core.'));
+            for(const platform of ['macos','windows','linux','browser']){
+                await page.locator(`[data-client-tab=${platform}]`).click();await page.locator(`#client-${platform}:visible`).waitFor();
+                assert.equal(await page.locator('[data-client-tab][aria-selected=true]').count(),1);
+                if(platform!=='browser'){assert.ok((await page.locator(`#client-${platform}`).textContent()).includes('i setup'));assert.ok((await page.locator(`#client-${platform} .client-download`).getAttribute('href')).startsWith('https://github.com/qinains/i/releases'));}
+            }
+            await page.locator('[data-client-tab=browser]').focus();await page.keyboard.press('ArrowRight');assert.equal(await page.locator('[data-client-tab=macos]').getAttribute('aria-selected'),'true');await page.keyboard.press('Home');
             const modelRequests=[];page.on('request',request=>{if(request.method()==='POST')modelRequests.push(request.url());});
             for(const language of ['zh-CN','zh-TW','en','ja','ko','fr','de']){
                 await page.locator('#site-language').selectOption(language);assert.equal(await page.locator('html').getAttribute('lang'),language);
                 assert.ok(await page.locator('.home-hero h1').textContent());
                 await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${name}:${language}:mobile overflow`);
+                for(const platform of ['macos','windows','linux','browser']){
+                    await page.locator(`[data-client-tab=${platform}]`).click();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${name}:${language}:${platform}:mobile overflow`);
+                }
             }
             await page.locator('#site-language').selectOption('zh-CN');await page.reload();await page.locator('html[lang="zh-CN"]').waitFor();
             await page.locator('[data-demo-task=refactor]').click();assert.ok((await page.locator('#demo-code').textContent()).includes('edit('));assert.equal(await page.locator('[data-demo-task=refactor]').getAttribute('aria-pressed'),'true');

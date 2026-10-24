@@ -146,6 +146,36 @@ def copy_downloads(destination):
     shutil.copyfile(metadata, destination / metadata.name)
 
 
+def render_client_install():
+    release = json.loads((ROOT / 'site/releases.json').read_text())
+    version, clients = release['version'], release['clients']
+    if version is not None and not re.fullmatch(r'\d+\.\d+\.\d+', version):
+        raise SystemExit('Invalid native release version')
+    platforms = {'macos': ('macOS', 'aarch64-apple-darwin', 'tar.gz'), 'windows': ('Windows', 'x86_64-pc-windows-msvc', 'zip'), 'linux': ('Linux', 'x86_64-unknown-linux-gnu', 'tar.gz')}
+    validated = {}
+    for client in clients:
+        platform = client['platform']
+        if not version or platform not in platforms or platform in validated:
+            raise SystemExit('Invalid native release platform')
+        name, target, extension = platforms[platform]
+        if client['target'] != target or client['file'] != f'i-{version}-{target}-min-size.{extension}' or not re.fullmatch(r'[a-f0-9]{64}', client['sha256']):
+            raise SystemExit('Invalid native release asset')
+        validated[platform] = client
+    panels = []
+    for platform, (name, target, extension) in platforms.items():
+        client = validated.get(platform)
+        url = f'{REPOSITORY}/releases/download/v{version}/{client["file"]}' if client else REPOSITORY + '/releases'
+        key, download = ('install.download', '下载安装包 ↓') if client else ('install.pending', '查看发布进度 ↗')
+        metadata = f'v{version} / {target}' if client else target
+        checksum = f'<a class="checksum-link" href="{url}.sha256">SHA-256 ↓</a>' if client else ''
+        command = '.\\bin\\i.exe install --add-to-path' if platform == 'windows' else './bin/i install --add-to-path'
+        note = 'install.macos.note' if platform == 'macos' else 'install.linux.note' if platform == 'linux' else 'install.windows.note'
+        panels.append(f'''<div id="client-{platform}" class="client-panel" role="tabpanel" aria-labelledby="client-tab-{platform}" tabindex="0" hidden>
+<div class="client-summary"><span class="client-kind">NATIVE CLI / {extension.upper()}</span><h3>{name}</h3><p class="client-target">{metadata}</p><p data-site-i18n="install.native.detail">已打包的原生客户端不需要 Rust、Node 或 Python，解压后即可安装。</p><a class="button client-download" href="{url}" data-site-i18n="{key}">{download}</a>{checksum}<p class="client-fineprint" data-site-i18n="{note}"></p></div>
+<ol class="install-steps"><li><h4 data-site-i18n="install.native.step1">解压并安装</h4><p data-site-i18n="install.native.step1.detail">验证校验值，解压，在解压后的目录执行。仅安装到当前用户；PATH 变更需打开新终端。</p><pre><code>{command}</code></pre></li><li><h4 data-site-i18n="install.native.step2">配置模型连接</h4><p data-site-i18n="install.native.step2.detail">在新终端运行向导，填写提供商、URL、模型与密钥。密钥隐藏输入；不放进命令行。</p><pre><code>i setup</code></pre></li><li><h4 data-site-i18n="install.native.step3">进入项目，开始任务</h4><p data-site-i18n="install.native.step3.detail">切换到自己的项目目录再启动。输入任务，/help 查看命令，/exit 退出会话。</p><pre><code>i start -C .</code></pre></li></ol></div>''')
+    return (ROOT / 'site/install.html').read_text().replace('{{NATIVE_CLIENTS}}', '\n'.join(panels))
+
+
 def main():
     parser = argparse.ArgumentParser(); parser.add_argument("--origin", default="https://i.lninl.com"); args = parser.parse_args()
     origin = args.origin.rstrip("/")
@@ -170,7 +200,7 @@ def main():
         for key, value in values.items():
             rendered = rendered.replace("{{" + key + "}}", value)
         destination.write_text(rendered)
-    emit("/", "i · lninl — Your tools. Your model.", (ROOT / "site/home.html").read_text())
+    emit("/", "i · lninl — Your tools. Your model.", (ROOT / "site/home.html").read_text().replace('{{CLIENT_INSTALL}}', render_client_install()))
     for page in pages:
         body, sections = markdown(page["text"], page["source"])
         toc = '<nav aria-label="本页目录"><strong>本页内容</strong>' + "".join(f'<a class="level-{level}" href="#{html.escape(identifier)}">{html.escape(title)}</a>' for level, title, identifier in sections) + "</nav>"

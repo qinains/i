@@ -3,12 +3,40 @@ import tempfile
 import unittest
 import struct
 import zlib
+import importlib.util
+import json
+from unittest.mock import patch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+SPEC = importlib.util.spec_from_file_location('site_builder', ROOT / 'scripts/build_site.py')
+BUILDER = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(BUILDER)
 
 
 class WebsiteTests(unittest.TestCase):
+    def test_client_downloads_reject_unverified_asset_shapes(self):
+        client = {'platform': 'macos', 'target': 'aarch64-apple-darwin', 'file': 'i-0.1.0-aarch64-apple-darwin-min-size.tar.gz', 'sha256': 'a'*64}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'site').mkdir()
+            (root / 'site/install.html').write_text('{{NATIVE_CLIENTS}}')
+            with patch.object(BUILDER, 'ROOT', root):
+                def render(version, clients):
+                    (root / 'site/releases.json').write_text(json.dumps({'version': version, 'clients': clients}))
+                    return BUILDER.render_client_install()
+                self.assertNotIn('/releases/download/', render(None, []))
+                output = render('0.1.0', [client])
+                self.assertIn('/releases/download/v0.1.0/' + client['file'], output)
+                self.assertIn(client['file'] + '.sha256', output)
+                for key, value in [('platform', 'unknown'), ('file', '../secret'), ('target', 'universal'), ('sha256', 'not-a-checksum')]:
+                    with self.assertRaises(SystemExit):
+                        render('0.1.0', [{**client, key: value}])
+                with self.assertRaises(SystemExit):
+                    render('../bad', [client])
+                with self.assertRaises(SystemExit):
+                    render('0.1.0', [client, client])
+
     def test_brand_icons_share_geometry_and_colors(self):
         self.assertEqual((ROOT / 'site/assets/favicon.svg').read_bytes(), (ROOT / 'web/icons/icon.svg').read_bytes())
         for source in ['web/icons/icon.svg', 'assets/lninl.svg', 'site/assets/site.css', 'web/style.css']:
@@ -41,6 +69,10 @@ class WebsiteTests(unittest.TestCase):
         for name in ["app/tests", "app/node_modules", "docs/superpowers", "app/app.js.map"]:
             self.assertFalse((output / name).exists(), name)
         tutorial = (output / "docs/plugin-development/index.html").read_text()
+        home = (output / 'index.html').read_text()
+        self.assertNotIn('{{', home)
+        for platform in ['macos', 'windows', 'linux', 'browser']:
+            self.assertIn('id="client-' + platform + '"', home)
         self.assertIn('<article lang="zh-CN">', tutorial)
         self.assertIn('<article lang="en">', (output / 'docs/overview/index.html').read_text())
         self.assertIn('<article lang="en">', (output / 'license/index.html').read_text())

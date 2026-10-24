@@ -10,7 +10,7 @@ test('site language follows system preference with script-aware Chinese and safe
     assert.equal(resolveSiteLanguage(null,['zh-CN']),'zh-CN');
 });
 test('all static home and shell translation markers exist in every catalog',async()=>{
-    for(const file of ['home.html','template.html']){
+    for(const file of ['home.html','install.html','template.html']){
         const source=await readFile(new URL('../../site/'+file,import.meta.url),'utf8');
         for(const match of source.matchAll(/data-site-i18n(?:-aria|-placeholder)?="([^"]+)"/gu))for(const [language,messages]of Object.entries(catalogs))assert.ok(messages[match[1]],`${file}:${language}:${match[1]}`);
     }
