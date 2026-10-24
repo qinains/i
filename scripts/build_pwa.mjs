@@ -22,9 +22,9 @@ function icon(size) {
     const rows = Buffer.alloc((size*3+1)*size);
     for (let y=0; y<size; y++) for (let x=0; x<size; x++) {
         const sx = x*512/size, sy = y*512/size;
-        const green = sx>=224 && sx<288 && ((sy>=144 && sy<208) || (sy>=240 && sy<384));
+        const accent = (sx-256)**2+(sy-152)**2<24**2 || (sx>=224&&sx<288&&sy>=224&&sy<368) || (sx>=192&&sx<320&&sy>=368&&sy<400);
         const offset = y*(size*3+1)+1+x*3;
-        rows.set(green ? [134,239,172] : [20,20,20],offset);
+        rows.set(accent ? [34,211,238] : [15,23,42],offset);
     }
     const header = Buffer.alloc(13); header.writeUInt32BE(size); header.writeUInt32BE(size,4); header[8]=8; header[9]=2;
     return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',header),chunk('IDAT',deflateSync(rows)),chunk('IEND',Buffer.alloc(0))]);

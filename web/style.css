@@ -308,7 +308,7 @@ margin-right:4px;
 font:500 16px/1 ui-monospace,SFMono-Regular,Consolas,monospace;
 letter-spacing:.3px
 }
-.brand-i { color:var(--accent);font-size:21px;font-weight:800;padding:0 1px }
+.brand-i { color:#22d3ee;font-size:21px;font-weight:800;padding:0 1px }
 #add-workspace {
 width:26px;
 height:26px;

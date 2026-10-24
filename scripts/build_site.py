@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 REPOSITORY = "https://github.com/qinains/i"
 EXCLUDED = {"tools-composer-verification.md", "dependency-size-history.md", "dependency-audit.md", "dependency-size.md", "size-report.md"}
 FEATURED = ["index", "system-overview", "plugin-development", "wasm-plugin-reference", "plugins", "wasm", "deployment", "providers", "file-tools", "cors-extension", "site-deployment", "opfs-concurrency"]
+ENGLISH_DOCUMENTS = {"README.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE", "compaction.md", "console.md", "composer.md", "file-tools.md", "opfs-concurrency.md", "network.md", "wasm-size.md"}
 
 
 def slug(text):
@@ -163,7 +164,8 @@ def main():
     staging = Path(tempfile.mkdtemp(prefix="site-", dir=ROOT / "dist")); output = ROOT / "dist/site"
     def emit(url, title, body, toc="", docs=False):
         canonical = origin + url; destination = staging / url.lstrip("/") / "index.html"; destination.parent.mkdir(parents=True, exist_ok=True)
-        values = {"TITLE": html.escape(title), "CANONICAL": html.escape(canonical, quote=True), "BODY": body, "SIDEBAR": sidebar if docs else "", "TOC": toc, "LAYOUT": "documentation" if docs else "landing"}
+        home = url == "/"
+        values = {"TITLE": html.escape(title), "CANONICAL": html.escape(canonical, quote=True), "BODY": body, "SIDEBAR": sidebar if docs else "", "TOC": toc, "LAYOUT": "documentation" if docs else "landing", "PAGE_KIND": "home" if home else "docs", "PAGE_ASSETS": '<link rel="stylesheet" href="/assets/home.css">' if home else ""}
         rendered = template
         for key, value in values.items():
             rendered = rendered.replace("{{" + key + "}}", value)
@@ -172,7 +174,8 @@ def main():
     for page in pages:
         body, sections = markdown(page["text"], page["source"])
         toc = '<nav aria-label="本页目录"><strong>本页内容</strong>' + "".join(f'<a class="level-{level}" href="#{html.escape(identifier)}">{html.escape(title)}</a>' for level, title, identifier in sections) + "</nav>"
-        emit(page["url"], page["title"] + " · i 文档", '<article>' + body + '<p class="source-link"><a href="' + REPOSITORY + '/edit/main/' + str(page["source"].relative_to(ROOT)) + '">在 GitHub 改进本页</a></p></article>', toc, True)
+        language = "en" if page["source"].name in ENGLISH_DOCUMENTS else "zh-CN"
+        emit(page["url"], page["title"] + " · i 文档", '<article lang="' + language + '">' + body + '<p class="source-link" lang="zh-CN"><a href="' + REPOSITORY + '/edit/main/' + str(page["source"].relative_to(ROOT)) + '">在 GitHub 改进本页</a></p></article>', toc, True)
     shutil.copytree(ROOT / "site/assets", staging / "assets")
     shutil.copyfile(ROOT / "THIRD_PARTY_LICENSES.txt", staging / "third-party-licenses.txt")
     (staging / "search-index.json").write_text(json.dumps([{key: page[key] for key in ["title", "url", "text"]} for page in pages], ensure_ascii=False))
