@@ -1,11 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {saveConfiguration, loadConfiguration, clearConfiguration, CONFIG_KEY,saveProfile,loadProfile,PROFILES_KEY,modelMaximum,modelSuggestions} from '../config.js';
+import {saveConfiguration, loadConfiguration, clearConfiguration, CONFIG_KEY,saveProfile,loadProfile,PROFILES_KEY,modelMaximum,modelSuggestions,DEFAULT_CONFIGURATION} from '../config.js';
 const settings = {base_url:'https://model.example/v1',model:'fixture',api_key:'SECRET',protocol:'openai',max_tokens:4000,use_max_tokens:false,reasoning_effort:'default',language:'zh-CN',transport:'direct',stream:true,relay_token:''};
 function storage() {
     const values = new Map();
     return {getItem:key => values.get(key) ?? null,setItem:(key,value) => values.set(key,value),removeItem:key => values.delete(key)};
 }
+test('new connections default to 64K while saved limits remain unchanged',()=>{
+    assert.equal(DEFAULT_CONFIGURATION.max_tokens,65536);
+    const store=storage();saveProfile(store,'existing',{...settings,max_tokens:8192});
+    assert.equal(loadProfile(store,'existing').max_tokens,8192);
+});
 test('entire harness configuration roundtrips after explicit saving', () => {
     const store = storage();
     assert.equal(loadConfiguration(store),null);

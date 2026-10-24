@@ -108,7 +108,7 @@
         <div id="model-generation">
           <div class="limit-fields">
             <div id="reasoning-options" class="form-field" hidden><label for="reasoning-effort" data-i18n="Thinking mode (DeepSeek)">Thinking mode (DeepSeek)</label><select id="reasoning-effort"><option value="default" data-i18n="Provider default">Provider default</option><option value="none" data-i18n="Thinking off">Thinking off</option><option value="low" data-i18n="Thinking low">Thinking low</option><option value="high" data-i18n="Thinking high">Thinking high</option><option value="max" data-i18n="Thinking maximum">Thinking maximum</option></select></div>
-            <div class="form-field"><label for="max-tokens" data-i18n="Maximum output tokens">Maximum output tokens</label><input id="max-tokens" type="number" min="1" value="8192"></div>
+            <div class="form-field"><label for="max-tokens" data-i18n="Maximum output tokens">Maximum output tokens</label><input id="max-tokens" type="number" min="1" value="65536"></div>
           </div>
           <button id="use-model-max" type="button" hidden data-i18n="Use DeepSeek maximum (393216)">Use DeepSeek maximum (393216)</button>
           <p class="note" data-i18n="This is a per-response ceiling, not a target. Reasoning and tool arguments consume output tokens; input and output still share the context limit.">This is a per-response ceiling, not a target. Reasoning and tool arguments consume output tokens; input and output still share the context limit.</p>

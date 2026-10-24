@@ -48,7 +48,7 @@ test('other providers do not advertise a guessed maximum or DeepSeek thinking se
     await page.locator('#base-url').fill('https://api.other.example/v1');await page.locator('#model').fill('custom');
     await page.locator('[data-settings-tab=connection]').click();
     await expect(page.locator('#use-model-max')).toBeHidden();await expect(page.locator('#reasoning-options')).toBeHidden();
-    await expect(page.locator('#max-tokens')).toHaveValue('8192');
+    await expect(page.locator('#max-tokens')).toHaveValue('65536');
     await expect(page.locator('#model-options option')).toHaveCount(0);
     await expect(page.locator('#model')).toHaveValue('custom');
     await page.locator('#max-tokens').fill('12345');

@@ -1,7 +1,7 @@
 export const CONFIG_KEY = 'i_harness_config';
 export const PROFILES_KEY = 'i_harness_profiles';
 export const DEFAULT_CONFIGURATION = Object.freeze({base_url:'',model:'',api_key:'',protocol:'openai',
-    max_tokens:8192,use_max_tokens:true,reasoning_effort:'default',language:'en',transport:'direct',stream:true,relay_token:'',custom_headers:''});
+    max_tokens:65536,use_max_tokens:true,reasoning_effort:'default',language:'en',transport:'direct',stream:true,relay_token:'',custom_headers:''});
 
 export function modelSuggestions(settings){
     try{

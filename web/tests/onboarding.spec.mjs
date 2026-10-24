@@ -18,6 +18,7 @@ test('first visit guides setup, remembers explicitly saved credentials and makes
     await page.goto('/');await expect(page.locator('#input')).toBeEnabled();
     await expect(page.locator('#settings-modal')).toBeVisible();await expect(page.locator('#welcome-connection')).toBeVisible();
     await expect(page.locator('#remember-config')).toBeChecked();await expect(page.locator('#base-url')).toBeFocused();
+    await expect(page.locator('#max-tokens')).toHaveValue('65536');
     await expect(page.locator('#credential-privacy')).toContainText('WASM');
     await page.locator('#base-url').fill('https://model.invalid');await page.locator('#model').fill('fixture');await page.locator('#api-key').fill('ONBOARDING_FAKE_KEY');
     await page.locator('#save-config').click();await expect(page.locator('#settings-modal')).not.toBeVisible();
@@ -58,4 +59,10 @@ test('an existing saved connection without an active selection does not trigger 
     await page.addInitScript(settings=>localStorage.setItem('i_harness_profiles',JSON.stringify({profiles:{spare:settings},current:null})),{...DEFAULT_CONFIGURATION,base_url:'https://model.invalid',model:'fixture',api_key:'EXISTING_FAKE'});
     await page.goto('/');await expect(page.locator('#input')).toBeEnabled();await expect(page.locator('#settings-modal')).not.toBeVisible();
     await page.locator('#settings-btn').click();await expect(page.locator('#profile-select option[value=spare]')).toHaveCount(1);
+});
+
+test('an existing connection keeps its saved 8K token ceiling',async({page})=>{
+    await page.addInitScript(settings=>localStorage.setItem('i_harness_profiles',JSON.stringify({profiles:{existing:settings},current:'existing'})),{...DEFAULT_CONFIGURATION,base_url:'https://model.invalid',model:'fixture',max_tokens:8192});
+    await page.goto('/');await expect(page.locator('#input')).toBeEnabled();await expect(page.locator('#max-tokens')).toHaveValue('8192');
+    await expect(page.locator('#settings-modal')).not.toBeVisible();
 });
