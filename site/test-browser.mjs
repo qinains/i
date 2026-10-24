@@ -12,8 +12,12 @@ try{
         const context=await browser.launchPersistentContext(join(profile,name),{headless:true,locale:'en-US',viewport:{width:1440,height:1000}}),page=await context.newPage(),errors=[];
         page.on('pageerror',error=>errors.push(error.message));
         try{
-            await page.goto(origin+'/');await page.locator('.home-hero h1').waitFor();await page.locator('html[lang=en]').waitFor();
+            let releaseHome;
+            const homeGate=new Promise(resolve=>{releaseHome=resolve;});
+            await page.route('**/assets/home.js',async route=>{await homeGate;await route.continue();});
+            await page.goto(origin+'/',{waitUntil:'commit'});await page.locator('.home-hero h1').waitFor();await page.locator('html[lang=en]').waitFor();
             assert.ok((await page.locator('.home-hero h1').textContent()).includes('Small core.'));
+            assert.equal(await page.locator('[data-client-tab=macos]').isDisabled(),true);releaseHome();
             for(const platform of ['macos','windows','linux','browser']){
                 await page.locator(`[data-client-tab=${platform}]`).click();await page.locator(`#client-${platform}:visible`).waitFor();
                 assert.equal(await page.locator('[data-client-tab][aria-selected=true]').count(),1);

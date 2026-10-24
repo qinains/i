@@ -33,4 +33,5 @@ for(const [index,button]of clientTabs.entries()){
         const next=event.key==='ArrowRight'?(index+1)%clientTabs.length:event.key==='ArrowLeft'?(index+clientTabs.length-1)%clientTabs.length:event.key==='Home'?0:event.key==='End'?clientTabs.length-1:null;
         if(next===null)return;event.preventDefault();selectClient(clientTabs[next]);clientTabs[next].focus();
     });
+    button.disabled=false;
 }
