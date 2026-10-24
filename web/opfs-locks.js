@@ -26,7 +26,7 @@ export async function beginFileTransaction(root,id,mode,signal){
     signal.throwIfAborted();
     if(id==null&&root?.kind==='directory'&&typeof root.isSameEntry==='function')throw new Error('Open a managed workspace before accessing files.');
     if(id!=null&&!id.startsWith('temp-')&&!globalThis.navigator?.locks?.request)throw new Error('OPFS file locking requires Web Locks support.');
-    const token=Object.freeze({}),lease={root,mode,active:true,release:null,done:null,closing:null,pending:new Set(),cleanup:()=>{}};
+    const token=Object.freeze({}),lease={root,mode,active:true,cancellation,release:null,done:null,closing:null,pending:new Set(),tail:Promise.resolve(),cleanup:()=>{}};
     if(id!=null&&globalThis.navigator?.locks?.request){
         let granted,failed;const ready=new Promise((resolve,reject)=>{granted=resolve;failed=reject;});
         const held=new Promise(resolve=>lease.release=resolve);
@@ -61,7 +61,11 @@ export async function withFileTransaction(root,id,mode,fn,signal){
 export function withFileRoot(root,id,mode,fn){
     const lease=checked(root,mode);
     if(lease){
-        const operation=Promise.resolve().then(()=>fn(lease.root));lease.pending.add(operation);
+        // An exclusive scope may be shared by Promise.all callers; its lock
+        // excludes other scopes, not competing streams within this scope.
+        const operation=(lease.mode==='exclusive'?lease.tail:Promise.resolve()).then(()=>{lease.cancellation?.throwIfAborted();return fn(lease.root);});
+        if(lease.mode==='exclusive')lease.tail=operation.catch(()=>{});
+        lease.pending.add(operation);
         operation.then(()=>lease.pending.delete(operation),()=>lease.pending.delete(operation));return operation;
     }
     return withFileTransaction(root,id,mode,token=>fn(state.leases.get(token).root));

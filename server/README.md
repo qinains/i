@@ -46,7 +46,7 @@ Disable model-body/header logging at every layer; do not log Authorization, rela
 - Exact origin and complete HTTPS endpoint allowlist; only POST JSON, no redirect following, cookies or arbitrary header forwarding.
 - Model/relay tokens are never forwarded to the wrong receiver. Relay token comparison is timing-safe for equal-length values.
 - DNS results must all be public; the chosen address is pinned into the HTTPS lookup while retaining the original hostname for TLS verification. Private, reserved, mapped IPv6 and transition ranges are rejected conservatively. This may reject some unusual otherwise-routable endpoints.
-- Each request/response: 48 MiB; total deadline: 180 seconds; at most 4 upstream requests; at most 60 accepted requests per minute, shared across this server process. Multiple replicas need an external shared rate limit if a deployment-wide cap is required.
+- Each request/response: 48 MiB; inactivity deadline: 30 minutes, renewed when request/response data arrives (no total stream-duration cap); at most 4 upstream requests; at most 60 accepted requests per minute, shared across this server process. Slow request-body uploads still have Node's separate 180-second request-receive deadline. Multiple replicas need an external shared rate limit if a deployment-wide cap is required.
 - A disconnect or deadline aborts upstream; SSE is forwarded incrementally with backpressure. After response headers have been sent, a failure closes the stream instead of forging a new HTTP status. The browser then rejects incomplete streams.
 - Static publishing uses generated `web/assets.json`, not a repository directory listing. Unknown paths, dotfiles and symlinks outside the publish root are not served.
 

@@ -5,12 +5,28 @@ import {EventEmitter} from 'node:events';
 import {fileURLToPath} from 'node:url';
 import {createRelayServer} from '../relay.mjs';
 const token = 'a'.repeat(48), origin = 'https://harness.example', endpoint = 'https://api.example/v1/chat/completions';
+test('relay accepts a 30-minute model deadline but rejects unbounded deadlines',async()=>{
+    const server=await createRelayServer({token,origin,endpoints:[endpoint],limits:{deadline:1800000}});
+    server.close();
+    await assert.rejects(createRelayServer({token,origin,endpoints:[endpoint],limits:{deadline:1800001}}),/Invalid relay limit/);
+});
 async function fixture(options={}) {
     const server = await createRelayServer({token,origin,endpoints:[endpoint],...options});
     await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
     return {server,url:`http://127.0.0.1:${server.address().port}/api/chat/completions`,close:async () => {server.closeAllConnections(); await new Promise(resolve => server.close(resolve));}};
 }
 const headers = {'content-type':'application/json',origin,'x-harness-relay-token':token,'x-harness-upstream':endpoint,authorization:'Bearer MODEL_KEY'};
+test('relay keeps an active response alive beyond its inactivity budget',async()=>{
+    const upstream=http.createServer(async(req,res)=>{
+        for await(const chunk of req){}res.writeHead(200,{'content-type':'text/plain'});res.write('start');
+        let count=0;const interval=setInterval(()=>{res.write('data');if(++count===8){clearInterval(interval);res.end('done');}},50);
+        res.on('close',()=>clearInterval(interval));
+    });
+    await new Promise(resolve=>upstream.listen(0,'127.0.0.1',resolve));
+    const f=await fixture({limits:{deadline:200},lookup:async()=>[{address:'8.8.8.8',family:4}],connect:(_url,opts,cb)=>http.request(`http://127.0.0.1:${upstream.address().port}`,{...opts,lookup:undefined},cb)});
+    try{const response=await fetch(f.url,{method:'POST',headers,body:'{}'});assert.equal(await response.text(),'start'+'data'.repeat(8)+'done');}
+    finally{await f.close();upstream.closeAllConnections();await new Promise(resolve=>upstream.close(resolve));}
+});
 test('Responses endpoints are explicit allowlisted and retain Bearer auth and native body',async()=>{
     const target='https://api.example/v1/responses';let observed,body;
     const upstream=http.createServer(async(req,res)=>{observed=req.headers;body='';for await(const chunk of req)body+=chunk;res.end('{"object":"response","status":"completed","output":[]}');});

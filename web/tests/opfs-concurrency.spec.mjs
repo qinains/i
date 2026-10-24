@@ -1,5 +1,31 @@
 import {test,expect} from './fixtures.mjs';
 async function ready(page){await page.goto('/');await expect(page.locator('#status')).toHaveText('Ready');}
+test('AI commits appear before the next model response and survive repeated reloads',async({page})=>{
+    await ready(page);
+    await page.locator('#settings-btn').click();await page.locator('#base-url').fill('http://127.0.0.1:4173/mock/v1');await page.locator('#model').fill('fixture');await page.locator('#remember-config').check();await page.locator('#save-config').click();await page.locator('#close-settings').click();
+    let release;const gate=new Promise(resolve=>release=resolve);
+    await page.route('**/mock/v1/chat/completions',async route=>{
+        const first=route.request().postDataJSON().messages.at(-1).role==='user';
+        if(!first)await gate;
+        const delta=first?{tool_calls:[{index:0,id:'durable-write',type:'function',function:{name:'write',arguments:JSON.stringify({path:'nested/durable.txt',content:'committed by WASM'})}}]}:{content:'Done'};
+        await route.fulfill({contentType:'text/event-stream',body:`data: ${JSON.stringify({choices:[{index:0,delta,finish_reason:first?'tool_calls':'stop'}]})}\n\ndata: [DONE]\n\n`});
+    });
+    try{
+        await page.locator('#input').fill('Write a durable file');await page.locator('#input').press('Enter');await expect(page.locator('#approval-panel')).toBeVisible();await page.locator('#approve').click();
+        await expect(page.locator('#output')).toContainText('Wrote');
+        if(!await page.locator('#file-panel').isVisible())await page.locator('#btn-files').click();
+        await expect(page.locator('[data-path="/workspace"]')).toHaveAttribute('data-file-count','1');
+    }finally{release();}
+    await expect(page.locator('#status')).toHaveText('Ready');
+    for(let i=0;i<3;i++){
+        await page.reload();await expect(page.locator('#status')).toHaveText('Ready');
+        expect(await page.evaluate(async()=>{
+            const root=await (await navigator.storage.getDirectory()).getDirectoryHandle('workspace');
+            return (await (await (await root.getDirectoryHandle('nested')).getFileHandle('durable.txt')).getFile()).text();
+        })).toBe('committed by WASM');
+        await expect(page.locator('[data-path="/workspace"]')).toHaveAttribute('data-file-count','1');
+    }
+});
 test('an older directory refresh cannot replace the latest file tree',async({page})=>{
     await ready(page);if(!await page.locator('#file-panel').isVisible())await page.locator('#btn-files').click();
     await page.evaluate(async()=>{

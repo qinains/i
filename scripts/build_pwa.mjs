@@ -41,7 +41,7 @@ async function walk(dir) {
     return found;
 }
 const pkg = await walk('pkg/');
-for (const bridge of pkg.filter(p => p.endsWith('/web/platform.js'))) for(const dependency of ['sse.js','anthropic-sse.js','responses-sse.js','transport.js','workspaces.js','memory-fs.js','opfs-locks.js']) await copyFile(new URL(dependency,root),new URL(bridge.replace(/platform.js$/u,dependency),root));
+for (const bridge of pkg.filter(p => p.endsWith('/web/platform.js'))) for(const dependency of ['sse.js','anthropic-sse.js','responses-sse.js','model-deadline.js','transport.js','workspaces.js','memory-fs.js','opfs-locks.js']) await copyFile(new URL(dependency,root),new URL(bridge.replace(/platform.js$/u,dependency),root));
 const modules=(await readdir(root)).filter(name=>name.endsWith('.js')&&!['sw.js','service-worker.js'].includes(name));
 const extensionVersion=JSON.parse(await readFile(new URL('downloads/cors-helper.json',root),'utf8')).version;
 const downloads=['cors-helper.json',...['chromium','firefox','safari'].map(browser=>`harness-cors-helper-${browser}-${extensionVersion}.zip`)].map(name=>'downloads/'+name);

@@ -2,6 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import {validatePath, opfsWrite, opfsMetadata, fetchModel} from '../platform.js';
+test('model timeout identifies the request deadline instead of a generic signal error',async()=>{
+    const fetch=globalThis.fetch;globalThis.fetch=async()=>{throw new DOMException('signal timed out','TimeoutError');};
+    try{await assert.rejects(fetchModel('http://127.0.0.1:1','{}','',new AbortController()),/No model response data received for 30 minutes/);}
+    finally{globalThis.fetch=fetch;}
+});
 
 test('streaming reaches UI before completion and never retries a JSON response', async () => {
     let release, hits = 0;

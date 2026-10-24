@@ -17,8 +17,8 @@ function authorized(actual,expected) {
     return value.length === expected.length && timingSafeEqual(value,expected);
 }
 export async function createRelayServer({token,origin,endpoints,staticRoot,basePath='/',lookup,connect = https.request,limits = {}}) {
-    const budget = {bytes:LIMIT,deadline:180000,concurrency:4,rate:60,...limits};
-    for (const [key,max] of Object.entries({bytes:LIMIT,deadline:180000,concurrency:4,rate:60})) if (!Number.isSafeInteger(budget[key]) || budget[key] < 1 || budget[key] > max) throw new Error('Invalid relay limit');
+    const budget = {bytes:LIMIT,deadline:1800000,concurrency:4,rate:60,...limits};
+    for (const [key,max] of Object.entries({bytes:LIMIT,deadline:1800000,concurrency:4,rate:60})) if (!Number.isSafeInteger(budget[key]) || budget[key] < 1 || budget[key] > max) throw new Error('Invalid relay limit');
     if (typeof token !== 'string' || Buffer.byteLength(token) < 32) throw new Error('A relay token of at least 32 bytes is required');
     const publicUrl = new URL(origin);
     if (publicUrl.origin !== origin || (publicUrl.protocol !== 'https:' && !(publicUrl.protocol === 'http:' && ['127.0.0.1','localhost','[::1]'].includes(publicUrl.hostname)))) throw new Error('Exact HTTPS public origin required');
@@ -63,12 +63,15 @@ export async function createRelayServer({token,origin,endpoints,staticRoot,baseP
         count++; active++;
         const controller = new AbortController();
         let timedOut = false;
-        const timeout = setTimeout(() => {timedOut = true; controller.abort(); if (!req.complete) req.destroy();},budget.deadline);
+        let timeout;
+        const touch=()=>{clearTimeout(timeout);timeout=setTimeout(() => {timedOut = true; controller.abort(); if (!req.complete) req.destroy();},budget.deadline);};
+        touch();
         const disconnected = () => {if (!res.writableFinished) controller.abort();};
         res.on('close',disconnected); req.on('aborted',disconnected);
         try {
             const chunks = []; let size = 0;
             for await (const chunk of req) {
+                touch();
                 size += chunk.length;
                 if (size > budget.bytes) {reply(413,'Request exceeds limit'); return;}
                 chunks.push(chunk);
@@ -86,10 +89,12 @@ export async function createRelayServer({token,origin,endpoints,staticRoot,baseP
                 const upstream = connect(url,{method:'POST',headers,signal:controller.signal,agent:false,
                     lookup:(_host,opts,cb) => opts?.all ? cb(null,[record]) : cb(null,record.address,record.family)},async response => {
                     try {
+                        touch();
                         if (response.statusCode >= 300 && response.statusCode < 400) throw new Error('Redirect denied');
                         res.writeHead(response.statusCode,{'content-type':response.headers['content-type'] ?? 'application/octet-stream','cache-control':'no-store','x-accel-buffering':'no'});
                         let received = 0;
                         for await (const chunk of response) {
+                            touch();
                             received += chunk.length;
                             if (received > budget.bytes) throw new Error('Response exceeds limit');
                             if (!res.write(chunk)) await once(res,'drain',{signal:controller.signal});

@@ -2,6 +2,42 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as fs from '../platform.js';
 const id='temp-12345678-1234-4123-8123-123456789af0';
+test('cancellation drains the active write but rejects writes queued inside its lease',async()=>{
+    const root=await fs.opfsOpenWorkspace(id),original=root.getFileHandle.bind(root),abort=new AbortController();
+    let enter,release;const started=new Promise(resolve=>enter=resolve),gate=new Promise(resolve=>release=resolve);
+    root.getFileHandle=async(...args)=>{const file=await original(...args);return {...file,createWritable:async()=>{
+        const writer=await file.createWritable();return {write:async bytes=>{enter();await gate;await writer.write(bytes);},close:()=>writer.close(),abort:()=>writer.abort()};
+    }};};
+    let lease;
+    try{
+        lease=await fs.opfsBegin(root,'exclusive',abort.signal);
+        const first=fs.opfsWrite(lease,'active-at-cancel',new Uint8Array([1]));await started;
+        const queued=assert.rejects(fs.opfsWrite(lease,'queued-at-cancel',new Uint8Array([2])),/abort/i);
+        abort.abort();release();await first;await queued;await fs.opfsRelease(lease);
+    }finally{release();if(lease)await fs.opfsRelease(lease);root.getFileHandle=original;}
+    assert.equal(await fs.opfsMetadata(root,'queued-at-cancel'),null);
+});
+test('a failed first write does not leave an empty file advertised as saved',async()=>{
+    const root=await fs.opfsOpenWorkspace(id),original=root.getFileHandle.bind(root);
+    root.getFileHandle=async(...args)=>{const file=await original(...args);return {...file,createWritable:async()=>{throw new DOMException('quota full','QuotaExceededError');}};};
+    try{await assert.rejects(fs.opfsWrite(root,'failed-new',new Uint8Array([1])),/quota full/);}
+    finally{root.getFileHandle=original;}
+    assert.equal(await fs.opfsMetadata(root,'failed-new'),null);
+});
+test('writes sharing one exclusive lease commit in invocation order',async()=>{
+    const root=await fs.opfsOpenWorkspace(id),original=root.getFileHandle.bind(root);
+    let enter,release,first=true;const started=new Promise(resolve=>enter=resolve),gate=new Promise(resolve=>release=resolve);
+    root.getFileHandle=async(...args)=>{const file=await original(...args);return {...file,createWritable:async()=>{
+        const writer=await file.createWritable(),pause=first;first=false;
+        return {write:async bytes=>{if(pause){enter();await gate;}await writer.write(bytes);},close:()=>writer.close(),abort:()=>writer.abort()};
+    }};};
+    try{await fs.opfsWithTransaction(root,'exclusive',async lease=>{
+        const a=fs.opfsWrite(lease,'ordered',new Uint8Array([1]));await started;
+        const b=fs.opfsWrite(lease,'ordered',new Uint8Array([2]));
+        await new Promise(resolve=>setImmediate(resolve));release();await Promise.all([a,b]);
+        assert.deepEqual([...await fs.opfsRead(lease,'ordered',10)],[2]);
+    });}finally{release();root.getFileHandle=original;}
+});
 test('conditional writes reject changed contents and unexpected file creation',async()=>{
     assert.equal(typeof fs.opfsFileVersion,'function');assert.equal(typeof fs.opfsWriteIfVersion,'function');
     const root=await fs.opfsOpenWorkspace(id);await fs.opfsWrite(root,'versioned',new Uint8Array([1]));

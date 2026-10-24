@@ -10,7 +10,7 @@ test('credential inputs belong to a form without implicit submission, navigation
     await open(page);
     expect(await page.evaluate(()=>{
         const key=document.getElementById('api-key'),relay=document.getElementById('relay-token');
-        return !!key.form&&key.form===relay.form&&key.form.id==='connection-form';
+        return key.form?.id==='connection-form'&&relay.form?.id==='relay-form'&&key.form!==relay.form;
     })).toBe(true);
     const url=page.url();await page.locator('#base-url').fill('https://api.example/v1');await page.locator('#model').fill('fixture');await page.locator('#api-key').fill('DUMMY_FORM_KEY');await page.locator('#remember-config').uncheck();
     await page.locator('#api-key').press('Enter');await expect(page.locator('#settings-modal')).toBeVisible();
@@ -23,7 +23,7 @@ test('credential inputs belong to a form without implicit submission, navigation
     expect(await page.evaluate(()=>JSON.stringify(localStorage).includes('DUMMY_FORM_KEY'))).toBe(false);
     await page.locator('#transport').selectOption('direct');await page.locator('#remember-config').check();await page.locator('#save-config').click();
     expect(await page.evaluate(()=>JSON.stringify(localStorage).includes('DUMMY_FORM_KEY'))).toBe(true);expect(requests).toHaveLength(0);
-    expect(warnings.filter(text=>/Password field is not contained in a form/iu.test(text))).toEqual([]);
+    expect(warnings.filter(text=>/Password field is not contained in a form|Multiple forms should/iu.test(text))).toEqual([]);
 });
 test('connection options stay together, direct-only help toggles and saved values survive reload',async({page},testInfo)=>{
     await page.setViewportSize({width:390,height:844});await open(page);await chinese(page);await page.locator('[data-settings-tab=connection]').click();

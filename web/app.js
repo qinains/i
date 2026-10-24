@@ -43,6 +43,7 @@ async function ensurePluginManager(){
 }
 let commandCatalog=[],commandMenu;
 let viewQueue=Promise.resolve(),listedFiles=[];
+let fileCommitRefresh;
 const views=new Map();
 function fileView(id=active()?.workspaceId){if(!views.has(id))views.set(id,viewState(workspaces.get(id)?.fileView));return views.get(id);}
 function saveFileView(id){
@@ -268,6 +269,10 @@ function onEvent(id,event){
     if(event.type==='step'){record.step=`[step ${event.step}]`;if(id===activeId)$('step-counter').textContent=record.step;return;}
     if(event.type==='cancelled'){pluginControllers.get(id)?.abort();if(pendingApproval?.id===id)settleApproval(false);return;}
     if(event.type==='tool'){append(record,`tool: ${event.name} ${event.arguments.slice(0,1000)}`,'tool');return;}
+    if(event.type==='tool_result'&&id===activeId){
+        clearTimeout(fileCommitRefresh);
+        fileCommitRefresh=setTimeout(()=>refresh().catch(report),100);
+    }
     append(record,event.text ?? '',event.type==='assistant'?'assistant':'tool');
 }
 async function operation(record,fn,{readOnly=false,runQueue=false}={}){
@@ -487,6 +492,7 @@ function bind(){
     $('settings-btn').addEventListener('click',openSettings);$('close-settings').addEventListener('click',()=>{dismissWelcome();$('settings-modal').close();});
     $('settings-modal').addEventListener('cancel',dismissWelcome);
     $('connection-form').addEventListener('submit',event=>event.preventDefault());
+    $('relay-form').addEventListener('submit',event=>event.preventDefault());
     $('settings-modal').addEventListener('close',()=>{dismissWelcome();const focused=document.activeElement;if(focused===document.body||$('settings-modal').contains(focused))$('settings-btn').focus();});
     for(const button of document.querySelectorAll('[data-settings-tab]'))button.addEventListener('click',()=>{for(const panel of document.querySelectorAll('[data-settings-panel]'))panel.hidden=panel.dataset.settingsPanel!==button.dataset.settingsTab;for(const item of document.querySelectorAll('[data-settings-tab]'))item.setAttribute('aria-selected',String(item===button));document.querySelector('#settings-modal .dialog-footer').hidden=button.dataset.settingsTab==='plugins';if(button.dataset.settingsTab==='plugins')pluginUi.refresh();});
     $('transport').addEventListener('change',updateTransport);

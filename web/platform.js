@@ -1,6 +1,7 @@
 import {readChatCompletion} from './sse.js';
 import {readAnthropicMessage} from './anthropic-sse.js';
 import {readResponses} from './responses-sse.js';
+import {modelDeadline} from './model-deadline.js';
 import {validateCustomHeaders} from './transport.js';
 import {validateWorkspaceId,isTemporaryWorkspace,browserPath} from './workspaces.js';
 import {MemoryDirectory} from './memory-fs.js';
@@ -63,12 +64,20 @@ async function readRaw(root, path, limit) {
 }
 async function writeRaw(root, path, content) {
     const [dir, name] = await parent(root, path, true);
-    const writer = await (await dir.getFileHandle(name, {create: true})).createWritable();
+    let file,created=false,writer;
+    try{file=await dir.getFileHandle(name);}catch(error){
+        if(error.name!=='NotFoundError')throw error;
+        file=await dir.getFileHandle(name,{create:true});created=true;
+    }
     try {
+        writer=await file.createWritable();
         await writer.write(content);
         await writer.close();
     } catch (error) {
-        try { await writer.abort(); } catch { /* Preserve the original write failure. */ }
+        try { await writer?.abort(); } catch { /* Preserve the original write failure. */ }
+        // Existing committed files must survive failure. Only remove a new,
+        // uncommitted placeholder while the exclusive lease is still held.
+        if(created)try{await dir.removeEntry(name);}catch{ /* Preserve the original write failure. */ }
         throw error;
     }
 }
@@ -143,7 +152,6 @@ export async function fetchModel(url, body, key, controller, options = {}, onEve
     if (new TextEncoder().encode(body).length > HTTP_LIMIT) throw new Error('Request exceeds 48 MiB');
     const request = JSON.parse(body),stream=request.stream===true;
     const requestId = globalThis.crypto.randomUUID();
-    const signal = AbortSignal.any([controller.signal ?? controller,AbortSignal.timeout(180000)]);
     const headers = {'content-type': 'application/json'};
     const protocol=options.protocol ?? 'openai';
     if(!['openai','anthropic','responses'].includes(protocol)) throw new Error('Unsupported model protocol.');
@@ -166,12 +174,14 @@ export async function fetchModel(url, body, key, controller, options = {}, onEve
         url = relay.href;
     }
     const notify = (type,text = '',progress = {}) => onEvent({type,request_id:requestId,text,...progress});
+    const deadline=modelDeadline(controller.signal??controller),signal=deadline.signal;
     let reader;
     try {
         if (stream) notify('stream_start');
         const response = await fetch(url, {method: 'POST', headers, body, signal, redirect: 'error', credentials: 'omit'});
         if (!response.body) throw new Error('Empty model response');
-        reader = response.body.getReader();
+        const raw=response.body.getReader();deadline.touch();
+        reader={read:async()=>{const result=await raw.read();if(result.value?.byteLength)deadline.touch();return result;},cancel:()=>raw.cancel(),releaseLock:()=>raw.releaseLock()};
         if (response.ok && stream) {
             if (!response.headers.get('content-type')?.toLowerCase().includes('text/event-stream')) throw new Error('Expected SSE; disable Stream to retry manually.');
             const parser=protocol==='anthropic'?readAnthropicMessage:protocol==='responses'?readResponses:readChatCompletion;
@@ -190,11 +200,11 @@ export async function fetchModel(url, body, key, controller, options = {}, onEve
     } catch (error) {
         if (stream) notify('stream_error');
         await reader?.cancel().catch(() => {});
-        let detail = String(error.message ?? error);
+        let detail = error?.name==='TimeoutError'?'No model response data received for 30 minutes. Previously committed files are retained; retry manually or check the endpoint.':String(error.message ?? error);
         for (const secret of [key,options.relayToken]) if (secret) detail = detail.split(secret).join('[redacted]');
         if (error instanceof TypeError) detail += ' (Network request failed; check connectivity, endpoint and CORS in developer tools.)';
         throw new Error(detail);
-    } finally { reader?.releaseLock(); }
+    } finally {deadline.dispose();reader?.releaseLock();}
 }
 async function readText(reader,signal) {
     const chunks = [];

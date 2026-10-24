@@ -92,19 +92,20 @@
         <div class="form-field"><label for="profile-select" data-i18n="Connection">Connection</label><select id="profile-select"><option value="" data-i18n="This session only">This session only</option></select></div>
         <div class="connection-buttons"><button id="save-as-profile" data-i18n="Add connection">Add connection</button><button id="delete-profile" data-i18n="Delete this connection">Delete this connection</button></div>
       </div>
-      <form id="connection-form" method="dialog" autocomplete="off" novalidate>
+      <form id="connection-form" method="dialog" autocomplete="off" novalidate></form>
+      <form id="relay-form" method="dialog" autocomplete="off" novalidate></form>
       <fieldset id="settings">
         <legend class="sr-only" data-i18n="Model connection">Model connection</legend>
         <div class="form-field"><label for="protocol" data-i18n="API protocol">API protocol</label><select id="protocol"><option value="openai" data-i18n="OpenAI-compatible (Chat Completions)">OpenAI-compatible (Chat Completions)</option><option value="responses" data-i18n="OpenAI (Responses)">OpenAI (Responses)</option><option value="anthropic" data-i18n="Anthropic (Messages)">Anthropic (Messages)</option></select></div>
         <div class="form-field"><label for="transport" data-i18n="Connection method">Connection method</label><select id="transport"><option value="direct" data-i18n="Direct — requires API CORS support">Direct — requires API CORS support</option><option value="relay" data-i18n="Own same-origin relay">Own same-origin relay</option></select></div>
-        <div id="relay-options" hidden><div class="form-field"><label for="relay-token" data-i18n="Relay access token">Relay access token</label><input id="relay-token" type="password" autocomplete="off"></div><p class="note" data-i18n="Your model key passes through your own server. Switching is never automatic.">Your model key passes through your own server. Switching is never automatic.</p></div>
+        <div id="relay-options" hidden><div class="form-field"><label for="relay-token" data-i18n="Relay access token">Relay access token</label><input id="relay-token" form="relay-form" type="password" autocomplete="off"></div><p class="note" data-i18n="Your model key passes through your own server. Switching is never automatic.">Your model key passes through your own server. Switching is never automatic.</p></div>
         <div class="form-field">
-          <label for="base-url" data-i18n="API URL">API URL</label><input id="base-url" type="url" placeholder="https://api.deepseek.com" autocomplete="off" aria-describedby="endpoint-help resolved-endpoint">
+          <label for="base-url" data-i18n="API URL">API URL</label><input id="base-url" form="connection-form" type="url" placeholder="https://api.deepseek.com" autocomplete="off" aria-describedby="endpoint-help resolved-endpoint">
           <p id="endpoint-help" class="note" data-i18n="Enter the API root URL or full /chat/completions URL. The endpoint is appended only once.">Enter the API root URL or full /chat/completions URL. The endpoint is appended only once.</p>
           <output id="resolved-endpoint" class="note"></output>
         </div>
         <div class="form-field"><label for="model" data-i18n="Model">Model</label><input id="model" list="model-options" placeholder="Model identifier" data-i18n-placeholder="Model identifier" autocomplete="off" aria-describedby="model-help"><datalist id="model-options"></datalist><p id="model-help" class="note"></p></div>
-        <div class="form-field"><label for="api-key" data-i18n="API key">API key</label><div class="input-action"><input id="api-key" type="password" autocomplete="off"><button id="toggle-key" type="button" data-i18n="Show">Show</button></div></div>
+        <div class="form-field"><label for="api-key" data-i18n="API key">API key</label><div class="input-action"><input id="api-key" form="connection-form" type="password" autocomplete="off"><button id="toggle-key" type="button" data-i18n="Show">Show</button></div></div>
         <p id="credential-privacy" class="note" data-i18n="Your connection stays in this browser's local storage when Remember is enabled, not in workspace files or conversations. In Direct mode your key is sent only to your selected API; Relay mode passes it through your own relay. Installed WASM plugins cannot access connection settings or browser storage directly.">Your connection stays in this browser's local storage when Remember is enabled, not in workspace files or conversations. In Direct mode your key is sent only to your selected API; Relay mode passes it through your own relay. Installed WASM plugins cannot access connection settings or browser storage directly.</p>
         <div id="model-generation">
           <div class="limit-fields">
@@ -135,7 +136,6 @@
         <div class="actions"><button id="test-connection" type="button" data-i18n="Test connection">Test connection</button><button id="cancel-test" type="button" hidden data-i18n="Cancel test">Cancel test</button><span id="test-result" role="status"></span></div>
         <p class="note" data-i18n="Test sends a small model request and may incur a charge. Reload never tests or sends automatically.">Test sends a small model request and may incur a charge. Reload never tests or sends automatically.</p>
       </fieldset>
-      </form>
     </section>
     <section data-settings-panel="recovery" hidden>
       <h2 data-i18n="Saved locally">Saved locally</h2>
