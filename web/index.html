@@ -84,6 +84,10 @@
   <div class="settings-body">
     <section data-settings-panel="plugins" hidden></section>
     <section data-settings-panel="connection">
+      <div id="welcome-connection" hidden>
+        <h2 data-i18n="Welcome — connect your AI">Welcome — connect your AI</h2>
+        <p data-i18n="Enter your provider's API URL, model and API key below, then save to get started. Nothing is sent until you send a message or test the connection.">Enter your provider's API URL, model and API key below, then save to get started. Nothing is sent until you send a message or test the connection.</p>
+      </div>
       <div class="connection-actions">
         <div class="form-field"><label for="profile-select" data-i18n="Connection">Connection</label><select id="profile-select"><option value="" data-i18n="This session only">This session only</option></select></div>
         <div class="connection-buttons"><button id="save-as-profile" data-i18n="Add connection">Add connection</button><button id="delete-profile" data-i18n="Delete this connection">Delete this connection</button></div>
@@ -100,6 +104,7 @@
         </div>
         <div class="form-field"><label for="model" data-i18n="Model">Model</label><input id="model" list="model-options" placeholder="Model identifier" data-i18n-placeholder="Model identifier" autocomplete="off" aria-describedby="model-help"><datalist id="model-options"></datalist><p id="model-help" class="note"></p></div>
         <div class="form-field"><label for="api-key" data-i18n="API key">API key</label><div class="input-action"><input id="api-key" type="password" autocomplete="off"><button id="toggle-key" type="button" data-i18n="Show">Show</button></div></div>
+        <p id="credential-privacy" class="note" data-i18n="Your connection stays in this browser's local storage when Remember is enabled, not in workspace files or conversations. In Direct mode your key is sent only to your selected API; Relay mode passes it through your own relay. Installed WASM plugins cannot access connection settings or browser storage directly.">Your connection stays in this browser's local storage when Remember is enabled, not in workspace files or conversations. In Direct mode your key is sent only to your selected API; Relay mode passes it through your own relay. Installed WASM plugins cannot access connection settings or browser storage directly.</p>
         <div id="model-generation">
           <div class="limit-fields">
             <div id="reasoning-options" class="form-field" hidden><label for="reasoning-effort" data-i18n="Thinking mode (DeepSeek)">Thinking mode (DeepSeek)</label><select id="reasoning-effort"><option value="default" data-i18n="Provider default">Provider default</option><option value="none" data-i18n="Thinking off">Thinking off</option><option value="low" data-i18n="Thinking low">Thinking low</option><option value="high" data-i18n="Thinking high">Thinking high</option><option value="max" data-i18n="Thinking maximum">Thinking maximum</option></select></div>

@@ -412,7 +412,9 @@ function saveConfig(){
         setText('config-status','Configuration saved in this browser.');
     }else setText('config-status','Applied for this session only.');
     applied={...config};$('model-name').textContent=config.model;applyWorkspaceTranslations(config.language);updateEndpoint();updateControls();
+    if(!$('welcome-connection').hidden){dismissWelcome();$('settings-modal').close();}
 }
+function dismissWelcome(){if($('welcome-connection').hidden)return;try{localStorage.setItem('i_harness_welcome_seen','1');}catch{}$('welcome-connection').hidden=true;}
 function openSettings(){if(!$('settings-modal').open)$('settings-modal').showModal();updateControls();if(!document.querySelector('[data-settings-panel=plugins]').hidden)pluginUi?.refresh();}
 function showHistory(){
     const record=active();$('history-list').replaceChildren();
@@ -464,8 +466,9 @@ function bind(){
     $('output').addEventListener('dragover',event=>event.preventDefault());$('output').addEventListener('drop',event=>{event.preventDefault();if(!runningId)safe(()=>upload([...event.dataTransfer.files]))();});
     $('workspace-select').addEventListener('change',safe(async()=>{const value=$('workspace-select').value;if(value==='__new__'){const name=prompt(uiText('New workspace name:'));if(!name)return;$('workspace-select').value='';const record={id:crypto.randomUUID(),name:displayName(name),createdAt:Date.now(),storageKind:'persistent'};await opfsOpenWorkspace(record.id);await store.createWorkspace(record);workspaces.set(record.id,record);renderWorkspaces();await newSession(record.id);return;}if(value==='__scratch__'){$('workspace-select').value='';if(runningId||updateLocked)return;const name=prompt(uiText('Temporary workspace name (all files are lost on reload; download first):'));if(!name)return;const id=`temp-${crypto.randomUUID()}`;await opfsOpenWorkspace(id);workspaces.set(id,{id,name:displayName(name),storageKind:'temporary'});renderWorkspaces();await newSession(id);return;}const found=ui.openedSessionIds.map(id=>controller.records.get(id)).find(record=>record?.workspaceId===value)??[...controller.records.values()].find(record=>record.workspaceId===value);if(found)await selectSession(found.id);else await newSession(value);}));
     $('btn-history').addEventListener('click',showHistory);$('close-history').addEventListener('click',()=>$('history-modal').close());
-    $('settings-btn').addEventListener('click',openSettings);$('close-settings').addEventListener('click',()=>$('settings-modal').close());
-    $('settings-modal').addEventListener('close',()=>{const focused=document.activeElement;if(focused===document.body||$('settings-modal').contains(focused))$('settings-btn').focus();});
+    $('settings-btn').addEventListener('click',openSettings);$('close-settings').addEventListener('click',()=>{dismissWelcome();$('settings-modal').close();});
+    $('settings-modal').addEventListener('cancel',dismissWelcome);
+    $('settings-modal').addEventListener('close',()=>{dismissWelcome();const focused=document.activeElement;if(focused===document.body||$('settings-modal').contains(focused))$('settings-btn').focus();});
     for(const button of document.querySelectorAll('[data-settings-tab]'))button.addEventListener('click',()=>{for(const panel of document.querySelectorAll('[data-settings-panel]'))panel.hidden=panel.dataset.settingsPanel!==button.dataset.settingsTab;for(const item of document.querySelectorAll('[data-settings-tab]'))item.setAttribute('aria-selected',String(item===button));document.querySelector('#settings-modal .dialog-footer').hidden=button.dataset.settingsTab==='plugins';if(button.dataset.settingsTab==='plugins')pluginUi.refresh();});
     $('transport').addEventListener('change',updateTransport);
     $('toggle-key').addEventListener('click',()=>{$('api-key').type=$('api-key').type==='password'?'text':'password';setText('toggle-key',$('api-key').type==='password'?'Show':'Hide');});
@@ -476,7 +479,7 @@ function bind(){
         applied.language=$('lang-select').value;applyWorkspaceTranslations(applied.language);localStorage.setItem('i_lang',applied.language);updateControls();updateEndpoint();await refresh();setText('config-status','Language updated; connection changes still require Save.');
     }));
     $('save-config').addEventListener('click',safe(saveConfig));
-    $('remember-config').addEventListener('change',safe(()=>{if($('remember-config').checked)saveConfig();else{clearConfiguration(localStorage);selectedConnection='';updateProfiles();setText('config-status','Saved credentials removed; current values are memory-only.');}}));
+    $('remember-config').addEventListener('change',safe(()=>{if($('remember-config').checked)setText('config-status','Click Save changes to remember this connection.');else{clearConfiguration(localStorage);selectedConnection='';updateProfiles();setText('config-status','Saved credentials removed; current values are memory-only.');}}));
     $('save-as-profile').addEventListener('click',safe(()=>{const name=prompt(uiText('Connection name:'));if(!name)return;const config=currentConfiguration();validateConfig(config);selectedConnection=crypto.randomUUID();let names={};try{names=JSON.parse(localStorage.getItem('i_harness_connection_names')??'{}');}catch{}names[selectedConnection]=displayName(name);localStorage.setItem('i_harness_connection_names',JSON.stringify(names));$('remember-config').checked=true;saveConfig();updateProfiles();}));
     $('profile-select').addEventListener('change',safe(()=>{const found=loadConnections(localStorage).records.find(item=>item.id===$('profile-select').value);selectedConnection=found?.id??'';if(found){restoreConfiguration(found.settings);applied={...found.settings};$('remember-config').checked=true;$('model-name').textContent=applied.model;setText('config-status','Saved connection selected. Existing conversations keep their context.');updateControls();}}));
     $('delete-profile').addEventListener('click',safe(()=>{if(!selectedConnection||!confirm(uiText('Delete this saved connection? Files and conversation history are retained.')))return;deleteProfile(localStorage,selectedConnection);selectedConnection='';updateProfiles();setText('config-status','Connection deleted; current values remain in memory.');}));
@@ -530,6 +533,8 @@ async function main(){
         const chosen=controller.records.get(ui.activeSessionId)??[...controller.records.values()][0];
         if(chosen){await selectSession(chosen.id);}else{await newSession('default');append(active(),'i — browser workspace. Shell is disabled; file tools use persistent OPFS.\nConversations save automatically. Use /help for commands.');}
         $('file-panel').hidden=!ui.panels.files;$('btn-files').setAttribute('aria-expanded',String(!!ui.panels.files));updateControls();
+        let welcomed=false;try{welcomed=localStorage.getItem('i_harness_welcome_seen')==='1';}catch{}
+        if(!connections.records.length&&!welcomed){$('welcome-connection').hidden=false;$('remember-config').checked=true;openSettings();$('base-url').focus();}
         registerPwa({isBusy:()=>!!runningId||!!testController||pluginBusy,onLock:value=>{updateLocked=value;updateControls();},onStatus:text=>{$('pwa-status').textContent=text;},beforeUpdate:async()=>{await controller.flush();await uiQueue;await viewQueue;}}).catch(error=>report(new Error(`PWA unavailable: ${error.message}`)));
     }catch(error){ready=false;updateControls();report(error);$('status').textContent='Unavailable';$('output').append(node('div',`Initialization failed: ${redact(error.message)}. Build with scripts/build_web.sh and serve over localhost/HTTPS.`,'line error'));}
 }

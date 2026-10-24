@@ -21,7 +21,7 @@ try{
             await page.locator('.docs-menu summary').first().click();await page.getByRole('navigation',{name:'文档',exact:true}).waitFor();
             await page.screenshot({path:new URL(`../dist/site-screenshots/${name}-docs-mobile.png`,import.meta.url).pathname,fullPage:false});
             await page.goto(origin+'/app/');await page.locator('#input:not(:disabled)').waitFor({timeout:20000});
-            await page.locator('#settings-btn').click();await page.locator('#cors-help summary').click();assert.equal(await page.locator('#cors-help a[download]').count(),3);
+            if(!await page.locator('#settings-modal').isVisible())await page.locator('#settings-btn').click();await page.locator('#cors-help summary').click();assert.equal(await page.locator('#cors-help a[download]').count(),3);
             assert.deepEqual(errors,[]);console.log(`PASS ${name}: homepage, search, plugin docs, mobile navigation/overflow, /app/ WASM and extension links`);
         }finally{await context.close();}
     }

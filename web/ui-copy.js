@@ -1,5 +1,9 @@
 export const copy={
     'zh-CN':{
+        'Click Save changes to remember this connection.':'点击“保存更改”后，才会记住此连接。',
+        'Welcome — connect your AI':'欢迎使用，先连接你的 AI',
+        "Enter your provider's API URL, model and API key below, then save to get started. Nothing is sent until you send a message or test the connection.":'请填写服务商的 API URL、模型和 API 密钥，保存后即可开始。只有你发送消息或点击测试连接时才会发出请求。',
+        "Your connection stays in this browser's local storage when Remember is enabled, not in workspace files or conversations. In Direct mode your key is sent only to your selected API; Relay mode passes it through your own relay. Installed WASM plugins cannot access connection settings or browser storage directly.":'勾选“记住”后，配置和密钥保存在此浏览器的本地存储中，不写入工作区文件或会话。直连时密钥仅发送至你选择的 API；中继模式会经过你自己的中继。已安装的 WASM 插件不能直接访问连接配置或浏览器存储。',
         'Safari source ZIP':'Safari 源码 ZIP',
         'Download our opt-in CORS helper. It changes response headers only for one tab and the exact API URL; it cannot fix rejected OPTIONS, authentication or TLS failures.':'下载自制 CORS 助手，默认关闭，仅修改一个标签页到指定 API 完整 URL 的响应头；不能修复 OPTIONS 被拒绝、身份验证或 TLS 错误。',
         'Chrome / Edge: unzip, open chrome://extensions or edge://extensions, enable Developer mode, then Load unpacked.':'Chrome / Edge：解压，打开 chrome://extensions 或 edge://extensions，开启开发者模式，选择“加载已解压的扩展”。',

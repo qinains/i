@@ -162,6 +162,7 @@ test('opt-in restores the entire harness configuration and clearing removes it',
     await page.locator('[data-settings-tab=appearance]').click();await page.locator('#lang-select').selectOption('zh-CN');
     await page.locator('[data-settings-tab=connection]').click();
     await page.locator('#remember-config').check();
+    await page.locator('#save-config').click();
     await expect(page.locator('#config-status')).toHaveText('连接配置已保存在此浏览器。');
     await page.reload(); await expect(page.locator('#status')).toHaveText('就绪');
     await expect(page.locator('#base-url')).toHaveValue('http://127.0.0.1:4173/mock/v1');
@@ -182,8 +183,10 @@ test('disabling configuration persistence deletes the key without clearing OPFS'
     await configure(page);
     await page.locator('#settings-btn').click();
     await page.locator('#remember-config').check();
+    await page.locator('#save-config').click();
     await page.locator('#remember-config').uncheck();
     expect(await page.evaluate(() => localStorage.getItem('i_harness_config'))).toBeNull();
+    expect(await page.evaluate(() => localStorage.getItem('i_harness_profiles'))).toBeNull();
     await expect(page.locator('#api-key')).toHaveValue('TEST_SECRET_NOT_PERSISTED');
     await page.reload(); await expect(page.locator('#api-key')).toHaveValue('');
 });
