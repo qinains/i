@@ -46,7 +46,7 @@ const modules=(await readdir(root)).filter(name=>name.endsWith('.js')&&!['sw.js'
 const extensionVersion=JSON.parse(await readFile(new URL('downloads/cors-helper.json',root),'utf8')).version;
 const downloads=['cors-helper.json',...['chromium','firefox','safari'].map(browser=>`harness-cors-helper-${browser}-${extensionVersion}.zip`)].map(name=>'downloads/'+name);
 const assets = ['index.html','commands.json','LICENSE.txt','THIRD_PARTY_LICENSES.txt','module-lexer.LICENSE','module-lexer.NOTICE',...modules,...await walk('state/'),...await walk('plugins/'),...await walk('plugin-pkg/'),'style.css','manifest.webmanifest','icons/icon.svg','icons/icon-192.png','icons/icon-512.png',...await walk('pkg/')].sort();
-assets.push(...downloads);assets.sort();
+assets.push(...downloads,'plugin-pkg/builtin.prompts-1.0.0.hplugin.zip');assets.sort();
 const precache = await Promise.all(assets.map(async url => ({url,sha256:hash(await readFile(new URL(url,root)))})));
 const source = await readFile(new URL('sw.js',root),'utf8');
 const version = hash(JSON.stringify(precache)+source).slice(0,24);

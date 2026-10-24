@@ -1,6 +1,7 @@
 import {opfsOpenWorkspace,opfsRead,opfsWrite,opfsList,opfsMetadata,opfsWithTransaction} from '../platform.js';
 import {browserPath} from '../workspaces.js';
 import {persistentWorkspace} from './store.js';
+import {PROMPT_PLUGIN,validatePrompt} from './prompts.js';
 const encoder=new TextEncoder(),LIMIT=8*1024*1024;
 function args(value,keys){if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>!keys.includes(k))||keys.some(k=>!Object.hasOwn(value,k)))throw new Error('Invalid plugin host operation arguments.');}
 export function createPluginBroker({snapshot,descriptor,context,store}){
@@ -42,6 +43,15 @@ export function createPluginBroker({snapshot,descriptor,context,store}){
             }else if(['kv.get','kv.put','kv.delete'].includes(op)){
                 if(!permission.storage)throw new Error('Plugin private storage permission denied.');
                 args(value,op==='kv.put'?['key','value']:['key']);
+                if(granted.pluginId===PROMPT_PLUGIN){
+                    if(value.key!=='system')throw new Error('Unknown prompt.');
+                    if(op==='kv.put')validatePrompt(value.value);
+                    if(op!=='kv.get'){
+                        context.pauseBudget(true);let approved;
+                        try{approved=await context.approve(`CHANGE SYSTEM PROMPT\nApplies to the next task.\n${op==='kv.delete'?'Reset to built-in prompt':value.value}`,{force:true});}finally{context.pauseBudget(false);}
+                        if(!approved)throw new Error('Prompt change denied.');check();
+                    }
+                }
                 if(op==='kv.get')result={value:await store.kvGet(owner,value.key)};
                 else{await context.beforeEffect?.();check();if(context.effects)context.effects.started=true;if(op==='kv.put')await store.kvPut(owner,value.key,value.value);else await store.kvDelete(owner,value.key);result={};}
             }else throw new Error('Unsupported plugin host operation.');

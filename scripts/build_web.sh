@@ -6,4 +6,5 @@ for bridge in web/pkg/snippets/*/web/platform.js; do
     cp web/sse.js "$(dirname "$bridge")/sse.js"
 done
 sh scripts/build_plugin_validator.sh
+sh scripts/build_wasm_plugin.sh plugins/wasm-prompts web/plugin-pkg
 node scripts/build_pwa.mjs

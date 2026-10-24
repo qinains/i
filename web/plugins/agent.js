@@ -1,7 +1,9 @@
 import {createPluginRun} from './runner.js';
 import {createPluginBroker} from './broker.js';
+import {applyPrompts} from './prompts.js';
 export async function runPluginTask({agent,manager,store,record,text,images=[],signal,approve,beforeEffect,onUnavailable=()=>{}}){
     const run=async snapshot=>{
+        await applyPrompts(agent,snapshot,store);
         for(const id of snapshot.unavailable??[])onUnavailable(id);
         agent.set_plugin_tools(JSON.stringify(snapshot.tools),async(name,argsJson)=>{
             signal.throwIfAborted();const descriptor=snapshot.tools.find(t=>t.publicName===name);if(!descriptor)throw new Error('Plugin is unavailable in this task.');

@@ -81,6 +81,18 @@ pub struct BrowserAgent {
 }
 #[wasm_bindgen]
 impl BrowserAgent {
+    pub fn default_system_prompt() -> String {
+        SYSTEM.to_owned()
+    }
+    pub fn set_system_prompt(&self, prompt: &str) -> std::result::Result<(), JsValue> {
+        let _busy = acquire(&self.busy).map_err(failure)?;
+        if prompt.len() > 131072 || (!prompt.is_empty() && prompt.trim().is_empty()) {
+            return Err("invalid system prompt".into());
+        }
+        self.state.borrow_mut().history[0] =
+            json!({"role":"system","content":if prompt.is_empty() {SYSTEM} else {prompt}});
+        Ok(())
+    }
     pub fn set_plugin_tools(&self, definitions_json: &str, invoke: Function) -> std::result::Result<(), JsValue> {
         let _busy = acquire(&self.busy).map_err(failure)?;
         let plugins = PluginRegistry::from_json(definitions_json).map_err(failure)?;

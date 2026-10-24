@@ -14,5 +14,7 @@ test('plugin PWA persists Rust packages grants and OPFS through offline subpath 
         const result=await m.withSnapshot('default',async snapshot=>{const descriptor=snapshot.tools[0],bytes=await m.loadModule(descriptor);const broker=createPluginBroker({snapshot,descriptor,store:s,context:{workspaceId:'default',sessionId:'offline',mode:'auto',signal:new AbortController().signal,pauseBudget:()=>{}}});return createPluginRun({descriptor,bytes,request:{id:'offline',event:'tool',workspace_id:'default',data:{name:'count_words',arguments:{path:'offline.txt'}}},onHostCall:broker}).result;});s.close();return JSON.parse(result.output);
     });
     expect(result).toEqual({characters:14,words:2});
-    const urls=await page.evaluate(async()=>(await Promise.all((await caches.keys()).map(async name=>(await(await caches.open(name)).keys()).map(r=>r.url)))).flat());expect(urls.some(url=>url.endsWith('.hplugin.zip')||url.endsWith('/offline.txt'))).toBe(false);
+    const urls=await page.evaluate(async()=>(await Promise.all((await caches.keys()).map(async name=>(await(await caches.open(name)).keys()).map(r=>r.url)))).flat());
+    expect(urls.some(url=>url.endsWith('/offline.txt'))).toBe(false);
+    expect(urls.filter(url=>url.endsWith('.hplugin.zip')).every(url=>url.endsWith('/plugin-pkg/builtin.prompts-1.0.0.hplugin.zip'))).toBe(true);
 });

@@ -1,9 +1,10 @@
 import {node} from '../render.js';
 import {uiText} from '../i18n.js';
 import {isTemporaryWorkspace} from '../workspaces.js';
+import {promptEditor} from './prompts.js';
 const text=(tag,key,className='')=>{const element=node(tag,uiText(key),className);element.dataset.i18n=key;return element;};
 function permissions(p){return [uiText(p.workspace==='read-write'?'Read and modify workspace files':p.workspace==='read'?'Read workspace files':'No workspace file access'),uiText(p.storage?'Private plugin storage':'No private plugin storage')].join(' · ');}
-export function mountPluginSettings({manager,currentWorkspace,isBusy,onError,onBusy=()=>{}}){
+export function mountPluginSettings({manager,currentWorkspace,isBusy,onError,onBusy=()=>{},promptStore,defaultPrompt}){
     const panel=document.querySelector('[data-settings-panel=plugins]'),actions=node('div','','actions');let busy=false,preview;
     const file=node('input');file.id='plugin-file';file.type='file';file.accept='.hplugin.zip,application/zip';file.setAttribute('aria-label',uiText('Choose plugin package'));file.dataset.i18nAriaLabel='Choose plugin package';
     const status=node('p','','note');status.id='plugin-status';status.role='status';
@@ -17,6 +18,7 @@ export function mountPluginSettings({manager,currentWorkspace,isBusy,onError,onB
     async function refresh(){
         const workspace=currentWorkspace();if(!workspace)return;
         const m=await getManager(),records=await m.list();list.replaceChildren();
+        if(!isTemporaryWorkspace(workspace)&&promptStore&&records.some(p=>p.id==='builtin.prompts'&&p.status==='installed'))list.append(await promptEditor({store:promptStore(),workspaceId:workspace,defaultPrompt:await defaultPrompt(),isBusy}));
         if(!records.length)list.append(text('p','No plugins installed.','note'));
         for(const record of records){
             const card=node('section','','plugin-card');card.dataset.pluginId=record.id;

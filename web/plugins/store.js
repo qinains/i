@@ -24,6 +24,8 @@ export async function openPluginStore(){
     const ownerRead=(owner,key)=>transaction(['kv'],'readonly',(tx,done)=>{tx.objectStore('kv').get(kvKey(owner,key)).onsuccess=event=>done(event.target.result?.value??null);});
     return {
         close:()=>db.close(),
+        defaultInitialized:owner=>transaction(['meta'],'readonly',(tx,done)=>{tx.objectStore('meta').get('default:'+ownerKey(owner).join(':')).onsuccess=event=>done(event.target.result?.value===true);}),
+        markDefaultInitialized:owner=>transaction(['meta'],'readwrite',(tx,done)=>{tx.objectStore('meta').put({key:'default:'+ownerKey(owner).join(':'),value:true});done();}),
         loadRegistry:()=>transaction(['packages','active','grants','meta'],'readonly',(tx,done)=>{
             const result={revision:0,packages:[],active:[],grants:[]};for(const name of ['packages','active','grants'])tx.objectStore(name).getAll().onsuccess=event=>{result[name]=event.target.result;};
             tx.objectStore('meta').get('revision').onsuccess=event=>{result.revision=event.target.result?.value??0;};done(result);

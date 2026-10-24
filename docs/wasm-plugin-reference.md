@@ -1,5 +1,25 @@
 # 浏览器 WASM 插件参考
 
+## 默认提示词管理插件
+
+`builtin.prompts` 来自 `plugins/wasm-prompts`，Rust 编译为独立 WASM，通过相同的
+Worker、包校验和授权流程运行。持久工作区第一次使用插件时自动安装、启用；用户
+禁用或卸载后不会在该工作区自动恢复。设置 → 插件可编辑系统提示词或恢复默认。
+
+模型工具 `manage_prompt` 支持 `action: get|set|reset`，`set` 额外传 `prompt`。
+提示词上限 128 KiB UTF-8，保存到插件的工作区隔离 IndexedDB KV，不是连接配置、
+项目文件或 API key。AI 的 set/reset 始终走强制确认，即使会话是 auto 模式也不会
+自动批准。当前模型调用期间的提示词保持不变，保存结果在下一个用户任务时载入。
+插件没有文件、网络或连接配置访问权限；其他插件无法跨 pluginId 读写这些值。
+
+当前浏览器实际只运行一个主 Agent system 提示词，允许完整替换，不是仅追加后缀。
+会话标题在本地计算，浏览器没有在运行的自动压缩模型提示词，所以不展示虚假的
+“标题/压缩提示词”选项。原生客户端的 system/compact 配置仍由原生 prompts hook
+处理，见[原生插件参考](plugins.md)。修改提示词不改变真实工具权限、审批和文件锁。
+
+提示词设置属于本地工作区数据，ZIP 文件备份不包含它；清除网站数据或私有插件
+数据会删除设置。编辑器通过工作区锁与原值比较，拒绝覆盖另一个窗口刚保存的版本。
+
 协议来源是 `plugins/wasm-protocol/`、`plugins/wasm-sdk/`、`plugins/wasm-package/`
 及 `web/plugins/`。本页描述浏览器工具插件，不描述原生 subprocess/hooks。
 入门见 [Rust 插件教程](plugin-development.md)。

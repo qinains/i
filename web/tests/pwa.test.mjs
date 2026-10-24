@@ -7,6 +7,7 @@ test('PWA manifest and content-addressed asset list support relative deployment'
     const manifest = JSON.parse(await readFile(new URL('manifest.webmanifest',root)));
     assert.equal(manifest.start_url,'./'); assert.equal(manifest.scope,'./'); assert.equal(manifest.display,'standalone');
     const build = JSON.parse(await readFile(new URL('assets.json',root)));
+    assert.ok(build.precache.some(asset=>asset.url==='plugin-pkg/builtin.prompts-1.0.0.hplugin.zip'),'default plugin must be published and available offline');
     for (const asset of build.precache) {
         assert.ok(build.assets.includes(asset.url)); assert.ok(!asset.url.startsWith('/'));
         const bytes = await readFile(new URL(asset.url,root));

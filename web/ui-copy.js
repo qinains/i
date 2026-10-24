@@ -1,5 +1,13 @@
 export const copy={
     'zh-CN':{
+        'Prompt manager':'提示词管理',
+        'System prompt':'系统提示词',
+        'Save prompts':'保存提示词',
+        'Reset prompt':'恢复默认提示词',
+        'Saved. Applies to the next task.':'已保存；插件启用时，下一个任务生效。',
+        'Changes apply to the next task in this workspace. AI changes always require approval. API credentials are not accessible.':'修改在当前工作区的下一个任务生效；AI 修改始终需要你确认，即使处于自动模式。插件不能访问 API 连接或密钥。',
+        'Prompt must contain 1-131072 UTF-8 bytes.':'提示词不能为空，且不能超过 128 KiB（UTF-8）。',
+        'Prompt changed in another window. Reopen settings before saving.':'提示词已在其他窗口修改，请重新打开设置后再保存。',
         'Preview storage is temporary and isolated; refreshing the preview clears it.':'预览存储独立且临时，刷新预览即清空，不会访问工作台配置。',
         'OpenAI (Responses)':'OpenAI（Responses）',
         'Reasoning effort (Responses)':'思考强度（Responses）',

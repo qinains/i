@@ -22,6 +22,7 @@ import {PluginManager} from './plugins/manager.js';
 import {inspectPluginPackage} from './plugins/runner.js';
 import {runPluginTask} from './plugins/agent.js';
 import {mountPluginSettings} from './plugins/ui.js';
+import {ensureDefaultPrompts} from './plugins/prompts.js';
 import {mountComposer,composeDraft,imageDataUrls} from './composer.js';
 import {enqueueMessage,editMessage,removeMessage} from './pending.js';
 import {theme} from './theme.js';
@@ -38,8 +39,8 @@ const pluginControllers=new Map();
 const operationControllers=new Map();
 const fileRefresh=new FileRefresh();
 async function ensurePluginManager(){
-    if(pluginManager)return pluginManager;
-    pluginStore??=await openPluginStore();pluginManager=new PluginManager({store:pluginStore,inspectPackage:inspectPluginPackage});return pluginManager;
+    pluginStore??=await openPluginStore();pluginManager??=new PluginManager({store:pluginStore,inspectPackage:inspectPluginPackage});
+    await ensureDefaultPrompts(pluginManager,pluginStore,active()?.workspaceId);return pluginManager;
 }
 let commandCatalog=[],commandMenu;
 let viewQueue=Promise.resolve(),listedFiles=[];
@@ -228,8 +229,8 @@ async function closeSession(id){
 function settleApproval(allowed){
     const approval=pendingApproval;pendingApproval=null;if(approval){const record=controller.records.get(approval.id);record.status='running';approval.resolve(allowed);}updateControls();
 }
-async function approve(id,description){
-    const record=controller.records.get(id);if(record.mode==='auto'){await controller.save(record);return true;}record.status='approval';await controller.save(record);renderTabs();
+async function approve(id,description,{force=false}={}){
+    const record=controller.records.get(id);if(record.mode==='auto'&&!force){await controller.save(record);return true;}record.status='approval';await controller.save(record);renderTabs();
     return new Promise(resolve=>{pendingApproval={id,description,resolve};updateControls();});
 }
 function publish(id,archive){
@@ -333,7 +334,7 @@ async function sendMessage(record,visible,blocks,entry=null){
         await controller.save(record);updateControls();
         if(stoppedTasks.has(record.id))throw new Error('Cancelled before sending.');
         const abort=new AbortController();pluginControllers.set(record.id,abort);
-        try{await runPluginTask({agent,manager,store:pluginStore,record,text:composed.text,images,signal:abort.signal,approve:description=>approve(record.id,description),beforeEffect:()=>controller.flush(record.id),onUnavailable:id=>append(record,`Plugin unavailable: ${id}`,'error')});}
+        try{await runPluginTask({agent,manager,store:pluginStore,record,text:composed.text,images,signal:abort.signal,approve:(description,options)=>approve(record.id,description,options),beforeEffect:()=>controller.flush(record.id),onUnavailable:id=>append(record,`Plugin unavailable: ${id}`,'error')});}
         finally{abort.abort();pluginControllers.delete(record.id);}
     },{runQueue:true});}
     finally{if(preparingId===record.id)preparingId=null;if(messageTaskId===record.id)messageTaskId=null;updateControls();}
@@ -451,7 +452,7 @@ function bind(){
     theme.subscribe(mode=>{$('theme-select').value=mode;});
     $('theme-select').addEventListener('change',()=>{const saved=theme.setMode($('theme-select').value);setText('config-status',saved?'Theme saved locally; connection changes still require Save.':'Theme applied for this page; browser storage is unavailable.');});
     composerUi=mountComposer({input:$('input'),list:$('composer-attachments'),getRecord:active,isDisabled:()=>preparingId===activeId||runningId===activeId&&messageTaskId!==activeId||!!testController||pluginBusy||updateLocked||!ready,onError:report,onChange:(record,value)=>{record.draft=value;controller.later(record);commandMenu?.hide();updateComposerAction();}});
-    pluginUi=mountPluginSettings({manager:ensurePluginManager,currentWorkspace:()=>active()?.workspaceId,isBusy:()=>!!runningId||!!testController||updateLocked||!ready,onError:report,onBusy:value=>{pluginBusy=value;updateControls();}});
+    pluginUi=mountPluginSettings({manager:ensurePluginManager,promptStore:()=>pluginStore,defaultPrompt:async()=>(await import('./pkg/i.js')).BrowserAgent.default_system_prompt(),currentWorkspace:()=>active()?.workspaceId,isBusy:()=>!!runningId||!!testController||updateLocked||!ready,onError:report,onBusy:value=>{pluginBusy=value;updateControls();}});
     preview=mountPreview({owner:active,isBusy:()=>!!runningId||!!testController||updateLocked||!ready,onError:report,onChange:patch=>{const record=active();if(!record)return;Object.assign(fileView(),patch);saveFileView(record.workspaceId);renderFiles();if(patch.open&&matchMedia('(max-width:700px)').matches)showFiles(false);},onBack:()=>showFiles(true)});
     mountScratchControls({
         create:safe(async()=>{if(runningId||updateLocked)return;const name=prompt(uiText('Temporary workspace name (all files are lost on reload; download first):'));if(!name)return;const id=`temp-${crypto.randomUUID()}`;await opfsOpenWorkspace(id);workspaces.set(id,{id,name:displayName(name),storageKind:'temporary'});renderWorkspaces();await newSession(id);}),
