@@ -21,4 +21,4 @@ Browser-extension ZIPs are unpacked/source distributions, not store-signed
 installers. No model credentials are included.
 
 The earlier v0.1.0 tag is retained unchanged. Its Windows archive verification
-failed before publication; 0.1.1 is the corrected release candidate.
+failed before publication; 0.1.1 is the corrected release.
