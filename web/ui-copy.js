@@ -1,5 +1,7 @@
 export const copy={
     'zh-CN':{
+        'A previous attempt could not read the API URL. Open settings to check your API URL, API key and model.':'此前的一次尝试无法读取 API URL。请打开设置，检查 API URL、API 密钥和模型名称。',
+        'Historical error. Nothing has been resent.':'这是之前保存的历史错误，没有自动重发请求。',
         'Open settings':'打开设置',
         'The API URL is missing or invalid. Open Settings to enter a valid API URL and check your API key and model.':'尚未填写 API URL，或地址格式不正确。请打开设置，填写有效的 API URL，并检查 API 密钥和模型名称。',
         'Click Save changes to remember this connection.':'点击“保存更改”后，才会记住此连接。',

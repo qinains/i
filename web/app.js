@@ -89,7 +89,7 @@ function append(record,text,type='system'){
 function renderTerminal(follow=false){
     const record=active();if(!record)return;
     const output=$('output'),previous=output.scrollTop;
-    output.replaceChildren(...record.transcript.map(line=>renderMessage(line,{onChange:()=>controller.later(record)})));
+    output.replaceChildren(...record.transcript.map(line=>renderMessage(line,{onChange:()=>controller.later(record),onConfigure:openConnectionSettings})));
     output.scrollTop=follow ? output.scrollHeight : record.scroll ?? previous;
 }
 function renderTabs(){
