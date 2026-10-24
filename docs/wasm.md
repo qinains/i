@@ -24,9 +24,14 @@ python3 -m http.server 8080 --bind 127.0.0.1 --directory web
 | 接口协议 | API URL 示例 | 实际请求地址 |
 | --- | --- | --- |
 | OpenAI-compatible (Chat Completions) | `https://api.deepseek.com` 或 `https://api.deepseek.com/chat/completions` | `https://api.deepseek.com/chat/completions` |
+| OpenAI (Responses) | `https://api.openai.com`、`https://api.openai.com/v1` 或 `https://api.openai.com/v1/responses` | `https://api.openai.com/v1/responses` |
 | Anthropic (Messages) | `https://api.anthropic.com`、`https://api.anthropic.com/v1` 或 `https://api.anthropic.com/v1/messages` | `https://api.anthropic.com/v1/messages` |
 
-也支持自定义服务的路径前缀，不根据域名或模型名称猜测协议。Anthropic 使用原生 Messages 请求、system/content blocks、tool_use/tool_result 和图片格式，支持 JSON 和流式响应；续聊保留 thinking/signature 原始块。切换协议或账号仍需新建会话或明确换绑，不自动发送旧历史。浏览器不支持 Responses 或原生进程 provider/plugin；原生已有协议不变。
+也支持自定义服务的路径前缀，不根据域名或模型名称猜测协议。Anthropic 使用原生 Messages 请求、system/content blocks、tool_use/tool_result 和图片格式，支持 JSON 和流式响应；续聊保留 thinking/signature 原始块。切换协议或账号仍需新建会话或明确换绑，不自动发送旧历史。浏览器不支持原生进程 provider/plugin；原生已有协议不变。
+
+Responses 是独立协议，并非只替换 URL。使用原生 `input`、`input_text/input_image`、扁平 function schemas、`function_call/function_call_output` 和 `max_output_tokens`，支持普通 JSON 与 typed SSE。函数 schema 显式 `strict: false`，保留现有工具可选参数。工具仍走本地文件系统与审批，不启用服务商托管工具。默认 `store: false`，不使用 `previous_response_id`；浏览器保存并在后续请求重放完整输出项和加密 reasoning，刷新不自动发请求。保存的原生输出必须与规范化历史中的文本及工具批次一致，不能通过篡改恢复元数据改变待执行工具。
+
+Responses 可选接口默认、关闭、低、中、高、超高（`xhigh`）思考强度；接口默认不发送 `reasoning`，其余只发送显式 `reasoning.effort`。这些是协议选项，不代表所选模型都支持；不支持时显示接口错误，不自动降档或重试。可读 reasoning summary 流式显示为折叠思考区域，加密内容不显示。`response.incomplete/failed`、缺少完成事件、未知工具、无效 JSON 或不一致的输出项会阻止整批待执行工具。参考 [OpenAI 官方迁移指南](https://developers.openai.com/api/docs/guides/migrate-to-responses)。
 
 服务需要允许页面 origin 的 CORS、POST 和 `Content-Type`。OpenAI-compatible 使用 `Authorization: Bearer ...`；Anthropic 使用 `x-api-key`、固定的 `anthropic-version: 2023-06-01`，直连另带 `anthropic-dangerous-direct-browser-access: true`，服务也必须允许这些请求头。HTTPS 页面不能请求被浏览器混合内容规则禁止的 HTTP endpoint。没有自动代理或 CORS 绕过。网络失败显示错误，不自动重试整个回合。
 
@@ -86,7 +91,7 @@ OpenAI-compatible 流的异常结束会显示实际 `finish_reason`：`length` �
 
 不支持直连的接口可显式选择 Own same-origin relay，并部署[独立可选服务](../server/README.md)。模型 key 会经过该自有服务，relay token 只发送页面同源 API，不支持输入任意第三方代理地址。直连失败不自动切换，不部署 relay 也不影响静态应用使用。
 
-中继支持精确白名单中的 `/chat/completions` 与 `/v1/messages` 端点，按端点分离 Bearer 和 Anthropic 密钥，Anthropic 浏览器直连请求头不转发给上游。页面仍使用同源 `/api/chat/completions` 网关路径，协议与原生请求体不会转换成另一种模型 API。
+中继支持精确白名单中的 `/chat/completions`、`/responses` 与 `/v1/messages` 端点，按端点分离 Bearer 和 Anthropic 密钥，Anthropic 浏览器直连请求头不转发给上游。页面仍使用同源 `/api/chat/completions` 网关路径，协议与原生请求体不会转换成另一种模型 API。
 
 iPhone：用 Safari 打开可访问的 HTTPS 地址，分享 → 添加到主屏幕。其他浏览器支持安装提示时显示 Install app，否则使用手动指南。第一次成功在线缓存后，离线可启动 WASM、访问 OPFS、上传与导出 ZIP；AI 仍需联网。不要假设安装态与普通标签页共享配置/文件，首次打开以实际状态为准。锁屏或后台可能暂停请求，不承诺持续生成。
 

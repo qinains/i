@@ -3,6 +3,7 @@ import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createRelayServer} from '../../server/relay.mjs';
+import {sendResponses} from './responses-fixture.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const call = (name, args, id) => ({choices: [{finish_reason: 'tool_calls', message: {role: 'assistant', content: null,
     tool_calls: [{id, type: 'function', function: {name, arguments: JSON.stringify(args)}}]}}]});
@@ -44,7 +45,7 @@ http.createServer(async (req, res) => {
     if (req.url === '/api/chat/completions') {
         if (!/^127\.0\.0\.1:\d+$/u.test(req.headers.host ?? '')) {res.writeHead(403); res.end(); return;}
         const origin = `http://${req.headers.host}`;
-        if (!relays.has(origin)) relays.set(origin,await createRelayServer({token:'fixture-relay-token-'.repeat(3),origin,endpoints:['https://api.example/v1/chat/completions','https://api.example/v1/messages'],
+        if (!relays.has(origin)) relays.set(origin,await createRelayServer({token:'fixture-relay-token-'.repeat(3),origin,endpoints:['https://api.example/v1/chat/completions','https://api.example/v1/messages','https://api.example/v1/responses'],
             lookup:async () => [{address:'8.8.8.8',family:4}],connect:(url,options,callback) => http.request(`http://127.0.0.1:4174${url.pathname}`,{...options,lookup:undefined},callback)}));
         relays.get(origin).emit('request',req,res); return;
     }
@@ -58,6 +59,11 @@ http.createServer(async (req, res) => {
         const url = new URL(req.url,'http://localhost'); pwaRevision = url.searchParams.get('version') ?? ''; missingAsset = url.searchParams.get('missing') === '1'; res.end('ok'); return;
     }
     if (req.url === '/release-stream') {releaseStream?.(); res.end('released'); return;}
+    if(req.url==='/mock/v1/responses'){
+        let raw='';for await(const chunk of req)raw+=chunk;const body=JSON.parse(raw);
+        if(req.headers.authorization!=='Bearer TEST_RESPONSES_KEY'||!Array.isArray(body.input)||body.messages||body.max_tokens||!body.max_output_tokens||body.store!==false||body.tools?.some(tool=>tool.function||!tool.parameters)){res.writeHead(400);res.end('invalid native Responses request');return;}
+        sendResponses(res,body);return;
+    }
     if(req.url==='/mock/v1/messages') {
         let raw='';for await(const chunk of req)raw+=chunk;
         const body=JSON.parse(raw);
@@ -112,6 +118,10 @@ http.createServer(async (req, res) => {
 http.createServer(async (req,res) => {
     if (req.method === 'OPTIONS') {res.writeHead(401); res.end(); return;}
     let raw = ''; for await (const chunk of req) raw += chunk;
+    if(req.url==='/v1/responses'){
+        if(req.headers.authorization!=='Bearer TEST_RESPONSES_KEY'||req.headers['x-api-key']){res.writeHead(400);res.end('invalid Responses relay auth');return;}
+        sendResponses(res,JSON.parse(raw));return;
+    }
     if(req.url==='/v1/messages') {
         if(req.headers.authorization || req.headers['x-api-key']!=='TEST_ANTHROPIC_KEY' || req.headers['anthropic-version']!=='2023-06-01' || req.headers['anthropic-dangerous-direct-browser-access']) {res.writeHead(400);res.end('invalid native Anthropic relay request');return;}
         sendAnthropic(res,JSON.parse(raw));return;

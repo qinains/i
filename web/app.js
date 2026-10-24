@@ -395,16 +395,19 @@ function updateTransport(){
 function updateEndpoint(){
     const root=document.documentElement;root.dataset.modelTransport=applied.transport;
     try{root.dataset.modelApiUrl=normalizeEndpoint(applied.base_url,applied.protocol);}catch{delete root.dataset.modelApiUrl;}
-    const anthropic=$('protocol').value==='anthropic';
-    $('base-url').placeholder=anthropic?'https://api.anthropic.com':'https://api.deepseek.com';
-    setText('endpoint-help',anthropic?'Enter the API root URL, /v1, or full /v1/messages URL.':'Enter the API root URL or full /chat/completions URL. The endpoint is appended only once.');
+    const anthropic=$('protocol').value==='anthropic',responses=$('protocol').value==='responses';
+    $('base-url').placeholder=anthropic?'https://api.anthropic.com':responses?'https://api.openai.com/v1':'https://api.deepseek.com';
+    setText('endpoint-help',anthropic?'Enter the API root URL, /v1, or full /v1/messages URL.':responses?'Enter the API root URL, /v1, or full /v1/responses URL.':'Enter the API root URL or full /chat/completions URL. The endpoint is appended only once.');
     const maximum=modelMaximum(currentConfiguration());
     const suggestions=modelSuggestions(currentConfiguration());
     $('model-options').replaceChildren(...suggestions.map(name=>{const option=node('option');option.value=name;return option;}));
     setText('model-help',suggestions.length?'Reference models from provider documentation, not your account permissions. Select a suggestion or enter a model ID manually.':'Enter the model ID supplied by your API provider. No verified model catalog or thinking capabilities are available for this endpoint.');
-    $('use-model-max').hidden=!maximum;$('reasoning-options').hidden=!maximum;
+    $('use-model-max').hidden=!maximum;$('reasoning-options').hidden=!maximum&&!responses;
+    setText('reasoning-label',responses?'Reasoning effort (Responses)':'Thinking mode (DeepSeek)');
+    for(const option of $('reasoning-effort').options)option.hidden=responses?option.value==='max':['medium','xhigh'].includes(option.value);
+    if($('reasoning-effort').selectedOptions[0]?.hidden)$('reasoning-effort').value='default';
     if(maximum){$('max-tokens').max=maximum;$('use-max-tokens').checked=true;}else $('max-tokens').removeAttribute('max');
-    $('token-parameter-option').hidden=anthropic||!!maximum;$('anthropic-tokens-note').hidden=!anthropic;
+    $('token-parameter-option').hidden=anthropic||responses||!!maximum;$('anthropic-tokens-note').hidden=!anthropic;$('responses-note').hidden=!responses;
     try{$('resolved-endpoint').textContent=uiText('Request URL: {url}',{url:normalizeEndpoint($('base-url').value.trim(),$('protocol').value)});}catch{$('resolved-endpoint').textContent=uiText('The request URL appears after a valid API URL is entered.');}
 }
 function validateConfig(config){normalizeEndpoint(config.base_url,config.protocol);validateCustomHeaders(config.custom_headers);if(!config.model.trim()||!Number.isSafeInteger(config.max_tokens)||config.max_tokens<1)throw new Error('Model and a positive output token limit are required.');const maximum=modelMaximum(config);if(maximum&&config.max_tokens>maximum)throw new Error('DeepSeek maximum output tokens: 393216.');if(config.transport==='relay'&&!config.relay_token)throw new Error('Relay access token is required.');}
@@ -504,7 +507,8 @@ function bind(){
         if(runningId||testController)return;const config=currentConfiguration();validateConfig(config);testController=new AbortController();$('cancel-test').hidden=false;updateControls();setText('test-result','Testing…');
         const body={model:config.model,messages:[{role:'user',content:'Hi'}],stream:false,[config.protocol==='anthropic'||config.use_max_tokens?'max_tokens':'max_completion_tokens']:5};
         if(config.protocol==='anthropic'){body.system=[];body.messages[0].content=[{type:'text',text:'Hi'}];}
-        try{const result=JSON.parse(await requestCompletion({endpoint:config.base_url,protocol:config.protocol,body,apiKey:config.api_key,transport:config.transport,relayToken:config.relay_token,customHeaders:config.custom_headers,controller:testController}));if(config.protocol==='anthropic'?result.type!=='message'||result.role!=='assistant'||!Array.isArray(result.content):!result.choices?.[0]?.message)throw new Error(uiText('Unexpected response; model connection not verified.'));setText('test-result','Connection verified.');}
+        if(config.protocol==='responses'){delete body.messages;delete body.max_tokens;delete body.max_completion_tokens;Object.assign(body,{input:[{role:'user',content:'Hi'}],max_output_tokens:64,store:false});}
+        try{const result=JSON.parse(await requestCompletion({endpoint:config.base_url,protocol:config.protocol,body,apiKey:config.api_key,transport:config.transport,relayToken:config.relay_token,customHeaders:config.custom_headers,controller:testController}));const valid=config.protocol==='anthropic'?result.type==='message'&&result.role==='assistant'&&Array.isArray(result.content):config.protocol==='responses'?result.object==='response'&&result.status==='completed'&&Array.isArray(result.output):!!result.choices?.[0]?.message;if(!valid)throw new Error(uiText('Unexpected response; model connection not verified.'));setText('test-result','Connection verified.');}
         catch(error){delete $('test-result').dataset.i18n;$('test-result').textContent=redact(error.message??error);}finally{testController=null;$('cancel-test').hidden=true;updateControls();}
     }));
     $('cancel-test').addEventListener('click',()=>testController?.abort());

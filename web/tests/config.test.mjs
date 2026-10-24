@@ -24,6 +24,14 @@ test('Anthropic protocol survives saved configuration and profile roundtrips',()
     saveProfile(store,'native',native);assert.equal(loadProfile(store,'native').protocol,'anthropic');
     assert.throws(()=>saveConfiguration(store,{...native,protocol:'messages'}));
 });
+test('Responses protocol and explicit reasoning strength survive local connection profiles',()=>{
+    const store=storage();
+    for(const reasoning_effort of ['default','none','low','medium','high','xhigh']){
+        const config={...settings,protocol:'responses',reasoning_effort,max_tokens:65536};
+        saveProfile(store,'responses',config);assert.equal(loadProfile(store,'responses').protocol,'responses');
+        assert.equal(loadProfile(store,'responses').reasoning_effort,reasoning_effort);
+    }
+});
 test('legacy configuration migrates to direct streaming without sending or changing key', () => {
     const store = storage();
     const {transport,stream,relay_token,...legacy} = settings;

@@ -20,6 +20,22 @@ test('Anthropic endpoints and auth header reservations',()=>{
     assert.throws(()=>normalizeEndpoint('https://api.example','unknown'));
     for(const name of ['x-api-key','anthropic-version','anthropic-dangerous-direct-browser-access']) assert.throws(()=>validateCustomHeaders(JSON.stringify({[name]:'bad'})));
 });
+test('Responses root, versioned and full URLs append the endpoint once',()=>{
+    for(const base of ['https://api.example','https://api.example/v1/','https://api.example/v1/responses/'])assert.equal(normalizeEndpoint(base,'responses'),'https://api.example/v1/responses');
+    assert.equal(normalizeEndpoint('https://api.example/custom/responses','responses'),'https://api.example/custom/responses');
+});
+test('Responses completion uses Bearer auth and native JSON without Chat fields',async()=>{
+    const original=globalThis.fetch;
+    const body={model:'fixture',input:[{role:'user',content:'Hi'}],max_output_tokens:5,store:false,stream:false};
+    try{
+        globalThis.fetch=async(url,options)=>{
+            assert.equal(url,'https://api.example/v1/responses');assert.deepEqual(JSON.parse(options.body),body);
+            assert.equal(options.headers.authorization,'Bearer TEST_KEY');assert.equal(options.headers['x-api-key'],undefined);
+            return new Response(JSON.stringify({object:'response',status:'completed',output:[]}),{headers:{'content-type':'application/json'}});
+        };
+        assert.equal(JSON.parse(await requestCompletion({endpoint:'https://api.example',protocol:'responses',body,apiKey:'TEST_KEY'})).status,'completed');
+    }finally{globalThis.fetch=original;}
+});
 test('Anthropic direct completion forwards native JSON and dedicated browser headers without retry',async()=>{
     const original=globalThis.fetch;let requests=0;
     const body={model:'fixture',system:[],messages:[{role:'user',content:[{type:'text',text:'Hi'}]}],max_tokens:5,stream:false};

@@ -23,8 +23,8 @@ function validated(settings) {
         result[key] = settings[key];
     }
     const validLanguages = ['en','zh-CN','zh-TW','ja','ko','fr','de','es','pt','ru','ar','it','nl','pl','tr','vi','th'];
-    if (!['openai','anthropic'].includes(settings.protocol) || !validLanguages.includes(settings.language)
-        || !['default','none','low','high','max'].includes(settings.reasoning_effort)
+    if (!['openai','anthropic','responses'].includes(settings.protocol) || !validLanguages.includes(settings.language)
+        || !['default','none','low','medium','high','max','xhigh'].includes(settings.reasoning_effort)
         || !Number.isSafeInteger(settings.max_tokens) || settings.max_tokens < 1
         || !['direct','relay'].includes(settings.transport) || typeof settings.stream !== 'boolean'
         || typeof settings.use_max_tokens !== 'boolean') throw new Error('Invalid harness configuration.');

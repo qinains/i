@@ -1,5 +1,10 @@
 export const copy={
     'zh-CN':{
+        'OpenAI (Responses)':'OpenAI（Responses）',
+        'Reasoning effort (Responses)':'思考强度（Responses）',
+        'Thinking medium':'中等强度','Thinking extra high':'超高强度',
+        'Enter the API root URL, /v1, or full /v1/responses URL.':'填写 API 根地址、/v1 或完整的 /v1/responses 地址，路径只会补全一次。',
+        'Responses uses max_output_tokens and store: false. Conversation context stays in your browser and is replayed to your selected API. Reasoning options depend on your model.':'Responses 使用 max_output_tokens，并设置 store: false。会话上下文由浏览器保存，每次请求发送至你选择的 API。可用思考强度取决于模型。',
         'Chrome / Edge: OPTIONS 401/403/405 can use the separately confirmed Preflight repair mode. Requires debugger permission; real API authentication is unchanged.':'新版扩展只需点击“启动”，确认后同时开启预检修复。运行后同一按钮变为“停止”。Chrome / Edge 需要高权限调试器；实际 API 鉴权与错误不变。',
         'A previous attempt could not read the API URL. Open settings to check your API URL, API key and model.':'此前的一次尝试无法读取 API URL。请打开设置，检查 API URL、API 密钥和模型名称。',
         'Historical error. Nothing has been resent.':'这是之前保存的历史错误，没有自动重发请求。',

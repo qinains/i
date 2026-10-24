@@ -7,10 +7,10 @@ fn descriptors() -> String {
     serde_json::to_string(&m.descriptors()).unwrap()
 }
 #[test]
-fn plugin_schemas_are_public_and_shared_by_both_provider_protocols() {
+fn plugin_schemas_are_public_and_shared_by_browser_provider_protocols() {
     let registry = PluginRegistry::from_json(&descriptors()).unwrap();
     let name = public_tool_name("example.count", "count");
-    for protocol in ["openai", "anthropic"] {
+    for protocol in ["openai", "anthropic", "responses"] {
         let config: BrowserConfig = serde_json::from_value(
             json!({"base_url":"https://api.example","model":"fixture","protocol":protocol,"api_key":"SECRET"}),
         )

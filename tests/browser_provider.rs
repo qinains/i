@@ -30,7 +30,7 @@ fn openai_outbound_history_removes_provider_private_metadata_without_mutating_hi
 #[test]
 fn browser_configuration_rejects_unsupported_protocols_and_invalid_limits() {
     for changes in [
-        json!({"protocol":"responses"}),
+        json!({"protocol":"unsupported"}),
         json!({"reasoning_effort":"ultra"}),
         json!({"max_tokens":0}),
         json!({"base_url":"https://user:pass@example.test"}),
@@ -41,6 +41,75 @@ fn browser_configuration_rejects_unsupported_protocols_and_invalid_limits() {
         let cfg: BrowserConfig = serde_json::from_value(value).unwrap();
         assert!(cfg.validate().is_err());
     }
+}
+
+#[test]
+fn responses_native_request_and_opaque_replay_are_stateless_and_bound_to_history() {
+    let mut cfg: BrowserConfig = serde_json::from_value(json!({"base_url":"https://api.example","model":"fixture","protocol":"responses","reasoning_effort":"high","max_tokens":65536,"api_key":"SECRET"})).unwrap();
+    assert_eq!(cfg.endpoint().unwrap(), "https://api.example/v1/responses");
+    for base in ["https://api.example/v1", "https://api.example/v1/responses/"] {
+        cfg.base_url = base.into();
+        assert_eq!(cfg.endpoint().unwrap(), "https://api.example/v1/responses");
+    }
+    let output = json!([
+        {"type":"reasoning","id":"rs_1","summary":[{"type":"summary_text","text":"Plan"}],"encrypted_content":"opaque"},
+        {"type":"function_call","id":"fc_1","call_id":"call_1","name":"write","arguments":"{\"path\":\"a.txt\",\"content\":\"ok\"}","status":"completed"}
+    ]);
+    let normalized = cfg.normalize_response(json!({"object":"response","status":"completed","output":output})).unwrap();
+    let mut history = vec![
+        json!({"role":"system","content":"instructions"}),
+        json!({"role":"user","content":[{"type":"text","text":"task"},{"type":"image_url","image_url":{"url":"data:image/png;base64,AA=="}}]}),
+        normalized["choices"][0]["message"].clone(),
+        json!({"role":"tool","tool_call_id":"call_1","content":"ok"}),
+    ];
+    let body = cfg.body(&history).unwrap();
+    assert_eq!(body["store"], false);
+    assert_eq!(body["max_output_tokens"], 65536);
+    assert_eq!(body["reasoning"]["effort"], "high");
+    assert!(body.get("previous_response_id").is_none());
+    assert!(body.get("messages").is_none());
+    assert_eq!(body["input"][1]["content"][1]["type"], "input_image");
+    assert_eq!(body["input"][2], output[0]);
+    assert_eq!(body["input"][3], output[1]);
+    assert_eq!(body["input"][4]["type"], "function_call_output");
+    assert_eq!(body["input"][4]["call_id"], "call_1");
+    assert!(body["tools"].as_array().unwrap().iter().all(|tool| tool["type"] == "function"
+        && tool["parameters"].is_object()
+        && tool.get("function").is_none()
+        && tool["strict"] == false));
+    assert!(!body.to_string().contains("SECRET"));
+    history[2]["_responses_output"][1]["arguments"] = json!("{\"path\":\"forged\"}");
+    assert!(cfg.body(&history).is_err());
+}
+
+#[test]
+fn responses_reject_incomplete_unknown_and_invalid_tool_batches() {
+    let cfg: BrowserConfig =
+        serde_json::from_value(json!({"base_url":"https://api.example/v1","model":"fixture","protocol":"responses"}))
+            .unwrap();
+    let call = json!({"type":"function_call","id":"fc_1","call_id":"call_1","name":"write","arguments":"{}","status":"completed"});
+    for value in [
+        json!({"object":"response","status":"incomplete","output":[call.clone()]}),
+        json!({"object":"response","status":"completed","output":[call.clone(),call.clone()]}),
+        json!({"object":"response","status":"completed","output":[{"type":"function_call","id":"fc_2","call_id":"call_2","name":"shell","arguments":"{}","status":"completed"}]}),
+        json!({"object":"response","status":"completed","output":[{"type":"web_search_call","id":"ws_1"}]}),
+    ] {
+        assert!(cfg.normalize_response(value).is_err());
+    }
+    let message = json!({"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"done","annotations":[]}]});
+    let normal = cfg.normalize_response(json!({"object":"response","status":"completed","output":[message]})).unwrap();
+    assert_eq!(normal["choices"][0]["finish_reason"], "stop");
+    assert_eq!(normal["choices"][0]["message"]["content"], "done");
+}
+
+#[test]
+fn responses_fallback_history_uses_easy_input_messages_and_ignores_other_provider_metadata() {
+    let cfg: BrowserConfig =
+        serde_json::from_value(json!({"base_url":"https://api.example","model":"fixture","protocol":"responses"}))
+            .unwrap();
+    let body=cfg.body(&[json!({"role":"assistant","content":"prior answer","_anthropic_content":[{"type":"thinking","signature":"PRIVATE"}]}),json!({"role":"user","content":"continue"})]).unwrap();
+    assert_eq!(body["input"][0]["content"][0]["type"], "input_text");
+    assert!(!body.to_string().contains("PRIVATE"));
 }
 
 #[test]

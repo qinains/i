@@ -9,7 +9,7 @@ import {resolvePublic} from './addresses.mjs';
 const LIMIT = 48 * 1024 * 1024;
 function endpoint(value) {
     const url = new URL(value);
-    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || !(url.pathname.endsWith('/chat/completions') || url.pathname.endsWith('/v1/messages')) || (url.port && url.port !== '443')) throw new Error('Invalid HTTPS model endpoint');
+    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || !(url.pathname.endsWith('/chat/completions') || url.pathname.endsWith('/v1/messages') || url.pathname.endsWith('/responses')) || (url.port && url.port !== '443')) throw new Error('Invalid HTTPS model endpoint');
     return url.href;
 }
 function authorized(actual,expected) {

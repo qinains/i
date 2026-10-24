@@ -1,5 +1,6 @@
 import {readChatCompletion} from './sse.js';
 import {readAnthropicMessage} from './anthropic-sse.js';
+import {readResponses} from './responses-sse.js';
 import {validateCustomHeaders} from './transport.js';
 import {validateWorkspaceId,isTemporaryWorkspace,browserPath} from './workspaces.js';
 import {MemoryDirectory} from './memory-fs.js';
@@ -145,7 +146,7 @@ export async function fetchModel(url, body, key, controller, options = {}, onEve
     const signal = AbortSignal.any([controller.signal ?? controller,AbortSignal.timeout(180000)]);
     const headers = {'content-type': 'application/json'};
     const protocol=options.protocol ?? 'openai';
-    if(!['openai','anthropic'].includes(protocol)) throw new Error('Unsupported model protocol.');
+    if(!['openai','anthropic','responses'].includes(protocol)) throw new Error('Unsupported model protocol.');
     if(protocol==='anthropic') {
         if(key) headers['x-api-key']=key;
         headers['anthropic-version']='2023-06-01';
@@ -173,7 +174,8 @@ export async function fetchModel(url, body, key, controller, options = {}, onEve
         reader = response.body.getReader();
         if (response.ok && stream) {
             if (!response.headers.get('content-type')?.toLowerCase().includes('text/event-stream')) throw new Error('Expected SSE; disable Stream to retry manually.');
-            const result = await (protocol==='anthropic' ? readAnthropicMessage : readChatCompletion)(reader,{signal,allowedTools:protocol==='anthropic'?(request.tools??[]).map(tool=>tool.name):[],onDelta:text => notify('assistant_delta',text),onReasoning:text=>notify('reasoning_delta',text),onProgress:progress=>notify('stream_progress','',progress)});
+            const parser=protocol==='anthropic'?readAnthropicMessage:protocol==='responses'?readResponses:readChatCompletion;
+            const result = await parser(reader,{signal,allowedTools:protocol!=='openai'?(request.tools??[]).map(tool=>tool.name):[],onDelta:text => notify('assistant_delta',text),onReasoning:text=>notify('reasoning_delta',text),onProgress:progress=>notify('stream_progress','',progress)});
             signal.throwIfAborted();
             notify('stream_end');
             return JSON.stringify(result);

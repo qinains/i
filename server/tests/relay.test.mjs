@@ -11,6 +11,18 @@ async function fixture(options={}) {
     return {server,url:`http://127.0.0.1:${server.address().port}/api/chat/completions`,close:async () => {server.closeAllConnections(); await new Promise(resolve => server.close(resolve));}};
 }
 const headers = {'content-type':'application/json',origin,'x-harness-relay-token':token,'x-harness-upstream':endpoint,authorization:'Bearer MODEL_KEY'};
+test('Responses endpoints are explicit allowlisted and retain Bearer auth and native body',async()=>{
+    const target='https://api.example/v1/responses';let observed,body;
+    const upstream=http.createServer(async(req,res)=>{observed=req.headers;body='';for await(const chunk of req)body+=chunk;res.end('{"object":"response","status":"completed","output":[]}');});
+    await new Promise(resolve=>upstream.listen(0,'127.0.0.1',resolve));
+    let f;
+    try{
+        f=await fixture({endpoints:[target],lookup:async()=>[{address:'8.8.8.8',family:4}],connect:(_url,opts,cb)=>http.request(`http://127.0.0.1:${upstream.address().port}`,{...opts,lookup:undefined},cb)});
+        const native={model:'fixture',input:'Hi',max_output_tokens:64,store:false,stream:false};
+        const result=await fetch(f.url,{method:'POST',headers:{...headers,'x-harness-upstream':target},body:JSON.stringify(native)});
+        assert.equal(result.status,200);assert.equal((await result.json()).object,'response');assert.deepEqual(JSON.parse(body),native);assert.equal(observed.authorization,'Bearer MODEL_KEY');assert.equal(observed['x-api-key'],undefined);
+    }finally{await f?.close();upstream.closeAllConnections();await new Promise(resolve=>upstream.close(resolve));}
+});
 test('Anthropic allowlisted targets get only native credentials and fixed version',async()=>{
     const target='https://api.example/v1/messages';let observed;
     const upstream=http.createServer(async(req,res)=>{observed=req.headers;for await(const chunk of req){}res.end('{}');});

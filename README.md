@@ -10,7 +10,7 @@ A plugin-first Rust coding agent with a shared Native/browser WASM core. Native 
 
 ## What is implemented
 
-- [Browser WASM PWA](docs/wasm.md): isolated workspaces, independent conversation tabs, reload recovery of history/drafts, streaming Chat Completions, persistent OPFS files, approvals, ZIP downloads and offline startup. Direct mode is default; an [own same-origin relay](server/README.md) is optional for APIs without CORS. Shell/process plugins are disabled. Build with `./scripts/build_web.sh`, then publish static assets over HTTPS (localhost for development).
+- [Browser WASM PWA](docs/wasm.md): isolated workspaces, independent conversation tabs, reload recovery of history/drafts, streaming Chat Completions / Responses / Anthropic Messages, persistent OPFS files, approvals, ZIP downloads and offline startup. Direct mode is default; an [own same-origin relay](server/README.md) is optional for APIs without CORS. Shell/process plugins are disabled. Build with `./scripts/build_web.sh`, then publish static assets over HTTPS (localhost for development).
   Scratch workspaces and a separate `/tmp` mount live only in page memory. Isolated HTML previews disable scripts by default; trusted JavaScript can be explicitly enabled. Install Rust/WASM tool plugins as `.hplugin.zip` packages. This is not a backend server; see the [browser guide](docs/wasm.md) for preview capabilities and limits.
 
 - Replaceable provider workers for OpenAI Chat/Responses, DeepSeek and Anthropic Messages; no vendor wire-format branches in the core. See [provider contracts and limits](docs/providers.md).

@@ -16,7 +16,7 @@ Web/console 支持待发送图片与长文本折叠标记，图片可补充说�
 
 ## 当前能力
 
-- [浏览器 WASM PWA](docs/wasm.md)：隔离工作区、独立会话 Tab、刷新恢复上下文/草稿、流式模型请求、OPFS 文件、审批、ZIP 下载和离线启动；默认直连，缺少 CORS 时可选[自有同源转发](server/README.md)。浏览器禁用 shell/进程插件。执行 `./scripts/build_web.sh` 后通过 HTTPS 发布静态产物，localhost 用于开发。
+- [浏览器 WASM PWA](docs/wasm.md)：隔离工作区、独立会话 Tab、刷新恢复上下文/草稿、Chat Completions / Responses / Anthropic 流式请求、OPFS 文件、审批、ZIP 下载和离线启动；默认直连，缺少 CORS 时可选[自有同源转发](server/README.md)。浏览器禁用 shell/进程插件。执行 `./scripts/build_web.sh` 后通过 HTTPS 发布静态产物，localhost 用于开发。
   支持刷新即丢弃的 Scratch 工作区、独立 `/tmp` 和隔离 HTML 快照预览；脚本默认关闭，可信代码可确认开启，非完整后端服务器。
 
 - 可替换的 OpenAI Chat/Responses、DeepSeek、Anthropic provider worker；核心不再包含服务商 wire-format 分支。详见[provider 契约与边界](docs/providers.md)。

@@ -37,16 +37,20 @@ impl Default for BrowserConfig {
 }
 impl BrowserConfig {
     pub fn validate(&self) -> Result<()> {
-        ensure!(matches!(self.protocol.as_str(), "openai" | "anthropic"), "unsupported browser protocol");
+        ensure!(matches!(self.protocol.as_str(), "openai" | "anthropic" | "responses"), "unsupported browser protocol");
         ensure!(matches!(self.transport.as_str(), "direct" | "relay"), "invalid transport");
         ensure!(self.transport != "relay" || !self.relay_token.is_empty(), "relay token is required");
         ensure!(!self.model.trim().is_empty(), "model is required");
         ensure!(self.max_tokens > 0, "max_tokens must be positive");
         ensure!(
-            matches!(self.reasoning_effort.as_str(), "default" | "none" | "low" | "high" | "max"),
+            matches!(self.reasoning_effort.as_str(), "default" | "none" | "low" | "medium" | "high" | "max" | "xhigh"),
             "unsupported reasoning effort"
         );
         if self.is_deepseek() {
+            ensure!(
+                !matches!(self.reasoning_effort.as_str(), "medium" | "xhigh"),
+                "unsupported DeepSeek reasoning effort"
+            );
             ensure!(self.max_tokens <= 393216, "DeepSeek max_tokens exceeds 393216");
         }
         self.endpoint()?;
@@ -74,6 +78,9 @@ impl BrowserConfig {
             "anthropic" if path.ends_with("/v1/messages") => path.to_owned(),
             "anthropic" if path.ends_with("/v1") => format!("{path}/messages"),
             "anthropic" => format!("{path}/v1/messages"),
+            "responses" if path.ends_with("/responses") => path.to_owned(),
+            "responses" if path.is_empty() => "/v1/responses".into(),
+            "responses" => format!("{path}/responses"),
             _ => anyhow::bail!("unsupported browser protocol"),
         };
         url.set_path(&path);
@@ -106,6 +113,9 @@ impl BrowserConfig {
         if self.protocol == "anthropic" {
             return super::anthropic::body(self, history, &definitions);
         }
+        if self.protocol == "responses" {
+            return super::responses::body(self, history, &definitions);
+        }
         let mut history = history.to_vec();
         for message in &mut history {
             if let Some(object) = message.as_object_mut() {
@@ -128,6 +138,10 @@ impl BrowserConfig {
         self.normalize_response_with_tools(response, &[])
     }
     pub fn normalize_response_with_tools(&self, response: Value, extra: &[Value]) -> Result<Value> {
-        if self.protocol == "anthropic" { super::anthropic::normalize_response(response, extra) } else { Ok(response) }
+        match self.protocol.as_str() {
+            "anthropic" => super::anthropic::normalize_response(response, extra),
+            "responses" => super::responses::normalize_response(response, extra),
+            _ => Ok(response),
+        }
     }
 }
