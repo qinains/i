@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {normalizeEndpoint,validateCustomHeaders,requestCompletion} from '../transport.js';
+test('invalid API URLs return a recognizable safe configuration error',()=>{
+    for(const value of ['', 'not-a-url', 'api.example.com', 'https://user:URL_SECRET@api.example', 'https://api.example/?key=URL_SECRET']){
+        assert.throws(()=>normalizeEndpoint(value),error=>error.code==='invalid_api_url'&&error.message.includes('Settings')&&!error.message.includes('URL_SECRET'));
+    }
+});
 test('endpoint normalization accepts base and full endpoint identically',()=>{
     assert.equal(normalizeEndpoint('https://api.example/v1/'),'https://api.example/v1/chat/completions');
     assert.equal(normalizeEndpoint('https://api.example/v1/chat/completions'),'https://api.example/v1/chat/completions');

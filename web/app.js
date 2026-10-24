@@ -61,7 +61,16 @@ const streams=new Map(),downloads=new Map(),saveStates=new Map();
 const active=()=>controller?.records.get(activeId);
 const secrets=()=>[applied.api_key,applied.relay_token,$('api-key').value,$('relay-token').value].filter(Boolean);
 const redact=text=>secrets().reduce((value,key)=>value.split(key).join('[redacted]'),String(text));
-function report(error){$('global-error').hidden=false;$('global-error').textContent=redact(error.message ?? error);}
+function report(error){
+    const box=$('global-error');box.hidden=false;box.textContent=redact(uiText(String(error?.message ?? error)));delete box.dataset.connectionError;
+    if(error?.code==='invalid_api_url'){
+        box.dataset.connectionError='true';$('base-url').setAttribute('aria-invalid','true');
+        const button=node('button',uiText('Open settings'));button.id='open-connection-settings';button.type='button';button.dataset.i18n='Open settings';
+        button.addEventListener('click',()=>openConnectionSettings(error.message));box.append(document.createTextNode(' '),button);
+        if($('settings-modal').open)openConnectionSettings(error.message);
+    }
+}
+function openConnectionSettings(message){openSettings();document.querySelector('[data-settings-tab=connection]').click();setText('config-status',message);$('base-url').focus();}
 function safe(fn){return (...args)=>Promise.resolve().then(()=>fn(...args)).catch(report);}
 function persistUi(){
     if(!store)return Promise.resolve();
@@ -289,7 +298,7 @@ async function drainQueue(record){
             queueSending={id:record.id,messageId:entry.id};if(record.id===activeId)renderPending();
             let succeeded=false;
             try{succeeded=await sendMessage(record,entry.visible,entry.blocks,entry);}
-            catch(error){record.queuePaused=true;append(record,`Error: ${error.message??error}`,'error');await controller.save(record);}
+            catch(error){record.queuePaused=true;append(record,`Error: ${uiText(String(error?.message??error))}`,'error');if(error?.code==='invalid_api_url')report(error);await controller.save(record);}
             finally{queueSending=null;}
             if(!succeeded){record.queuePaused=true;await controller.save(record);break;}
         }
@@ -297,8 +306,9 @@ async function drainQueue(record){
 }
 async function sendMessage(record,visible,blocks,entry=null){
     const composed=composeDraft({composerBlocks:blocks},visible);
-    if(!entry&&updateTitle(record,'first',redact(composed.text||'Image'))){controller.later(record);renderTabs();}
     if(!navigator.onLine)throw new Error('Offline: the unsent message and attachments are retained.');
+    validateConfig(applied);
+    if(!entry&&updateTitle(record,'first',redact(composed.text||'Image'))){controller.later(record);renderTabs();}
     messageTaskId=record.id;
     if(!entry){preparingId=record.id;record.queuePaused=false;}
     try{return await operation(record,async()=>{
@@ -412,6 +422,7 @@ function saveConfig(){
         setText('config-status','Configuration saved in this browser.');
     }else setText('config-status','Applied for this session only.');
     applied={...config};$('model-name').textContent=config.model;applyWorkspaceTranslations(config.language);updateEndpoint();updateControls();
+    $('base-url').removeAttribute('aria-invalid');if($('global-error').dataset.connectionError){$('global-error').hidden=true;$('global-error').replaceChildren();delete $('global-error').dataset.connectionError;}
     if(!$('welcome-connection').hidden){dismissWelcome();$('settings-modal').close();}
 }
 function dismissWelcome(){if($('welcome-connection').hidden)return;try{localStorage.setItem('i_harness_welcome_seen','1');}catch{}$('welcome-connection').hidden=true;}

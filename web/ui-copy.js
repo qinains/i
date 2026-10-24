@@ -1,5 +1,7 @@
 export const copy={
     'zh-CN':{
+        'Open settings':'打开设置',
+        'The API URL is missing or invalid. Open Settings to enter a valid API URL and check your API key and model.':'尚未填写 API URL，或地址格式不正确。请打开设置，填写有效的 API URL，并检查 API 密钥和模型名称。',
         'Click Save changes to remember this connection.':'点击“保存更改”后，才会记住此连接。',
         'Welcome — connect your AI':'欢迎使用，先连接你的 AI',
         "Enter your provider's API URL, model and API key below, then save to get started. Nothing is sent until you send a message or test the connection.":'请填写服务商的 API URL、模型和 API 密钥，保存后即可开始。只有你发送消息或点击测试连接时才会发出请求。',
