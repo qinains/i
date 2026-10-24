@@ -1,23 +1,34 @@
 import {api,enableForTab,disableForTab} from './actions.js';
 import {permissionOrigins,makeRule} from './rules.js';
-const $=id=>document.getElementById(id);let tab;
+import {readPublicConnection,validateEndpoint} from './endpoint.js';
+const $=id=>document.getElementById(id);let tab,relayMode=false;
 function status(text){$('status').textContent=text;}
-function busy(value){$('enable').disabled=value;$('disable').disabled=value;}
+function busy(value){$('enable').disabled=value||relayMode;$('disable').disabled=value;$('endpoint').disabled=value||relayMode;}
 async function main(){
     [tab]=await api.tabs.query({active:true,currentWindow:true});
     if(!tab?.url)throw new Error('先打开 Harness 网页，再点击扩展图标。');
-    makeRule(tab.id,tab.url,'https://api.example/chat/completions');
+    try{makeRule(tab.id,tab.url,'https://api.example/chat/completions');}catch{throw new Error('请先打开正常的工作台网页（HTTPS 或 localhost），再点击扩展图标。');}
     $('page').textContent=`当前页面：${new URL(tab.url).origin}`;
-    const saved=await api.storage.local.get(`tab-${tab.id}`);$('endpoint').value=saved[`tab-${tab.id}`]?.endpoint??'';
-    const rules=await api.declarativeNetRequest.getSessionRules();status(rules.some(rule=>rule.id===tab.id+1)?'已启用 / Enabled':'未启用 / Disabled');busy(false);
+    let connection;try{connection=(await api.scripting.executeScript({target:{tabId:tab.id},func:readPublicConnection}))[0]?.result;}catch{}
+    relayMode=connection?.transport==='relay';
+    if(relayMode){$('manual').hidden=true;status('网页正在使用中继，无需启用此扩展。');busy(false);return;}
+    let endpoint='';try{if(connection?.endpoint)endpoint=validateEndpoint(tab.id,tab.url,connection.endpoint);}catch{}
+    if(endpoint){$('endpoint').value=endpoint;$('detected-url').textContent=endpoint;$('detected-url').hidden=false;$('hint').textContent='已读取生效的 API 地址，不读取密钥。点击启用后按浏览器提示授权。';}
+    else{
+        const saved=(await api.storage.local.get(`tab-${tab.id}`))[`tab-${tab.id}`];
+        try{if(saved?.origin===new URL(tab.url).origin)$('endpoint').value=validateEndpoint(tab.id,tab.url,saved.endpoint);}catch{}
+        $('manual').open=true;$('hint').textContent='未自动读取到地址。请先在网页保存 API 设置；旧版页面请更新后重开，也可在下方手动填写。';
+    }
+    const rules=await api.declarativeNetRequest.getSessionRules(),rule=rules.find(rule=>rule.id===tab.id+1);
+    status(rule?endpoint&&rule.condition.regexFilter!==makeRule(tab.id,tab.url,endpoint).condition.regexFilter?'旧地址仍启用，点击启用以更新。':'已启用':'未启用');busy(false);
 }
 $('enable').addEventListener('click',async()=>{
     busy(true);
     try{
-        const endpoint=$('endpoint').value.trim();makeRule(tab.id,tab.url,endpoint);
+        const endpoint=validateEndpoint(tab.id,tab.url,$('endpoint').value);
         // Keep the permission prompt directly in the user gesture.
         if(!await api.permissions.request({origins:permissionOrigins(tab.url,endpoint)}))throw new Error('未授予网站权限，未启用。');
-        await enableForTab(tab.id,endpoint);status('已启用。回到网页重试；不会自动重发请求。');
+        await enableForTab(tab.id,endpoint,{expectedOrigin:new URL(tab.url).origin});$('endpoint').value=endpoint;$('detected-url').textContent=endpoint;$('detected-url').hidden=false;status('已启用。回到网页重试；不会自动重发请求。');
     }catch(error){
         const rules=await api.declarativeNetRequest.getSessionRules().catch(()=>[]);
         status(`${rules.some(rule=>rule.id===tab?.id+1)?'更改失败，原规则仍启用':'未启用'}：${error.message}`);

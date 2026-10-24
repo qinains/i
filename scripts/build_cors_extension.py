@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "extensions/cors-helper"
 OUTPUT = ROOT / "web/downloads"
 STAGE = ROOT / "dist/cors-helper"
-FILES = ["rules.js", "actions.js", "background.js", "popup.html", "popup.css", "popup.js", "README.md", "LICENSE"]
+FILES = ["rules.js", "actions.js", "endpoint.js", "background.js", "popup.html", "popup.css", "popup.js", "README.md", "LICENSE"]
 
 
 def icon(size):

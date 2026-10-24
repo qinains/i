@@ -7,7 +7,8 @@ import {chromium} from '../../web/node_modules/playwright/index.mjs';
 
 const temporary=await mkdtemp(join(tmpdir(),'harness-cors-test-'));
 const listen=async server=>{await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));return `http://127.0.0.1:${server.address().port}`;};
-const app=createServer((req,res)=>{res.setHeader('content-type','text/html');res.end('<!doctype html><title>CORS test</title>');});
+let publicEndpoint='';
+const app=createServer((req,res)=>{res.setHeader('content-type','text/html');res.end(`<!doctype html><html data-model-api-url="${publicEndpoint}" data-model-transport="direct"><title>CORS test</title><input id="api-key" value="DO_NOT_READ_FAKE_KEY"></html>`);});
 let release,authorization;
 const upstream=createServer((req,res)=>{
     if(req.method==='OPTIONS'){res.writeHead(req.url==='/reject'?403:204);res.end();return;}
@@ -18,6 +19,7 @@ const upstream=createServer((req,res)=>{
 let context;
 try{
     const origin=await listen(app),api=await listen(upstream),source=join(temporary,'extension');
+    publicEndpoint=api+'/json';
     await cp(new URL('../../dist/cors-helper/chromium/',import.meta.url),source,{recursive:true});
     const manifest=JSON.parse(await readFile(join(source,'manifest.json'),'utf8'));
     // Only the isolated fixture gets pregranted hosts; shipped ZIP stays optional.
@@ -26,16 +28,35 @@ try{
     const worker=context.serviceWorkers()[0]??await context.waitForEvent('serviceworker');
     const page=await context.newPage();await page.goto(origin);
     const other=await context.newPage();await other.goto(origin);
-    const extension=worker.url().split('/')[2],control=await context.newPage();await control.goto(`chrome-extension://${extension}/popup.html`);
+    const extension=worker.url().split('/')[2],control=await context.newPage();
     const tabId=await worker.evaluate(async origin=>(await chrome.tabs.query({url:origin+'/*'}))[0].id,origin);
     const tabs=await worker.evaluate(async origin=>chrome.tabs.query({url:origin+'/*'}),origin);
     const pageIds=await page.evaluate(()=>location.href);assert.equal(pageIds,origin+'/');
     // The first created matching tab is the page under test.
     const targetId=Math.min(...tabs.map(tab=>tab.id));
+    // Opening popup.html as a test tab cannot supply the toolbar's active-tab identity.
+    // Override only that query; page scripting, permissions and DNR stay real.
+    await control.addInitScript(({targetId,origin})=>{chrome.tabs.query=async()=>[{id:targetId,url:origin+'/'}];},{targetId,origin});
+    await control.goto(`chrome-extension://${extension}/popup.html`);await control.setViewportSize({width:360,height:600});
+    await control.waitForFunction(()=>!document.getElementById('enable').disabled);
+    assert.equal(await control.locator('#endpoint').inputValue(),publicEndpoint);assert.equal(await control.locator('#manual').getAttribute('open'),null);
+    assert.equal(await control.locator('#detected-url').innerText(),publicEndpoint);
+    assert.ok(!await control.locator('body').innerText().then(text=>text.includes('DO_NOT_READ_FAKE_KEY')));
+    assert.deepEqual(await control.evaluate(()=>({body:document.body.getBoundingClientRect().width,overflow:document.documentElement.scrollWidth>360})),{body:360,overflow:false});
+    await control.screenshot({path:new URL('../../dist/cors-helper/popup-0.2.0.png',import.meta.url).pathname});
     const fetchApi=(page,url)=>page.evaluate(async url=>{try{const res=await fetch(url,{method:'POST',credentials:'omit',headers:{'content-type':'application/json',authorization:'FAKE_TEST_KEY'},body:'{}'});return {status:res.status,text:await res.text()};}catch{return {blocked:true};}},url);
     assert.equal((await fetchApi(page,api+'/json')).blocked,true);
     const enable=endpoint=>control.evaluate(async({targetId,endpoint})=>{const {enableForTab}=await import('./actions.js');await enableForTab(targetId,endpoint);},{targetId,endpoint});
-    await enable(api+'/json');assert.equal((await fetchApi(page,api+'/json')).status,200);assert.equal(authorization,'FAKE_TEST_KEY');
+    await control.locator('#enable').click();await control.waitForFunction(()=>document.getElementById('status').textContent.startsWith('已启用。'));
+    assert.equal((await fetchApi(page,api+'/json')).status,200);assert.equal(authorization,'FAKE_TEST_KEY');
+    await control.locator('#manual summary').click();await control.locator('#endpoint').fill('not-a-url');await control.locator('#enable').click();await control.waitForFunction(()=>document.getElementById('status').textContent.includes('有效的完整 API'));
+    assert.ok(!(await control.locator('#status').innerText()).includes('Invalid URL'));
+    assert.equal((await fetchApi(page,api+'/json')).status,200);
+    await page.evaluate(()=>document.documentElement.removeAttribute('data-model-api-url'));await control.reload();await control.waitForFunction(()=>!document.getElementById('enable').disabled);
+    assert.notEqual(await control.locator('#manual').getAttribute('open'),null);assert.equal(await control.locator('#detected-url').isVisible(),false);
+    await page.evaluate(()=>document.documentElement.dataset.modelTransport='relay');await control.reload();await control.waitForFunction(()=>document.getElementById('status').textContent.includes('中继'));
+    assert.equal(await control.locator('#enable').isDisabled(),true);assert.equal(await control.locator('#disable').isDisabled(),false);
+    await page.evaluate(endpoint=>{document.documentElement.dataset.modelTransport='direct';document.documentElement.dataset.modelApiUrl=endpoint;},publicEndpoint);await control.reload();await control.waitForFunction(()=>!document.getElementById('enable').disabled);
     assert.equal((await fetchApi(other,api+'/json')).blocked,true);
     assert.equal((await fetchApi(page,api+'/other')).blocked,true);
     await enable(api+'/unauthorized');assert.equal((await fetchApi(page,api+'/unauthorized')).status,401);
@@ -45,7 +66,7 @@ try{
     await page.waitForFunction(()=>window.first.includes('first'));assert.equal(await page.evaluate(()=>window.complete),false);release();await page.evaluate(()=>window.streamTask);
     await control.evaluate(async targetId=>{const {disableForTab}=await import('./actions.js');await disableForTab(targetId);},targetId);
     assert.equal((await fetchApi(page,api+'/stream')).blocked,true);
-    assert.ok(tabId>=0);console.log('PASS: real Chromium preflight, authorization, exact URL/tab isolation, 401, rejected OPTIONS, incremental SSE and disable.');
+    assert.ok(tabId>=0);console.log('PASS: popup 360px, actual page URL autofill without key, explicit enable, friendly invalid URL, real Chromium preflight, authorization, exact URL/tab isolation, 401, rejected OPTIONS, incremental SSE and disable.');
 }finally{
     await context?.close();app.closeAllConnections();upstream.closeAllConnections();await Promise.all([new Promise(resolve=>app.close(resolve)),new Promise(resolve=>upstream.close(resolve))]);
     await rm(temporary,{recursive:true,force:true});

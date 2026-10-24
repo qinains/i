@@ -43,7 +43,8 @@ async function walk(dir) {
 const pkg = await walk('pkg/');
 for (const bridge of pkg.filter(p => p.endsWith('/web/platform.js'))) for(const dependency of ['sse.js','anthropic-sse.js','transport.js','workspaces.js','memory-fs.js','opfs-locks.js']) await copyFile(new URL(dependency,root),new URL(bridge.replace(/platform.js$/u,dependency),root));
 const modules=(await readdir(root)).filter(name=>name.endsWith('.js')&&!['sw.js','service-worker.js'].includes(name));
-const downloads=(await readdir(new URL('downloads/',root))).filter(name=>/^harness-cors-helper-(chromium|firefox|safari)-[\d.]+\.zip$/u.test(name)||name==='cors-helper.json').map(name=>'downloads/'+name);
+const extensionVersion=JSON.parse(await readFile(new URL('downloads/cors-helper.json',root),'utf8')).version;
+const downloads=['cors-helper.json',...['chromium','firefox','safari'].map(browser=>`harness-cors-helper-${browser}-${extensionVersion}.zip`)].map(name=>'downloads/'+name);
 const assets = ['index.html','commands.json','LICENSE.txt','THIRD_PARTY_LICENSES.txt','module-lexer.LICENSE','module-lexer.NOTICE',...modules,...await walk('state/'),...await walk('plugins/'),...await walk('plugin-pkg/'),'style.css','manifest.webmanifest','icons/icon.svg','icons/icon-192.png','icons/icon-512.png',...await walk('pkg/')].sort();
 assets.push(...downloads);assets.sort();
 const precache = await Promise.all(assets.map(async url => ({url,sha256:hash(await readFile(new URL(url,root)))})));

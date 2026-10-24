@@ -9,7 +9,7 @@ export function permissionOrigins(page,endpoint){
 }
 export function makeRule(tabId,page,endpoint){
     if(!Number.isSafeInteger(tabId)||tabId<0)throw new Error('Open the Harness page in a normal tab first.');
-    const origin=checkedUrl(page).origin,target=checkedUrl(endpoint).href;
+    const origin=checkedUrl(page).origin,url=checkedUrl(endpoint);if(url.search)throw new Error('API URL must not contain a query or key.');const target=url.href;
     if(target.length>1500)throw new Error('API URL is too long.');
     return {id:tabId+1,priority:1,action:{type:'modifyHeaders',responseHeaders:[
         {header:'access-control-allow-origin',operation:'set',value:origin},

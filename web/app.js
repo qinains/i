@@ -392,6 +392,8 @@ function updateTransport(){
     $('connection-extra').hidden=relay;$('cors-help').hidden=relay;
 }
 function updateEndpoint(){
+    const root=document.documentElement;root.dataset.modelTransport=applied.transport;
+    try{root.dataset.modelApiUrl=normalizeEndpoint(applied.base_url,applied.protocol);}catch{delete root.dataset.modelApiUrl;}
     const anthropic=$('protocol').value==='anthropic';
     $('base-url').placeholder=anthropic?'https://api.anthropic.com':'https://api.deepseek.com';
     setText('endpoint-help',anthropic?'Enter the API root URL, /v1, or full /v1/messages URL.':'Enter the API root URL or full /chat/completions URL. The endpoint is appended only once.');
