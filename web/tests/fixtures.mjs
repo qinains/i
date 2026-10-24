@@ -34,6 +34,8 @@ export const test = base.extend({
             ? await playwright.webkit.launchPersistentContext(testInfo.outputPath('webkit-profile'),{...options,headless:true})
             : await browser.newContext(options);
         try {
+            // Other suites start after the welcome flow; onboarding has its own coverage.
+            if(!testInfo.file.endsWith('onboarding.spec.mjs'))await context.addInitScript(()=>localStorage.setItem('i_harness_welcome_seen','1'));
             if(alias){
                 // Ports can also recur across worker restarts or separate runs.
                 // Reset only this reserved test origin, once before app startup;

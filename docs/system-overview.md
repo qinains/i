@@ -40,7 +40,7 @@ i 是面向代码和文件任务的 Rust agent，lninl 是项目品牌。它把�
 
 ## 配置与鉴权
 
-网页默认仅在内存中使用连接配置；勾选 Remember 后才写 localStorage。Direct 将 key
+网页首次引导默认勾选 Remember，点击保存后才写 localStorage；取消勾选则仅在内存使用。Direct 将 key
 发给所配置的 API；Relay 会经过自己的服务器。两者都不会把 key 加入模型提示词。
 模型、思考档位、输出额度是每连接配置，不代表服务商一定授予对应能力。
 

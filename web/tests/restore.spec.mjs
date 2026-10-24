@@ -5,7 +5,7 @@ async function setup(page){
     await page.locator('[data-settings-tab=connection]').click();await page.locator('#stream').uncheck();await page.locator('#save-config').click();await page.locator('#close-settings').click();
 }
 test('refresh restores selected session, real model history, transcript, draft and persistent files',async({page})=>{
-    await setup(page);await page.locator('#settings-btn').click();await page.locator('[data-settings-tab=connection]').click();await page.locator('#remember-config').check();await page.locator('#close-settings').click();const histories=[];
+    await setup(page);await page.locator('#settings-btn').click();await page.locator('[data-settings-tab=connection]').click();await page.locator('#remember-config').check();await page.locator('#save-config').click();await page.locator('#close-settings').click();const histories=[];
     await page.route('**/mock/v1/chat/completions',async route=>{
         histories.push(route.request().postDataJSON().messages);
         await route.fulfill({contentType:'application/json',body:JSON.stringify({choices:[{finish_reason:'stop',message:{role:'assistant',content:'Saved reply'}}]})});
