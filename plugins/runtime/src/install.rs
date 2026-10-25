@@ -3,7 +3,7 @@ use sha2::{Digest, Sha256};
 fn hash(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
-fn default_dir() -> Result<PathBuf> {
+pub(super) fn default_dir() -> Result<PathBuf> {
     if cfg!(windows) {
         Ok(PathBuf::from(env::var_os("LOCALAPPDATA").context("LOCALAPPDATA is missing")?).join("Programs/i/bin"))
     } else {
@@ -113,7 +113,7 @@ pub(super) fn run(args: &[String]) -> Result<i32> {
         }
     }
     println!(
-        "Next: {} setup\nNo personal configuration or sessions were replaced. Start a new login shell/session after PATH changes.",
+        "Run: {} (configuration opens automatically if needed)\nNo personal configuration or sessions were replaced. Start a new login shell/session after PATH changes; then run i.",
         target.display()
     );
     Ok(0)

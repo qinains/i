@@ -1,5 +1,49 @@
 use super::*;
 #[test]
+fn first_run_install_choice_is_remembered_but_errors_are_retryable() {
+    for accepted in [false, true] {
+        let root = tempfile::tempdir().unwrap();
+        let mut installs = 0;
+        first_run_once(
+            root.path(),
+            || Ok(accepted),
+            || {
+                installs += 1;
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(installs, usize::from(accepted));
+        first_run_once(root.path(), || panic!("asked twice"), || panic!("installed twice")).unwrap();
+    }
+    let root = tempfile::tempdir().unwrap();
+    assert!(first_run_once(root.path(), || bail!("EOF"), || Ok(())).is_err());
+    assert!(first_run_once(root.path(), || Ok(true), || bail!("install failed")).is_err());
+    first_run_once(root.path(), || Ok(false), || panic!("declined")).unwrap();
+}
+
+#[test]
+fn concurrent_first_runs_only_prompt_once() {
+    let root = tempfile::tempdir().unwrap();
+    let calls = std::sync::atomic::AtomicUsize::new(0);
+    std::thread::scope(|scope| {
+        for _ in 0..4 {
+            scope.spawn(|| {
+                first_run_once(
+                    root.path(),
+                    || {
+                        calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        Ok(false)
+                    },
+                    || panic!("declined"),
+                )
+                .unwrap();
+            });
+        }
+    });
+    assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+}
+#[test]
 fn install_is_verified_atomic_and_preserves_previous_executable() {
     let root = tempfile::tempdir().unwrap();
     let source = root.path().join("source");

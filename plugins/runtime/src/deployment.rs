@@ -19,6 +19,17 @@ pub(crate) fn run(command: &str, args: &[String]) -> Result<i32> {
         "setup" => setup::run(args),
         "start" => {
             let paths = paths::AppPaths::desktop()?;
+            use std::io::IsTerminal;
+            if crate::HOSTED.load(std::sync::atomic::Ordering::Relaxed)
+                && io::stdin().is_terminal()
+                && io::stdout().is_terminal()
+                && option(args, "--config").is_none()
+                && let Err(error) = offer_install(&paths.config_dir)
+            {
+                eprintln!(
+                    "Optional installation did not complete: {error:#}\nContinuing without installation. You can run i install --add-to-path later."
+                );
+            }
             let config =
                 option(args, "--config").map(PathBuf::from).unwrap_or_else(|| paths.config_dir.join("config.json"));
             let value = if config.try_exists()? {
@@ -48,6 +59,54 @@ pub(crate) fn run(command: &str, args: &[String]) -> Result<i32> {
         }
         _ => bail!("unknown deployment command"),
     }
+}
+fn first_run_once(
+    config_dir: &Path,
+    ask: impl FnOnce() -> Result<bool>,
+    install: impl FnOnce() -> Result<()>,
+) -> Result<()> {
+    std::fs::create_dir_all(config_dir)?;
+    let _lock = state::Lock::acquire(&config_dir.join(".first-run-install.lock"))?;
+    let marker = config_dir.join("first-run-install.json");
+    regular(&marker)?;
+    if marker.try_exists()? {
+        return Ok(());
+    }
+    let accepted = ask()?;
+    if accepted {
+        install()?;
+    }
+    state::atomic(&marker, &json!({"version": 1, "installed": accepted}))
+}
+fn offer_install(config_dir: &Path) -> Result<()> {
+    let source = dunce::canonicalize(env::current_exe()?)?;
+    let target = install::default_dir()?.join(format!("i{}", env::consts::EXE_SUFFIX));
+    let resolved = env::var_os("PATH").and_then(|path| {
+        env::split_paths(&path).map(|dir| dir.join(format!("i{}", env::consts::EXE_SUFFIX))).find(|p| p.is_file())
+    });
+    if dunce::canonicalize(&target).ok().as_ref() == Some(&source)
+        || resolved.and_then(|p| dunce::canonicalize(p).ok()).as_ref() == Some(&source)
+    {
+        return Ok(());
+    }
+    first_run_once(
+        config_dir,
+        || {
+            eprintln!(
+                "Optional: install i to {} and add it to your user PATH?\nOnly your user account is changed; existing files require confirmation.\nChoose no to keep using this extracted executable. Setup and the session continue either way.",
+                target.display()
+            );
+            eprint!("Install for this user? [y/N] ");
+            io::stderr().flush()?;
+            let mut line = String::new();
+            ensure!(io::stdin().lock().take(1024).read_line(&mut line)? > 0, "installation prompt closed");
+            Ok(line.trim().eq_ignore_ascii_case("y"))
+        },
+        || {
+            ensure!(install::run(&["--add-to-path".into()])? == 0, "installation failed");
+            Ok(())
+        },
+    )
 }
 fn options(args: &[String], values: &[&str], switches: &[&str]) -> Result<std::collections::BTreeMap<String, String>> {
     let mut out = std::collections::BTreeMap::new();

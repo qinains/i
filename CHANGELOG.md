@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Interactive native startup offers optional user-local installation and PATH
+  setup once, then continues into configuration and the session. Declining is
+  remembered; interrupted or failed installation can be retried. Noninteractive
+  and explicit-config launches do not prompt. Existing executables still require
+  replacement confirmation; personal configuration and sessions are preserved.
+
 ## 0.1.1
 
 - Browser OPFS exclusive transactions serialize their own concurrent operations;

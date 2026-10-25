@@ -7,10 +7,13 @@
 解压适合平台/架构的发布包，验证来源和校验值后运行：
 
 ```sh
-./bin/i install
+./bin/i
+# Windows: .\bin\i.exe
 ```
 
-默认安装到 macOS/Linux 的 `~/.local/bin/i`，Windows 的 `%LOCALAPPDATA%\Programs\i\bin\i.exe`。这些是应用选定的用户级约定，不是所有平台唯一的系统目录。支持：
+交互终端首次运行会询问是否安装到当前用户并加入 PATH，默认不安装。选择安装或跳过后都会继续配置并进入会话；选择保存在配置目录，不重复询问。输入中断或安装失败不会记为完成，可下次重试。非交互调用、显式 `--config` 及已经从安装目录或 PATH 启动时不会询问。已有配置和会话保留，不自动覆盖。
+
+默认安装到 macOS/Linux 的 `~/.local/bin/i`，Windows 的 `%LOCALAPPDATA%\Programs\i\bin\i.exe`。这些是应用选定的用户级约定，不是所有平台唯一的系统目录。需要手动安装时运行 `i install --add-to-path`，支持：
 
 - `--bin-dir /absolute/path`：自定义位置，包括升级既有 `~/.cargo/bin` 安装。
 - `--replace`：非交互授权替换；不同的既有文件默认要求确认。自动留下唯一命名的可执行备份。
@@ -24,9 +27,9 @@
 ## 首次配置
 
 ```sh
-i setup
-i start -C /path/to/project
-# 交互终端里直接运行 i 也会启动控制台；缺少连接设置时先进入向导。
+i
+# 缺少连接设置时先进入向导，完成后直接进入会话。
+# i setup 可随时重新配置；i start -C /path/to/project 可指定项目。
 ```
 
 向导只要求连接所需信息：提供商、URL（有官方默认值）、**模型**、Key。模型不能仅从提供商/URL 可靠推断，因此必须指定；不联网列模型、不做付费探测。
