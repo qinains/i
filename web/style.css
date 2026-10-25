@@ -85,8 +85,22 @@ position:fixed;
 inset:0;
 width:100%;
 z-index:100;
-padding:10px;
+height:100dvh;
+padding:0;
+gap:0;
+border:0;
 }
+#preview-exit-fullscreen {display:none}
+#preview-panel.fullscreen>.preview-toolbar,#preview-panel.fullscreen>#preview-options {display:none}
+#preview-panel.fullscreen>.preview-content {gap:0;overflow:hidden}
+#preview-panel.fullscreen #preview-frame,#preview-panel.fullscreen #preview-source {border:0;border-radius:0;min-height:0}
+#preview-panel.fullscreen>#preview-exit-fullscreen {display:inline-flex;position:absolute;right:max(12px,env(safe-area-inset-right));top:max(12px,env(safe-area-inset-top));z-index:1;width:44px;height:44px;min-height:44px;padding:0;background:var(--panel);box-shadow:0 2px 12px #0003;border-radius:50%}
+#app:has(#preview-panel.fullscreen:not([hidden]))>header,
+#app:has(#preview-panel.fullscreen:not([hidden])) #context-bar,
+#app:has(#preview-panel.fullscreen:not([hidden])) #file-panel,
+#app:has(#preview-panel.fullscreen:not([hidden])) #terminal,
+#app:has(#preview-panel.fullscreen:not([hidden])) #status-bar,
+#app:has(#preview-panel.fullscreen:not([hidden])) #global-error {visibility:hidden}
 .preview-content {display:flex;flex:1;gap:8px;min-height:0;min-width:0;overflow:auto}
 #preview-source {flex:1;min-width:0;min-height:160px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--input-bg);padding:12px;margin:0;border:1px solid var(--line);font:13px/1.6 ui-monospace,monospace}
 .preview-content[data-mode=split]>#preview-frame,.preview-content[data-mode=split]>#preview-source {width:50%}

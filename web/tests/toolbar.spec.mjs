@@ -34,6 +34,7 @@ for(const width of [1280,900,390])test(`grouped toolbars stay compact and access
     await expect(page.locator('#preview-fullscreen')).toHaveAttribute('aria-label','切换全屏');
     await page.screenshot({path:testInfo.outputPath(`toolbar-${width}.png`)});
     await page.locator('#preview-fullscreen').click();await expect(page.locator('#preview-panel')).toHaveClass('fullscreen');
+    await page.locator('#preview-exit-fullscreen').click();await expect(page.locator('#preview-panel')).not.toHaveClass('fullscreen');
     await page.locator('#refresh-preview').click();await expect(page.frameLocator('#preview-frame').locator('h1')).toHaveText('Preview');
     await page.locator('#close-preview').click();await expect(page.locator('#preview-panel')).toBeHidden();
 });

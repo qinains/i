@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Fullscreen browser previews fill the viewport without workspace borders,
+  padding or toolbar rows. A floating exit control restores the previous layout;
+  host-page Escape also exits. Preview sandbox permissions remain unchanged.
+
 ## 0.1.2
 
 - Interactive native startup offers optional user-local installation and PATH

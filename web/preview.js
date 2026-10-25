@@ -120,6 +120,7 @@ export function mountPreview({owner,isBusy,onError,onChange=()=>{},onBack=()=>{}
     const refresh=iconButton('refresh-preview','Refresh preview','M20 10a8 8 0 1 0-1 8M20 4v6h-6');
     const close=iconButton('close-preview','Close preview','m6 6 12 12M6 18 18 6');
     const fullscreen=iconButton('preview-fullscreen','Toggle fullscreen','M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5');
+    const exitFullscreen=iconButton('preview-exit-fullscreen','Exit fullscreen','M4 9h5V4m6 0v5h5M4 15h5v5m6 0v-5h5');
     const status=node('p','','note');status.id='preview-status';status.role='status';const frame=node('iframe');frame.id='preview-frame';frame.title='Isolated HTML preview';frame.setAttribute('sandbox','');frame.referrerPolicy='no-referrer';frame.hidden=true;
     const back=node('button','Files');back.id='preview-back';back.dataset.i18n='Files';
     const mode=node('select');mode.id='preview-mode';mode.setAttribute('aria-label',uiText('Preview mode'));mode.dataset.i18nAriaLabel='Preview mode';
@@ -133,12 +134,21 @@ export function mountPreview({owner,isBusy,onError,onChange=()=>{},onBack=()=>{}
     const toggleIcon=document.createElementNS('http://www.w3.org/2000/svg','svg');toggleIcon.setAttribute('viewBox','0 0 24 24');toggleIcon.setAttribute('aria-hidden','true');
     const togglePath=document.createElementNS(toggleIcon.namespaceURI,'path');togglePath.setAttribute('d','M4 7h16M4 17h16M8 4v6m8 4v6');toggleIcon.append(togglePath);optionToggle.append(toggleIcon);
     const optionBody=node('div','','preview-options'),extraControls=node('div','','preview-extra-controls');optionBody.append(extraControls,trust,status);options.append(optionToggle,optionBody);
-    tools.append(back,entry,actions);panel.append(tools,options,content);document.getElementById('main-content').append(panel);
+    tools.append(back,entry,actions);panel.append(tools,options,content,exitFullscreen);document.getElementById('main-content').append(panel);
     bindResponsiveDisclosure(options,{onLayout:mobile=>{if(mobile)extraControls.append(mode,fullscreen);else{actions.prepend(mode);actions.insertBefore(fullscreen,close);}}});
     const button=node('button','Preview HTML');button.id='btn-preview';document.getElementById('btn-download').before(button);
     button.dataset.i18n=button.textContent;
     entry.dataset.i18nAriaLabel='HTML entry path';
-    let generation=0,workspaceId;
+    let generation=0,workspaceId,previousOptionsOpen=false;
+    function setFullscreen(enabled,{focus=true}={}){
+        if(enabled===panel.classList.contains('fullscreen'))return;
+        if(enabled){previousOptionsOpen=options.open;options.open=false;}
+        panel.classList.toggle('fullscreen',enabled);
+        if(!enabled)options.open=previousOptionsOpen;
+        fullscreen.setAttribute('aria-pressed',String(enabled));
+        if(focus)(enabled?exitFullscreen:fullscreen).focus();
+    }
+    fullscreen.setAttribute('aria-pressed','false');
     async function show(path){
         if(isBusy())throw new Error('Finish the active task before taking a preview snapshot.');
         if(path)entry.value=path;const current=owner();if(!current)return;
@@ -183,13 +193,15 @@ export function mountPreview({owner,isBusy,onError,onChange=()=>{},onBack=()=>{}
         }}
         finally{if(id===generation){refresh.disabled=isBusy();scripts.disabled=isBusy();entry.disabled=isBusy();mode.disabled=isBusy();}}
     }
-    function hide(notify=true){++generation;workspaceId=null;panel.hidden=true;frame.hidden=true;source.hidden=true;source.textContent='';frame.removeAttribute('srcdoc');refresh.disabled=false;scripts.disabled=false;entry.disabled=false;mode.disabled=false;if(notify)onChange({open:false});}
+    function hide(notify=true){setFullscreen(false,{focus:false});++generation;workspaceId=null;panel.hidden=true;frame.hidden=true;source.hidden=true;source.textContent='';frame.removeAttribute('srcdoc');refresh.disabled=false;scripts.disabled=false;entry.disabled=false;mode.disabled=false;if(notify)onChange({open:false});}
     scripts.addEventListener('change',()=>{
         if(scripts.checked&&!confirm(uiText('Run trusted JavaScript? Scripts can read ALL files in this preview snapshot. The opaque frame protects Harness storage, but browser CSP is not complete network isolation. Only enable for code you trust.'))){scripts.checked=false;return;}
         show().catch(onError);
     });
     mode.addEventListener('change',()=>{show().catch(onError);});back.addEventListener('click',()=>{hide();onBack();});
     button.addEventListener('click',()=>show().catch(onError));refresh.addEventListener('click',()=>show().catch(onError));close.addEventListener('click',()=>hide());
-    fullscreen.addEventListener('click',()=>{panel.classList.toggle('fullscreen');});
+    fullscreen.addEventListener('click',()=>setFullscreen(!panel.classList.contains('fullscreen')));
+    exitFullscreen.addEventListener('click',()=>setFullscreen(false));
+    document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!event.defaultPrevented&&panel.classList.contains('fullscreen')){event.preventDefault();setFullscreen(false);}});
     return {show,hide,restore:async state=>{hide(false);mode.value=state.mode;if(state.selected)entry.value=state.selected;else entry.value='index.html';if(state.open&&state.selected)await show(state.selected);},selectWorkspace:id=>{if(workspaceId&&workspaceId!==id)hide(false);}};
 }
