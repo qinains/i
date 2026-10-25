@@ -21,7 +21,7 @@ try{
             for(const platform of ['macos','windows','linux','browser']){
                 await page.locator(`[data-client-tab=${platform}]`).click();await page.locator(`#client-${platform}:visible`).waitFor();
                 assert.equal(await page.locator('[data-client-tab][aria-selected=true]').count(),1);
-                if(platform!=='browser'){assert.ok((await page.locator(`#client-${platform}`).textContent()).includes('i setup'));assert.ok((await page.locator(`#client-${platform} .client-download`).getAttribute('href')).startsWith('https://github.com/qinains/i/releases'));}
+                if(platform!=='browser'){const panel=page.locator(`#client-${platform}`);assert.equal(await panel.locator('.install-steps pre').count(),1);assert.equal(await panel.locator('[data-native-install]').evaluate(el=>el.open),false);assert.ok((await panel.locator('.install-steps code').textContent()).endsWith(platform==='windows'?'i.exe':'i'));assert.ok((await panel.locator('.client-download').getAttribute('href')).startsWith('https://github.com/qinains/i/releases'));}
             }
             await page.locator('[data-client-tab=browser]').focus();await page.keyboard.press('ArrowRight');assert.equal(await page.locator('[data-client-tab=macos]').getAttribute('aria-selected'),'true');await page.keyboard.press('Home');
             const modelRequests=[];page.on('request',request=>{if(request.method()==='POST')modelRequests.push(request.url());});

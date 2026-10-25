@@ -29,6 +29,11 @@ class WebsiteTests(unittest.TestCase):
                 output = render('0.1.0', [client])
                 self.assertIn('/releases/download/v0.1.0/' + client['file'], output)
                 self.assertIn(client['file'] + '.sha256', output)
+                self.assertIn('<code>./bin/i</code>', output)
+                self.assertIn('<code>.\\bin\\i.exe</code>', output)
+                self.assertIn('data-native-install', output)
+                self.assertNotIn('<code>i setup</code>', output)
+                self.assertNotIn('i start -C .', output)
                 for key, value in [('platform', 'unknown'), ('file', '../secret'), ('target', 'universal'), ('sha256', 'not-a-checksum')]:
                     with self.assertRaises(SystemExit):
                         render('0.1.0', [{**client, key: value}])
