@@ -64,8 +64,9 @@ jobs:
         run: python3 scripts/package.py --profile min-size
       - name: Verify first-run installation without changing the runner user
         if: runner.os != 'Windows'
-        env:
-          I_TEST_BINARY: ${{ github.workspace }}/target/min-size/i
-        run: python3 -m unittest discover -s scripts -p test_first_run.py -v
+        shell: bash
+        run: |
+          host=$(rustc -vV | sed -n 's/^host: //p')
+          I_TEST_BINARY="$PWD/target/$host/min-size/i" python3 -m unittest discover -s scripts -p test_first_run.py -v
       - name: Verify gzip and xz packages offline
         run: python3 scripts/check_package.py "dist/*.tar.gz" "dist/*.tar.xz"

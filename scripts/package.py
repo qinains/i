@@ -20,12 +20,14 @@ Contents: bin/i (core + optional runtime), config.example.json, start.sh, logo.s
 BUILD.json and SHA256SUMS. No Python/Node/Rust installation is needed to run
 these binaries. The platform's system libraries are still required.
 
-Quick start (macOS/Linux):
-  1. Run bin/i install (default ~/.local/bin; Windows: LocalAppData/Programs/i/bin).
-     Existing different executables require confirmation or --replace; backups kept.
-     --add-to-path explicitly authorizes a user PATH/profile update. No sudo needed.
-  2. Run the installed i setup: provider, URL (official default), model and key.
-  3. Run i start, bare i in a terminal, or ./start.sh [workspace-directory].
+Quick start:
+  Run ./bin/i in a terminal (Windows PowerShell: .\\bin\\i.exe).
+  First launch offers optional user-local installation and PATH setup, then
+  configures the model if needed and opens the session. Declining installation
+  is remembered. No separate install/setup/start commands are required.
+  Existing different executables require confirmation; backups are kept.
+  After PATH changes, open a new login shell/session and run i.
+  Manual installation remains available: ./bin/i install --add-to-path.
 The launcher uses your global settings, not config.example.json. Setup never
 probes a model or makes paid API requests. Unknown context capacity is NOT guessed:
 fresh setup explicitly disables budget/automatic compaction until --context-window

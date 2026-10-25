@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.2
 
 - Interactive native startup offers optional user-local installation and PATH
   setup once, then continues into configuration and the session. Declining is
