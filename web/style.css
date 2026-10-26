@@ -26,6 +26,18 @@ color-scheme:dark;
 font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
 font-size:14px
 }
+/* Mirror UI chrome, not programming syntax, paths or the user's content. */
+html[dir=rtl] :is(.brand,code,#current-path,#file-list,#file-details,.plugin-digest,#preview-source,.line.tool) {direction:ltr;unicode-bidi:isolate;text-align:left}
+html[dir=rtl] :is(#base-url,#api-key,#model,#relay-token,#custom-headers,#preview-entry) {direction:ltr;text-align:left}
+html[dir=rtl] :is(.command-menu button,.context-actions button,.context-actions .icon-action) {text-align:right}
+html[dir=rtl] .command-menu strong {direction:ltr;unicode-bidi:isolate;text-align:left}
+html[dir=rtl] #file-panel {border-right:0;border-left:1px solid var(--line)}
+html[dir=rtl] #preview-panel {border-left:0;border-right:1px solid var(--line)}
+html[dir=rtl] #settings-btn {margin-left:0;margin-right:auto}
+html[dir=rtl] .context-actions {right:auto;left:0}
+html[dir=rtl] .context-actions .icon-action:after {margin-left:0;margin-right:8px}
+html[dir=rtl] .line.reasoning {border-left:0;border-right:2px solid var(--line)}
+.line[dir=auto],.line.reasoning pre[dir=auto] {unicode-bidi:plaintext}
 :root[data-theme=light] {
 color-scheme:light;
 --bg:#f3f5f8;

@@ -8,6 +8,8 @@ from pathlib import Path
 import re
 import shutil
 import tempfile
+import subprocess
+import sys
 from urllib.parse import quote, urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -178,6 +180,7 @@ def render_client_install():
 
 
 def main():
+    subprocess.run([sys.executable, str(ROOT / "scripts/build_translations.py"), "--check"], check=True)
     parser = argparse.ArgumentParser(); parser.add_argument("--origin", default="https://i.lninl.com"); args = parser.parse_args()
     origin = args.origin.rstrip("/")
     if not origin.startswith("https://"):
@@ -192,6 +195,8 @@ def main():
     featured = [by_slug[key] for key in FEATURED if key in by_slug]
     sidebar = '<details class="docs-menu" open><summary>文档目录</summary><nav aria-label="文档">' + "".join(f'<a href="{page["url"]}">{html.escape(page["title"])}</a>' for page in featured) + '<details><summary>全部参考文档</summary>' + "".join(f'<a href="{page["url"]}">{html.escape(page["title"])}</a>' for page in pages if page not in featured) + "</details></nav></details>"
     template = (ROOT / "site/template.html").read_text()
+    default_messages = json.loads((ROOT / "locales/site/zh-CN.json").read_text())
+    language_options = "".join(f'<option value="{item["code"]}" lang="{item["code"]}" dir="{item["dir"]}">{html.escape(item["name"])}</option>' for item in json.loads((ROOT / "locales/languages.json").read_text()))
     staging = Path(tempfile.mkdtemp(prefix="site-", dir=ROOT / "dist")); output = ROOT / "dist/site"
     def emit(url, title, body, toc="", docs=False):
         canonical = origin + url; destination = staging / url.lstrip("/") / "index.html"; destination.parent.mkdir(parents=True, exist_ok=True)
@@ -200,8 +205,10 @@ def main():
         rendered = template
         for key, value in values.items():
             rendered = rendered.replace("{{" + key + "}}", value)
+        rendered = re.sub(r'(<select\b[^>]*id="site-language"[^>]*>).*?(</select>)', lambda match: match[1] + language_options + match[2], rendered, flags=re.S)
+        rendered = re.sub(r'(<[^>]+\bdata-site-i18n="([^"]+)"[^>]*>)[^<]*(</[^>]+>)', lambda match: match[1] + html.escape(default_messages[match[2]]) + match[3], rendered)
         destination.write_text(rendered)
-    emit("/", "i · lninl — Your tools. Your model.", (ROOT / "site/home.html").read_text().replace('{{CLIENT_INSTALL}}', render_client_install()))
+    emit("/", default_messages["page.title"], (ROOT / "site/home.html").read_text().replace('{{CLIENT_INSTALL}}', render_client_install()))
     for page in pages:
         body, sections = markdown(page["text"], page["source"])
         toc = '<nav aria-label="本页目录"><strong>本页内容</strong>' + "".join(f'<a class="level-{level}" href="#{html.escape(identifier)}">{html.escape(title)}</a>' for level, title, identifier in sections) + "</nav>"

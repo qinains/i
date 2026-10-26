@@ -3,6 +3,7 @@ import {mkdtemp,rm,mkdir} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {chromium,webkit} from '../web/node_modules/playwright/index.mjs';
+import {languageOptions} from './assets/languages.js';
 
 const profile=await mkdtemp(join(tmpdir(),'lninl-site-'));
 const origin=process.env.SITE_TEST_ORIGIN||'http://localhost:8090';
@@ -25,8 +26,10 @@ try{
             }
             await page.locator('[data-client-tab=browser]').focus();await page.keyboard.press('ArrowRight');assert.equal(await page.locator('[data-client-tab=macos]').getAttribute('aria-selected'),'true');await page.keyboard.press('Home');
             const modelRequests=[];page.on('request',request=>{if(request.method()==='POST')modelRequests.push(request.url());});
-            for(const language of ['zh-CN','zh-TW','en','ja','ko','fr','de']){
+            assert.equal(await page.locator('#site-language option').count(),17);
+            for(const {code:language,dir}of languageOptions){
                 await page.locator('#site-language').selectOption(language);assert.equal(await page.locator('html').getAttribute('lang'),language);
+                assert.equal(await page.locator('html').getAttribute('dir'),dir);
                 assert.ok(await page.locator('.home-hero h1').textContent());
                 for(const key of ['launch.description','launch.cta','connect.guide','security.summary','security.link','boundary.data.detail','boundary.credentials.detail','boundary.plugins.detail','boundary.preview.detail']){
                     const text=await page.locator(`[data-site-i18n="${key}"]`).textContent();
@@ -41,6 +44,11 @@ try{
                 await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${name}:${language}:mobile overflow`);
                 for(const platform of ['macos','windows','linux','browser']){
                     await page.locator(`[data-client-tab=${platform}]`).click();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${name}:${language}:${platform}:mobile overflow`);
+                }
+                if(language==='ar'){
+                    assert.equal(await page.locator('.demo-code').evaluate(element=>getComputedStyle(element).direction),'ltr');
+                    await page.setViewportSize({width:320,height:780});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${name}:Arabic 320px overflow`);
+                    await page.screenshot({path:new URL(`../dist/site-screenshots/${name}-arabic-mobile.png`,import.meta.url).pathname,animations:'disabled'});
                 }
             }
             await page.locator('#site-language').selectOption('zh-CN');await page.reload();await page.locator('html[lang="zh-CN"]').waitFor();
@@ -65,7 +73,7 @@ try{
             await page.screenshot({path:new URL(`../dist/site-screenshots/${name}-docs-mobile.png`,import.meta.url).pathname,fullPage:false});
             await page.goto(origin+'/app/');await page.locator('#input:not(:disabled)').waitFor({timeout:20000});
             await page.locator('#settings-modal').waitFor({state:'visible',timeout:20000});await page.locator('#cors-help summary').click();assert.equal(await page.locator('#cors-help a[download]').count(),3);
-            assert.deepEqual(errors,[]);console.log(`PASS ${name}: seven homepage languages, persisted choice, demo tasks without model requests, search, plugin docs, mobile overflow, /app/ WASM and extension links`);
+            assert.deepEqual(errors,[]);console.log(`PASS ${name}: seventeen homepage languages, Arabic RTL, persisted choice, demo tasks without model requests, search, plugin docs, mobile overflow, /app/ WASM and extension links`);
         }finally{await context.close();}
         const system=await browser.launchPersistentContext(join(profile,name+'-system'),{headless:true,locale:'fr-FR',reducedMotion:'reduce',viewport:{width:320,height:780}});
         try{

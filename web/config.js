@@ -1,3 +1,4 @@
+import {languageCodes} from './languages.js';
 export const CONFIG_KEY = 'i_harness_config';
 export const PROFILES_KEY = 'i_harness_profiles';
 export const DEFAULT_CONFIGURATION = Object.freeze({base_url:'',model:'',api_key:'',protocol:'openai',
@@ -22,8 +23,7 @@ function validated(settings) {
         if (typeof settings[key] !== 'string') throw new Error('Invalid harness configuration.');
         result[key] = settings[key];
     }
-    const validLanguages = ['en','zh-CN','zh-TW','ja','ko','fr','de','es','pt','ru','ar','it','nl','pl','tr','vi','th'];
-    if (!['openai','anthropic','responses'].includes(settings.protocol) || !validLanguages.includes(settings.language)
+    if (!['openai','anthropic','responses'].includes(settings.protocol) || !languageCodes.includes(settings.language)
         || !['default','none','low','medium','high','max','xhigh'].includes(settings.reasoning_effort)
         || !Number.isSafeInteger(settings.max_tokens) || settings.max_tokens < 1
         || !['direct','relay'].includes(settings.transport) || typeof settings.stream !== 'boolean'

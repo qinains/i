@@ -17,6 +17,7 @@ import {SessionController,connectionIdentity} from './sessions.js';
 import {node,renderMessage} from './render.js';
 import {legacyWorkspace} from './state/migration.js';
 import {applyWorkspaceTranslations,uiText,detectLanguage} from './i18n.js';
+import {populateLanguageSelect} from './languages.js';
 import {openPluginStore} from './plugins/store.js';
 import {PluginManager} from './plugins/manager.js';
 import {inspectPluginPackage} from './plugins/runner.js';
@@ -102,12 +103,13 @@ function renderTabs(){
         const item=controller.records.get(id);if(!item || item.workspaceId!==record.workspaceId)continue;
         const group=node('div','','session-tab');group.setAttribute('role','presentation');group.dataset.active=String(id===activeId);
         const tab=node('button','','tab-main');
-        tab.append(node('span',`${item.status==='approval'?'● ':runningId===id?'◌ ':''}${item.name}`,'tab-label'));
+        const label=item.titleSource==='default'?uiText('New conversation'):item.name;
+        tab.append(node('span',`${item.status==='approval'?'● ':runningId===id?'◌ ':''}${label}`,'tab-label'));
         tab.type='button';tab.role='tab';tab.dataset.sessionId=id;tab.setAttribute('aria-selected',String(id===activeId));
-        tab.title=`${workspaces.get(item.workspaceId)?.name} · ${item.titleText??item.name}. Double-click to rename.`;
+        tab.title=`${workspaces.get(item.workspaceId)?.name} · ${item.titleText??label}. ${uiText('Double-click to rename.')}`;
         tab.addEventListener('click',safe(()=>selectSession(id)));
         tab.addEventListener('dblclick',safe(async()=>{if(runningId===id)return;const name=prompt(uiText('Conversation name:'),item.name);if(name){item.name=displayName(name);item.titleText=item.name;item.titleSource='manual';await controller.save(item);renderTabs();}}));
-        const close=node('button','','tab-close');close.type='button';close.setAttribute('aria-label',uiText('Close {name}',{name:item.name}));close.title=close.getAttribute('aria-label');close.disabled=runningId===id;
+        const close=node('button','','tab-close');close.type='button';close.setAttribute('aria-label',uiText('Close {name}',{name:label}));close.title=close.getAttribute('aria-label');close.disabled=runningId===id;
         const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');
         for(const [name,value]of Object.entries({width:'12',height:'12',viewBox:'0 0 16 16','aria-hidden':'true'}))icon.setAttribute(name,value);
         const path=document.createElementNS('http://www.w3.org/2000/svg','path');
@@ -116,8 +118,8 @@ function renderTabs(){
         close.addEventListener('click',safe(()=>closeSession(id)));
         group.append(tab,close);$('session-tabs').append(group);
     }
-    $('conversation-title').textContent=record.name;
-    $('current-path').textContent=`${workspaces.get(record.workspaceId)?.name ?? record.workspaceId}${isTemporaryWorkspace(record.workspaceId)?' [Temporary — reload discards all data]':''} · /workspace`;
+    $('conversation-title').textContent=record.titleSource==='default'?uiText('New conversation'):record.name;
+    $('current-path').textContent=`${workspaces.get(record.workspaceId)?.name ?? record.workspaceId}${isTemporaryWorkspace(record.workspaceId)?` [${uiText('Temporary — not saved')}]`:''} · /workspace`;
     $('workspace-select').value=record.workspaceId;
     $('step-counter').textContent=record.step ?? '';
     updateControls();
@@ -172,12 +174,12 @@ function renderPending(){
         const button=(label,fn)=>{const el=node('button',uiText(label));el.type='button';el.disabled=blocked||sending;el.addEventListener('click',safe(async()=>{try{await fn();await controller.save(record);}finally{updateControls();}}));return el;};
         const actions=node('div','','pending-actions');
         if(entry.editDraft!=null){
-            const editor=node('textarea');editor.value=entry.editDraft;editor.setAttribute('aria-label',uiText('Edit queued message'));
+            const editor=node('textarea');editor.dir='auto';editor.value=entry.editDraft;editor.setAttribute('aria-label',uiText('Edit queued message'));
             editor.disabled=blocked||sending;
             editor.addEventListener('input',()=>{entry.editDraft=editor.value;controller.later(record);});row.append(editor);
             actions.append(button('Save',()=>editMessage(record,entry.id,entry.editDraft)),button('Discard edits',()=>{delete entry.editDraft;}));
         }else{
-            row.append(node('p',redact(entry.visible).slice(0,500)));
+            const content=node('p',redact(entry.visible).slice(0,500));content.dir='auto';row.append(content);
             actions.append(button('Edit',()=>{record.queuePaused=true;entry.editDraft=entry.visible;}));
         }
         actions.append(button('Cancel message',()=>removeMessage(record,entry.id)));
@@ -238,7 +240,7 @@ function publish(id,archive){
     list.get(archive.filename)?.dispose();
     const host=id===activeId?$('downloads'):document.createElement('div');const artifact=publishArchive(archive,host);
     list.set(archive.filename,artifact);artifact.link.textContent=`${workspaces.get(record.workspaceId)?.name} · ${record.name} · ${archive.filename}`;
-    append(record,`ZIP ready: ${archive.filename}. Use its save link.`,'success');
+    append(record,uiText('ZIP ready: {name}. Use its save link.',{name:archive.filename}),'success');
     if(id===activeId){$('file-panel').hidden=false;ui.panels.files=true;persistUi();}
     if(id===activeId){$('download-list').hidden=false;$('download-list').open=true;}
     return artifact;
@@ -379,9 +381,9 @@ async function upload(files){
             const path=$('upload-target').value+(file.webkitRelativePath||file.name);
             const expected=await opfsFileVersion(await opfsOpenWorkspace(record.workspaceId),path,signal);
             signal.throwIfAborted();
-            if(expected!==null&&!await approve(record.id,`Overwrite uploaded file ${path}?`)){append(record,`Skipped ${path}`);continue;}
+            if(expected!==null&&!await approve(record.id,uiText('Overwrite uploaded file {path}?',{path}))){append(record,uiText('Skipped {path}',{path}));continue;}
             const bytes=new Uint8Array(await file.arrayBuffer());signal.throwIfAborted();
-            await agent.upload(path,bytes,signal,expected);append(record,`Uploaded: ${path} (${file.size} bytes)`,'success');
+            await agent.upload(path,bytes,signal,expected);append(record,uiText('Uploaded: {path} ({count} bytes)',{path,count:file.size}),'success');
         }
     });
 }
@@ -442,7 +444,8 @@ function openSettings(){if(!$('settings-modal').open)$('settings-modal').showMod
 function showHistory(){
     const record=active();$('history-list').replaceChildren();
     for(const item of [...controller.records.values()].filter(item=>item.workspaceId===record.workspaceId).sort((a,b)=>b.updatedAt-a.updatedAt)){
-        const row=node('button',`${item.name} · ${new Date(item.updatedAt).toLocaleString()} · ${item.status}`);
+        const states={idle:'Ready',running:'Processing...',approval:'Ask before changes',interrupted:'Queue paused'};
+        const row=node('button',`${item.titleSource==='default'?uiText('New conversation'):item.name} · ${new Date(item.updatedAt).toLocaleString(applied.language)} · ${uiText(states[item.status]??item.status)}`);
         row.addEventListener('click',safe(async()=>{await selectSession(item.id);$('history-modal').close();}));$('history-list').append(row);
     }
     $('history-modal').showModal();
@@ -456,7 +459,7 @@ function bind(){
     preview=mountPreview({owner:active,isBusy:()=>!!runningId||!!testController||updateLocked||!ready,onError:report,onChange:patch=>{const record=active();if(!record)return;Object.assign(fileView(),patch);saveFileView(record.workspaceId);renderFiles();if(patch.open&&matchMedia('(max-width:700px)').matches)showFiles(false);},onBack:()=>showFiles(true)});
     mountScratchControls({
         create:safe(async()=>{if(runningId||updateLocked)return;const name=prompt(uiText('Temporary workspace name (all files are lost on reload; download first):'));if(!name)return;const id=`temp-${crypto.randomUUID()}`;await opfsOpenWorkspace(id);workspaces.set(id,{id,name:displayName(name),storageKind:'temporary'});renderWorkspaces();await newSession(id);}),
-        clear:safe(async()=>{if(!confirm('Clear /tmp in this workspace? Normal workspace files and conversations are retained.'))return;const record=active();await operation(record,async(_agent,signal)=>{await opfsClearTmp(record.workspaceId,signal);append(record,'Cleared /tmp. Workspace files retained.');});}),
+        clear:safe(async()=>{if(!confirm(uiText('Clear /tmp in this workspace? Normal workspace files and conversations are retained.')))return;const record=active();await operation(record,async(_agent,signal)=>{await opfsClearTmp(record.workspaceId,signal);append(record,'Cleared /tmp. Workspace files retained.');});}),
         download:safe(()=>{const record=active();return operation(record,async(agent,signal)=>{const zip=await agent.export_zip('{"paths":["/tmp"],"filename":"tmp.zip"}',signal);signal.throwIfAborted();publish(record.id,zip).link.click();},{readOnly:true});}),
     });
     const attach=node('button','Attach selected connection to this conversation…');attach.id='attach-connection';attach.dataset.i18n='Attach selected connection to this conversation…';
@@ -475,7 +478,7 @@ function bind(){
     $('output').addEventListener('scroll',()=>{const record=active();if(record){record.scroll=$('output').scrollTop;controller.later(record);}});
     $('btn-new-session').addEventListener('click',safe(()=>newSession()));
     $('btn-clear').addEventListener('click',safe(async()=>{if(runningId===activeId)return;const record=active();record.transcript=[];await controller.save(record);renderTerminal();}));
-    $('btn-reset').addEventListener('click',safe(async()=>{if(runningId)return;if(!confirm('Reset this conversation context? Workspace files are retained.'))return;const record=active(),agent=await controller.agent(record);agent.new_session();record.history=JSON.parse(agent.export_history());record.connectionIdentity='';record.journal=null;append(record,'Conversation context reset. Workspace files retained.');await controller.save(record);}));
+    $('btn-reset').addEventListener('click',safe(async()=>{if(runningId)return;if(!confirm(uiText('Reset this conversation context? Workspace files are retained.')))return;const record=active(),agent=await controller.agent(record);agent.new_session();record.history=JSON.parse(agent.export_history());record.connectionIdentity='';record.journal=null;append(record,'Conversation context reset. Workspace files retained.');await controller.save(record);}));
     $('btn-cancel').addEventListener('click',()=>{if(runningId===activeId){const record=active();record.queuePaused=true;stoppedTasks.add(record.id);operationControllers.get(record.id)?.abort();fileRefresh.cancel();pluginControllers.get(record.id)?.abort();controller.agents.get(runningId)?.cancel();settleApproval(false);controller.later(record);updateControls();}});
     $('queue-pause').addEventListener('click',safe(async()=>{const record=active();record.queuePaused=true;await controller.save(record);updateControls();}));
     $('queue-resume').addEventListener('click',safe(async()=>{const record=active();if(controller.failed.has(record.id)||record.pendingMessages?.some(entry=>entry.editDraft!=null))return;record.queuePaused=false;await controller.save(record);updateControls();if(!runningId)await drainQueue(record);}));
@@ -502,12 +505,12 @@ function bind(){
     $('base-url').addEventListener('input',updateEndpoint);$('model').addEventListener('input',updateEndpoint);$('protocol').addEventListener('change',updateEndpoint);
     $('use-model-max').addEventListener('click',()=>{const maximum=modelMaximum(currentConfiguration());if(maximum){$('max-tokens').value=maximum;$('use-max-tokens').checked=true;setText('config-status','Unsaved changes');}});
     $('lang-select').addEventListener('change',safe(async()=>{
-        applied.language=$('lang-select').value;applyWorkspaceTranslations(applied.language);localStorage.setItem('i_lang',applied.language);updateControls();updateEndpoint();await refresh();setText('config-status','Language updated; connection changes still require Save.');
+        applied.language=$('lang-select').value;applyWorkspaceTranslations(applied.language);try{localStorage.setItem('i_lang',applied.language);}catch{}renderWorkspaces();renderTabs();updateControls();updateEndpoint();await refresh();setText('config-status','Language updated; connection changes still require Save.');
     }));
     $('save-config').addEventListener('click',safe(saveConfig));
     $('remember-config').addEventListener('change',safe(()=>{if($('remember-config').checked)setText('config-status','Click Save changes to remember this connection.');else{clearConfiguration(localStorage);selectedConnection='';updateProfiles();setText('config-status','Saved credentials removed; current values are memory-only.');}}));
     $('save-as-profile').addEventListener('click',safe(()=>{const name=prompt(uiText('Connection name:'));if(!name)return;const config=currentConfiguration();validateConfig(config);selectedConnection=crypto.randomUUID();let names={};try{names=JSON.parse(localStorage.getItem('i_harness_connection_names')??'{}');}catch{}names[selectedConnection]=displayName(name);localStorage.setItem('i_harness_connection_names',JSON.stringify(names));$('remember-config').checked=true;saveConfig();updateProfiles();}));
-    $('profile-select').addEventListener('change',safe(()=>{const found=loadConnections(localStorage).records.find(item=>item.id===$('profile-select').value);selectedConnection=found?.id??'';if(found){restoreConfiguration(found.settings);applied={...found.settings};$('remember-config').checked=true;$('model-name').textContent=applied.model;setText('config-status','Saved connection selected. Existing conversations keep their context.');updateControls();}}));
+    $('profile-select').addEventListener('change',safe(()=>{const found=loadConnections(localStorage).records.find(item=>item.id===$('profile-select').value);selectedConnection=found?.id??'';if(found){const settings={...found.settings,language:applied.language};restoreConfiguration(settings);applied=settings;$('remember-config').checked=true;$('model-name').textContent=applied.model;setText('config-status','Saved connection selected. Existing conversations keep their context.');updateControls();}}));
     $('delete-profile').addEventListener('click',safe(()=>{if(!selectedConnection||!confirm(uiText('Delete this saved connection? Files and conversation history are retained.')))return;deleteProfile(localStorage,selectedConnection);selectedConnection='';updateProfiles();setText('config-status','Connection deleted; current values remain in memory.');}));
     $('clear-config').addEventListener('click',safe(()=>{if(runningId||!confirm(uiText('Clear ALL saved model and relay credentials? Files and conversations will remain.')))return;clearConfiguration(localStorage);for(const agent of controller.agents.values())agent.forget_credentials();applied={...DEFAULT_CONFIGURATION,language:applied.language};restoreConfiguration(applied);selectedConnection='';$('remember-config').checked=false;updateProfiles();$('model-name').textContent=uiText('No model');setText('config-status','Saved and active credentials cleared; files and conversations retained.');}));
     $('btn-clear-history').addEventListener('click',safe(async()=>{if(runningId||!confirm(uiText('Delete ALL saved conversations on this device? Workspace files and credentials are retained.')))return;await controller.flush();for(const id of controller.records.keys())await store.deleteSession(id);controller.cancelAll();controller.records.clear();for(const agent of controller.agents.values())agent.free();controller.agents.clear();ui.openedSessionIds=[];activeId=null;await newSession(ui.activeWorkspaceId??'default');}));
@@ -523,14 +526,16 @@ function bind(){
     window.addEventListener('pagehide',()=>{controller?.cancelAll();for(const abort of pluginControllers.values())abort.abort();testController?.abort();for(const map of downloads.values())for(const artifact of map.values())artifact.dispose();});
 }
 function renderWorkspaces(){
-    const options=[...workspaces.values()].map(record=>{const option=node('option',record.name+(isTemporaryWorkspace(record.id)?' [Temporary]':''));option.value=record.id;return option;});
+    const selected=$('workspace-select').value;
+    const options=[...workspaces.values()].map(record=>{const option=node('option',record.name+(isTemporaryWorkspace(record.id)?` [${uiText('Scratch')}]`:''));option.value=record.id;return option;});
     const divider=node('option','────────────────');divider.disabled=true;options.push(divider);
-    const newOption=node('option','+ New Workspace…');newOption.value='__new__';options.push(newOption);
-    const scratchOption=node('option',' Scratch Workspace…');scratchOption.value='__scratch__';options.push(scratchOption);
+    const newOption=node('option',`+ ${uiText('New workspace')}…`);newOption.value='__new__';options.push(newOption);
+    const scratchOption=node('option',`${uiText('Scratch')}…`);scratchOption.value='__scratch__';options.push(scratchOption);
     $('workspace-select').replaceChildren(...options);
+    if(workspaces.has(selected))$('workspace-select').value=selected;
 }
 async function main(){
-    bind();applied={...DEFAULT_CONFIGURATION,language:detectLanguage(navigator.languages?.length?navigator.languages:[navigator.language],[...$('lang-select').options].map(option=>option.value))};restoreConfiguration(applied);
+    populateLanguageSelect($('lang-select'));bind();applied={...DEFAULT_CONFIGURATION,language:detectLanguage(navigator.languages?.length?navigator.languages:[navigator.language],[...$('lang-select').options].map(option=>option.value))};restoreConfiguration(applied);
     try{
         await opfsOpenWorkspace('default');store=await openStateStore();const saved=await store.load();workspaces=new Map(saved.workspaces.map(record=>[record.id,record]));
         if(!workspaces.has('default')){const record={id:'default',name:'Default',createdAt:Date.now(),storageKind:'persistent'};await store.createWorkspace(record);workspaces.set('default',record);}
@@ -558,7 +563,7 @@ async function main(){
         updateProfiles();if(saved.ui)ui={...ui,...saved.ui,panels:{...ui.panels,...saved.ui.panels}};
         ui.openedSessionIds=(ui.openedSessionIds??[]).filter(id=>controller.records.has(id));renderWorkspaces();ready=true;
         const chosen=controller.records.get(ui.activeSessionId)??[...controller.records.values()][0];
-        if(chosen){await selectSession(chosen.id);}else{await newSession('default');append(active(),'i — browser workspace. Shell is disabled; file tools use persistent OPFS.\nConversations save automatically. Use /help for commands.');}
+        if(chosen){await selectSession(chosen.id);}else{await newSession('default');append(active(),'Browser workspace. Shell is disabled; workspace files are saved on this device. Conversations save automatically. Use /help for commands.');}
         $('file-panel').hidden=!ui.panels.files;$('btn-files').setAttribute('aria-expanded',String(!!ui.panels.files));updateControls();
         let welcomed=false;try{welcomed=localStorage.getItem('i_harness_welcome_seen')==='1';}catch{}
         if(!connections.records.length&&!welcomed){$('welcome-connection').hidden=false;$('remember-config').checked=true;openSettings();$('base-url').focus();}

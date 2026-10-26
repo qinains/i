@@ -1,13 +1,12 @@
 //! Internationalization (i18n) module
 //!
-//! Supports: en, zh-CN, zh-TW, zh-HK
-//! Fallback chain: requested → base → en → embedded
+//! Registered locales share their language list with the browser interfaces.
 
-use serde_json::Value;
 use std::collections::HashMap;
 use std::path::Path;
 
-// Embedded English fallback (compiled into binary)
+#[path = "locales_generated.rs"]
+mod builtin;
 const EMBEDDED_EN: &str = include_str!("../locales/en.json");
 
 pub struct I18n {
@@ -20,21 +19,27 @@ impl I18n {
     pub fn load(lang: &str, locale_dir: &Path) -> Self {
         let resolved = resolve_locale(lang);
 
-        // Try loading from files in order
+        let english = parse_translations(EMBEDDED_EN).expect("validated embedded English catalog");
         for locale in &resolved {
+            let embedded = builtin::LOCALES.iter().find(|(code, _)| code == locale);
             let path = locale_dir.join(format!("{}.json", locale));
             if let Ok(content) = std::fs::read_to_string(&path)
                 && let Ok(strings) = parse_translations(&content)
             {
+                let mut complete = english.clone();
+                if let Some((_, source)) = embedded {
+                    complete.extend(parse_translations(source).expect("validated embedded catalog"));
+                }
+                complete.extend(strings);
+                return Self { strings: complete, lang: locale.to_string() };
+            }
+            if let Some((_, source)) = embedded {
+                let mut strings = english.clone();
+                strings.extend(parse_translations(source).expect("validated embedded catalog"));
                 return Self { strings, lang: locale.to_string() };
             }
         }
-
-        // Fallback to embedded English
-        match parse_translations(EMBEDDED_EN) {
-            Ok(strings) => Self { strings, lang: "en".to_string() },
-            Err(_) => Self { strings: HashMap::new(), lang: "en".to_string() },
-        }
+        Self { strings: english, lang: "en".to_string() }
     }
 
     /// Translate a key, optionally with format arguments
@@ -66,22 +71,12 @@ impl I18n {
 /// Detect system language from environment
 pub fn detect_system_language() -> String {
     // Check environment variables (Unix)
-    let env_lang = std::env::var("LC_ALL")
-        .or_else(|_| std::env::var("LC_MESSAGES"))
-        .or_else(|_| std::env::var("LANG"))
-        .unwrap_or_else(|_| String::new());
-
-    if !env_lang.is_empty() {
-        // Parse zh_CN.UTF-8 → zh-CN
-        let parsed = env_lang.split('.').next().unwrap_or("").replace('_', "-").to_lowercase();
-
-        if !parsed.is_empty() && parsed != "c" {
-            return parsed;
-        }
-    }
-
-    // Default to English
-    "en".to_string()
+    let language = ["LC_ALL", "LC_MESSAGES", "LANG"]
+        .into_iter()
+        .filter_map(|name| std::env::var(name).ok())
+        .find(|value| !value.trim().is_empty())
+        .unwrap_or_default();
+    normalize_locale(&language)
 }
 
 /// Resolve locale to fallback chain
@@ -89,38 +84,36 @@ fn resolve_locale(input: &str) -> Vec<String> {
     let normalized = normalize_locale(input);
 
     match normalized.as_str() {
-        "zh-CN" | "zh" => vec!["zh-CN".to_string(), "en".to_string()],
-        "zh-TW" | "zh-HK" => vec![normalized.clone(), "zh-TW".to_string(), "zh-CN".to_string(), "en".to_string()],
+        "en" => vec![normalized],
+        "zh-TW" => vec![normalized, "zh-CN".to_string(), "en".to_string()],
         _ => vec![normalized, "en".to_string()],
     }
 }
 
 /// Normalize locale code
 fn normalize_locale(input: &str) -> String {
-    let cleaned = input.split('.').next().unwrap_or("").replace('_', "-").to_lowercase();
-
-    // Special cases
-    match cleaned.as_str() {
-        "zh" | "zh-cn" => "zh-CN".to_string(),
-        "zh-tw" | "zh-hk" | "zh-hant" => "zh-TW".to_string(),
-        _ => cleaned,
+    let cleaned = input.split(['.', '@']).next().unwrap_or("").replace('_', "-").to_lowercase();
+    let parts: Vec<_> = cleaned.split('-').collect();
+    if parts[0] == "zh" {
+        return if parts.contains(&"hans") {
+            "zh-CN"
+        } else if parts.iter().any(|part| ["hant", "tw", "hk", "mo"].contains(part)) {
+            "zh-TW"
+        } else {
+            "zh-CN"
+        }
+        .to_string();
     }
+    builtin::LOCALES
+        .iter()
+        .find(|(code, _)| code.eq_ignore_ascii_case(&cleaned) || *code == parts[0])
+        .map_or("en", |(code, _)| code)
+        .to_string()
 }
 
 /// Parse JSON translation file
 fn parse_translations(content: &str) -> Result<HashMap<String, String>, serde_json::Error> {
-    let value: Value = serde_json::from_str(content)?;
-    let mut strings = HashMap::new();
-
-    if let Some(obj) = value.as_object() {
-        for (key, value) in obj {
-            if let Some(str_val) = value.as_str() {
-                strings.insert(key.clone(), str_val.to_string());
-            }
-        }
-    }
-
-    Ok(strings)
+    serde_json::from_str(content)
 }
 
 #[cfg(test)]
@@ -132,15 +125,44 @@ mod tests {
         assert_eq!(normalize_locale("zh_CN.UTF-8"), "zh-CN");
         assert_eq!(normalize_locale("zh_TW"), "zh-TW");
         assert_eq!(normalize_locale("zh-HK"), "zh-TW");
-        assert_eq!(normalize_locale("en_US.UTF-8"), "en-us");
+        assert_eq!(normalize_locale("en_US.UTF-8"), "en");
         assert_eq!(normalize_locale("ja"), "ja");
+        assert_eq!(normalize_locale("pt_BR.UTF-8"), "pt");
+        assert_eq!(normalize_locale("ar-SA"), "ar");
+        assert_eq!(normalize_locale("zh-Hans-SG"), "zh-CN");
+        assert_eq!(normalize_locale("zh-Hant-CN"), "zh-TW");
     }
 
     #[test]
     fn test_resolve_locale() {
         assert_eq!(resolve_locale("zh-CN"), vec!["zh-CN", "en"]);
-        assert_eq!(resolve_locale("zh-TW"), vec!["zh-TW", "zh-TW", "zh-CN", "en"]);
-        assert_eq!(resolve_locale("en"), vec!["en", "en"]);
+        assert_eq!(resolve_locale("zh-TW"), vec!["zh-TW", "zh-CN", "en"]);
+        assert_eq!(resolve_locale("en"), vec!["en"]);
+    }
+
+    #[test]
+    fn all_registered_languages_work_without_a_locale_directory_in_the_project() {
+        let registry: Vec<serde_json::Value> = serde_json::from_str(include_str!("../locales/languages.json")).unwrap();
+        for metadata in registry {
+            let code = metadata["code"].as_str().unwrap();
+            let i18n = I18n::load(code, Path::new("__missing_locale_fixture__"));
+            assert_eq!(i18n.lang(), code);
+            assert!(i18n.has("setup.title"));
+            assert_ne!(i18n.t("setup.title"), "setup.title");
+        }
+    }
+
+    #[test]
+    fn partial_or_invalid_project_overrides_keep_the_embedded_language() {
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().join("es.json");
+        std::fs::write(&source, r#"{"welcome":"Hola personalizado"}"#).unwrap();
+        let i18n = I18n::load("es-ES", directory.path());
+        assert_eq!(i18n.lang(), "es");
+        assert_eq!(i18n.t("welcome"), "Hola personalizado");
+        assert_eq!(i18n.t("setup.title"), "Configuración");
+        std::fs::write(&source, "[]").unwrap();
+        assert_eq!(I18n::load("es", directory.path()).lang(), "es");
     }
 
     #[test]

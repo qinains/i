@@ -3,6 +3,7 @@ import {createHash} from 'node:crypto';
 import {deflateSync} from 'node:zlib';
 import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
+execFileSync('python3',[fileURLToPath(new URL('./build_translations.py',import.meta.url)),'--check']);
 execFileSync('python3',[fileURLToPath(new URL('./build_cors_extension.py',import.meta.url))]);
 const root = new URL('../web/',import.meta.url);
 for(const name of ['LICENSE','THIRD_PARTY_LICENSES.txt'])await copyFile(new URL('../'+name,root),new URL(name==='LICENSE'?'LICENSE.txt':name,root));

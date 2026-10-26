@@ -5,7 +5,7 @@ const usedWebKitPorts=new Set();
 // WebKit's ephemeral context rejects real OPFS on macOS; each test gets its
 // own persistent profile rather than mocking away the storage boundary.
 export const test = base.extend({
-    context: async ({browser,browserName,playwright,baseURL,viewport,acceptDownloads,hasTouch},use,testInfo) => {
+    context: async ({browser,browserName,playwright,baseURL,viewport,acceptDownloads,hasTouch,locale},use,testInfo) => {
         let alias;
         if (browserName === 'webkit') {
             // macOS WebKit also shares OPFS across persistent profiles with the
@@ -26,7 +26,7 @@ export const test = base.extend({
             }
             usedWebKitPorts.add(alias.address().port);
         }
-        const options = {baseURL:alias ? `http://127.0.0.1:${alias.address().port}` : baseURL,viewport,acceptDownloads,hasTouch,
+        const options = {baseURL:alias ? `http://127.0.0.1:${alias.address().port}` : baseURL,viewport,acceptDownloads,hasTouch,locale,
             // Playwright routing cannot intercept requests owned by a worker.
             // PWA suites exercise workers; model-routing suites isolate that layer.
             serviceWorkers:testInfo.file.endsWith('pwa.spec.mjs')?'allow':'block'};

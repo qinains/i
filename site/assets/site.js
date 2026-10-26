@@ -1,9 +1,11 @@
 import {resolveSiteLanguage,translate} from './i18n.js';
+import {populateLanguageSelect,languageDirection} from './languages.js';
 const root=document.documentElement;
 const home=root.dataset.page==='home';let savedLanguage,language;
 try{savedLanguage=localStorage.getItem('lninl_site_language');}catch{}
+populateLanguageSelect(document.getElementById('site-language'));
 function applyLanguage(next){
-    language=next;root.lang=next;document.getElementById('site-language').value=next;
+    language=next;root.lang=next;root.dir=languageDirection(next);document.getElementById('site-language').value=next;
     for(const element of document.querySelectorAll('[data-site-i18n]'))element.textContent=translate(next,element.dataset.siteI18n);
     for(const element of document.querySelectorAll('[data-site-i18n-aria]'))element.setAttribute('aria-label',translate(next,element.dataset.siteI18nAria));
     for(const element of document.querySelectorAll('[data-site-i18n-placeholder]'))element.placeholder=translate(next,element.dataset.siteI18nPlaceholder);

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Align the website, browser workspace and native locale registry across 17
+  languages, with complete UI catalogs, build-time key/placeholder validation,
+  Arabic RTL layout, region-aware defaults and persistent language selection.
+  Bundle native setup translations so they work outside the source directory.
+- Refine multilingual homepage copy, clarify local storage versus model API
+  requests, and preserve language preferences when switching model connections.
 - Make app updates wait up to 30 seconds for saved, idle pages; distinguish busy,
   unresponsive and save-failed pages, reject late acknowledgements, and retain
   the shorter safety lease when updating older app pages. Localize update status

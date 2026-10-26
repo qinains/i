@@ -34,6 +34,7 @@ jobs:
           $alias = Join-Path (Split-Path $python) 'python3.exe'
           if (-not (Test-Path $alias)) { Copy-Item $python $alias }
       - run: python3 scripts/check_globset.py
+      - run: python3 scripts/build_translations.py --check
       - run: cargo fmt --all --check
       - run: cargo fmt --manifest-path examples/rust-plugin/Cargo.toml --check
       - name: Install Linux native TLS build prerequisites

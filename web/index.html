@@ -62,7 +62,7 @@
       <form id="input-line">
         <div id="composer-attachments" aria-label="Pending attachments" data-i18n-aria-label="Pending attachments" hidden></div>
         <label for="input" class="prompt">❯</label>
-        <input id="input" aria-label="Task" data-i18n-aria-label="Task" placeholder="Describe a task, or type /help" data-i18n-placeholder="Describe a task, or type /help" autocomplete="off" disabled>
+        <input id="input" dir="auto" aria-label="Task" data-i18n-aria-label="Task" placeholder="Describe a task, or type /help" data-i18n-placeholder="Describe a task, or type /help" autocomplete="off" disabled>
         <button id="btn-send" type="submit" data-i18n="Send">Send</button><button id="btn-cancel" type="button" hidden data-i18n="Stop">Stop</button>
       </form>
     </main>
@@ -159,7 +159,7 @@
     <section data-settings-panel="appearance" hidden>
       <div class="form-field"><label for="theme-select" data-i18n="Theme">Theme</label><select id="theme-select"><option value="auto" data-i18n="Automatic (system)">Automatic (system)</option><option value="light" data-i18n="Light">Light</option><option value="dark" data-i18n="Dark">Dark</option></select></div>
       <p class="note" data-i18n="Theme changes apply immediately and are saved separately from API credentials. Previewed websites keep their own styles.">Theme changes apply immediately and are saved separately from API credentials. Previewed websites keep their own styles.</p>
-      <div class="form-field"><label for="lang-select" data-i18n="Language">Language</label><select id="lang-select"><option value="en">English</option><option value="zh-CN">简体中文</option><option value="zh-TW">繁體中文</option><option value="ja">日本語</option><option value="ko">한국어</option><option value="fr">Français</option><option value="de">Deutsch</option></select></div>
+      <div class="form-field"><label for="lang-select" data-i18n="Language">Language</label><select id="lang-select"><option value="en">English</option></select></div>
       <p class="note" data-i18n="Task and model text retain their original language.">Task and model text retain their original language.</p>
     </section>
     <section data-settings-panel="advanced" hidden>
