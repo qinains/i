@@ -8,6 +8,7 @@ test('RTL selects reserve arrow space on the left on desktop and mobile',async({
             const style=await page.locator(`#${id}`).evaluate(element=>{const s=getComputedStyle(element);return {left:parseFloat(s.paddingLeft),right:parseFloat(s.paddingRight),position:s.backgroundPosition,direction:s.direction};});
             expect(style.direction).toBe('rtl');expect(style.left,`${id} arrow gutter`).toBeGreaterThan(style.right);
             expect(style.position).not.toContain('100%');
+            expect(style.position).toBe(id==='execution-mode'?'8px 50%, 13px 50%':'13px 50%, 18px 50%');
         }
     }
     await page.locator('#lang-select').selectOption('en');

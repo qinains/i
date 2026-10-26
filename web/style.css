@@ -275,8 +275,8 @@ outline-offset:2px;
 border-color:var(--accent)
 }
 select:disabled { opacity:.45;cursor:not-allowed }
-html[dir=rtl] select {background-position:18px 50%,13px 50%;text-align:start}
-html[dir=rtl] #mode-control select {padding:3px 5px 3px 28px;background-position:13px 50%,8px 50%}
+html[dir=rtl] select {background-position:13px 50%,18px 50%;text-align:start}
+html[dir=rtl] #mode-control select {padding:3px 5px 3px 28px;background-position:8px 50%,13px 50%}
 button:focus-visible {outline:2px solid var(--accent);outline-offset:2px}
 @media (forced-colors:active) {
 select,#mode-control select { appearance:auto;-webkit-appearance:auto;background-image:none;padding-inline-end:10px }
