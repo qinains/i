@@ -3,11 +3,10 @@ import {controlMetrics} from '../../site/control-contrast.mjs';
 
 test('workspace control colors remain readable throughout settings, menus and themes',async({page})=>{
     await page.goto('/');await expect(page.locator('#status')).toHaveText('Ready');
-    await page.locator('#settings-btn').click();
-    await page.locator('[data-settings-tab=plugins]').click();
+    await page.locator('#plugins-btn').click();
     // Reveal existing controls without invoking destructive actions or any model requests.
     await page.evaluate(()=>{
-        document.querySelector('#settings-modal').close();
+        document.querySelector('#plugins-modal').close();
         for(const element of document.querySelectorAll('[hidden]')){
             if(element.closest('#settings-modal')&&!element.matches('[data-settings-panel]'))element.hidden=false;
         }
@@ -24,10 +23,11 @@ test('workspace control colors remain readable throughout settings, menus and th
             }
         };
         await audit();await page.locator('#settings-btn').click();
-        for(const tab of ['connection','recovery','appearance','advanced','plugins']){
+        for(const tab of ['connection','recovery','appearance','advanced']){
             await page.locator(`[data-settings-tab=${tab}]`).click();await audit();
         }
         await page.locator('#close-settings').click();await expect(page.locator('#settings-modal')).not.toBeVisible();
+        await page.locator('#plugins-btn').click();await audit();await page.locator('#close-plugins').click();await expect(page.locator('#plugins-modal')).not.toBeVisible();
         await page.locator('#input').fill('/');await audit();await page.locator('#input').press('Escape');await page.locator('#input').fill('');
         const filename=`controls-${theme}-${width}.html`;
         await page.locator('#file-input').setInputFiles({name:filename,mimeType:'text/html',buffer:Buffer.from('<h1>Control audit fixture</h1>')});

@@ -12,7 +12,7 @@ async function fixture(page,{corrupt=false}={}){
     return {entry,requests};
 }
 test('catalog inspect, install and workspace enable remain three separate user actions',async({page})=>{
-    const {entry,requests}=await fixture(page);await page.goto('/?settings=plugins');await expect(page.locator('#plugin-catalog-load')).toBeEnabled();
+    const {entry,requests}=await fixture(page);await page.goto('/?settings=plugins');await expect(page.locator('#plugins-modal')).toBeVisible();await expect(page.locator('#settings-modal')).not.toBeVisible();await expect(page.locator('#plugin-catalog-load')).toBeEnabled();
     expect(requests).toHaveLength(0);await page.locator('#plugin-catalog-load').click();
     const item=page.locator(`[data-catalog-plugin="${entry.id}"]`);await expect(item).toContainText(entry.description);await expect(item.locator('img')).toHaveCount(0);
     expect(await page.evaluate(()=>window.catalogXSS)).toBeUndefined();await expect(page.locator(`[data-plugin-id="${entry.id}"]`)).toHaveCount(0);

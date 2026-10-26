@@ -5,8 +5,15 @@ import {promptEditor} from './prompts.js';
 import {fetchCatalog,previewCatalogPlugin} from './catalog.js';
 const text=(tag,key,className='')=>{const element=node(tag,uiText(key),className);element.dataset.i18n=key;return element;};
 function permissions(p){return [uiText(p.workspace==='read-write'?'Read and modify workspace files':p.workspace==='read'?'Read workspace files':'No workspace file access'),uiText(p.storage?'Private plugin storage':'No private plugin storage')].join(' · ');}
+function securityReport(checks,expanded=false){
+    const details=node('details','','plugin-security');details.open=expanded;
+    details.append(text('summary','Host security checks'));
+    if(!checks)return details;
+    details.append(text('p','Checked before installation and again before enabling.','note'),node('p',permissions({workspace:checks.workspace,storage:checks.pluginStorage}),'note'),text('p','No access to app credentials, connection settings, browser storage, network or shell.','note'),text('p','Direct WASM imports are blocked.','note'),text('p','Only the workspace and private plugin storage permissions shown below may be granted.','note'),text('p','Capability checks do not prove plugin code is harmless. Review the publisher and requested access.','plugin-warning'));
+    return details;
+}
 export function mountPluginSettings({manager,currentWorkspace,isBusy,onError,onBusy=()=>{},promptStore,defaultPrompt}){
-    const panel=document.querySelector('[data-settings-panel=plugins]'),actions=node('div','','actions');let busy=false,preview;
+    const panel=document.getElementById('plugin-settings');let busy=false,preview;
     const file=node('input');file.id='plugin-file';file.type='file';file.accept='.hplugin.zip,application/zip';file.setAttribute('aria-label',uiText('Choose plugin package'));file.dataset.i18nAriaLabel='Choose plugin package';
     const status=node('p','','note');status.id='plugin-status';status.role='status';
     const previewBox=node('section','','plugin-card');previewBox.id='plugin-preview';previewBox.hidden=true;
@@ -36,7 +43,7 @@ export function mountPluginSettings({manager,currentWorkspace,isBusy,onError,onB
     function showPreview(p,m){
         preview=p;previewBox.replaceChildren();previewBox.hidden=false;
         previewBox.append(node('h3',`${p.manifest.name} · ${p.manifest.version}`),text('p','Unverified publisher','plugin-warning'),node('p',p.manifest.id,'note'),node('p',permissions(p.manifest.permissions),'note'),node('p',p.digest,'plugin-digest note'));
-        const tools=node('ul');for(const tool of p.manifest.tools)tools.append(node('li',`${tool.name} — ${tool.description}`));previewBox.append(tools);
+        const tools=node('ul');for(const tool of p.manifest.tools)tools.append(node('li',`${tool.name} — ${tool.description}`));previewBox.append(tools,securityReport(p.securityChecks,true));
         const install=button('Install / update',async()=>{await m.install(p);preview=null;previewBox.hidden=true;file.value='';status.textContent=uiText('Installed. Enable it for a workspace. Updates require re-enabling.');await refresh();});install.id='plugin-install';
         const cancel=button('Cancel',async()=>{preview=null;previewBox.hidden=true;previewBox.replaceChildren();file.value='';});previewBox.append(install,cancel);
     }
@@ -52,6 +59,7 @@ export function mountPluginSettings({manager,currentWorkspace,isBusy,onError,onB
             card.append(text('p',!available?'Plugin files unavailable or damaged':grant?'Enabled':'Disabled','plugin-state'));
             if(available){
                 card.append(node('p',permissions(record.manifest.permissions),'note'));
+                card.append(securityReport(record.securityChecks));
                 const tools=node('ul');for(const tool of record.manifest.tools)tools.append(node('li',`${tool.name} — ${tool.description}`));card.append(tools);
             }
             const actions=node('div','','actions');

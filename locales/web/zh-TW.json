@@ -1,4 +1,11 @@
 {
+  "Close": "關閉",
+  "Host security checks": "宿主安全檢查",
+  "Checked before installation and again before enabling.": "安裝前檢查，啟用前再次檢查。",
+  "No access to app credentials, connection settings, browser storage, network or shell.": "無法存取應用程式憑證、連線設定、瀏覽器儲存空間、網路或 shell。",
+  "Only the workspace and private plugin storage permissions shown below may be granted.": "只能授予下方列出的工作區和外掛私有儲存權限。",
+  "Capability checks do not prove plugin code is harmless. Review the publisher and requested access.": "能力檢查無法證明外掛程式碼無害。請審核發布者及要求的存取權限。",
+  "Direct WASM imports are blocked.": "禁止直接 WASM 匯入。",
   "Plugin catalog": "外掛目錄",
   "Load catalog": "載入目錄",
   "Download and inspect": "下載並檢查",

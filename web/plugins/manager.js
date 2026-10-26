@@ -1,8 +1,9 @@
 import {pluginId,persistentWorkspace} from './store.js';
+import {assessPlugin} from './policy.js';
 const ranks={none:0,read:1,'read-write':2},LIMIT=10*1024*1024;
 export async function digest(bytes){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(v=>v.toString(16).padStart(2,'0')).join('');}
 export async function publicToolName(id,name){pluginId(id);if(!/^[a-z][a-z0-9_]{0,31}$/u.test(name))throw new Error('Invalid plugin tool name.');return `p_${name}_${(await digest(new TextEncoder().encode(id+'\0'+name))).slice(0,16)}`;}
-function validPermissions(p){return !!p&&Object.keys(p).length===2&&Object.hasOwn(ranks,p.workspace)&&typeof p.storage==='boolean';}
+function validPermissions(p){return !!p&&Object.hasOwn(p,'workspace')&&Object.hasOwn(p,'storage')&&Reflect.ownKeys(p).length===2&&Object.hasOwn(ranks,p.workspace)&&typeof p.storage==='boolean';}
 export function grantFits(grant,declared){return validPermissions(grant)&&validPermissions(declared)&&ranks[grant.workspace]<=ranks[declared.workspace]&&(!grant.storage||declared.storage);}
 function identity(record){pluginId(record.id);if(!/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/u.test(record.version)||record.version.length>32||!/^[a-f0-9]{64}$/u.test(record.digest))throw new Error('Invalid installed plugin identity.');return [record.id,record.version,record.digest];}
 function equal(a,b){return a.id===b.id&&a.version===b.version&&a.digest===b.digest;}
@@ -14,21 +15,22 @@ export class PluginManager {
     constructor({store,inspectPackage}){this.#store=store;this.#inspect=inspectPackage;}
     async preview(bytes){
         if(!(bytes instanceof Uint8Array)||bytes.length>LIMIT)throw new Error('Plugin package exceeds 10 MiB.');
-        const copy=bytes.slice(),verified=await this.#inspect(copy.slice());
-        const view={manifest:structuredClone(verified.manifest),digest:verified.digest,license:verified.license};this.#previews.set(view,copy);return view;
+        const copy=bytes.slice(),verified=await this.#inspect(copy.slice()),securityChecks=assessPlugin(verified);
+        const view={manifest:structuredClone(verified.manifest),digest:verified.digest,license:verified.license,securityChecks};this.#previews.set(view,copy);return view;
     }
     async #read(record){
         identity(record);const dir=await directory(record),file=await (await dir.getFileHandle('package.hplugin.zip')).getFile();
         if(file.size>LIMIT)throw new Error('Installed plugin exceeds package limit.');
         const bytes=new Uint8Array(await file.arrayBuffer());
         if(await digest(bytes)!==record.packageDigest)throw new Error('Installed plugin package digest mismatch.');
-        const verified=await this.#inspect(bytes);
+        const verified=await this.#inspect(bytes),securityChecks=assessPlugin(verified);
         if(!equal(record,{id:verified.manifest.id,version:verified.manifest.version,digest:verified.digest}))throw new Error('Installed plugin identity mismatch.');
-        return verified;
+        return {...verified,securityChecks};
     }
     async install(preview){return lock('exclusive',async()=>{
         const original=this.#previews.get(preview);if(!original)throw new Error('Select and inspect a plugin package first.');
         const verified=await this.#inspect(original.slice()),m=verified.manifest;
+        assessPlugin(verified);
         const record={id:m.id,version:m.version,digest:verified.digest,packageDigest:await digest(original),manifest:m,status:'installed'};identity(record);
         const state=await this.#store.loadRegistry(),sameVersion=state.packages.find(p=>p.id===record.id&&p.version===record.version);
         if(sameVersion){
@@ -45,7 +47,7 @@ export class PluginManager {
         const state=await this.#store.loadRegistry(),items=[];
         for(const active of state.active){
             const record=state.packages.find(p=>equal(p,active));
-            try{if(!record)throw new Error('Installed plugin record missing.');const v=await this.#read(record);items.push({...record,manifest:v.manifest,status:'installed',grants:state.grants.filter(g=>g.pluginId===active.id)});}
+            try{if(!record)throw new Error('Installed plugin record missing.');const v=await this.#read(record);items.push({...record,manifest:v.manifest,securityChecks:v.securityChecks,status:'installed',grants:state.grants.filter(g=>g.pluginId===active.id)});}
             catch{items.push({id:String(active.id),version:String(active.version),digest:String(active.digest),manifest:{name:String(active.id)},status:'unavailable',grants:[]});}
         }
         return items;

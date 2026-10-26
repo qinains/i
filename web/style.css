@@ -178,8 +178,8 @@ font-size:13px
 #preview-options>summary,#conversation-menu>summary {display:none;list-style:none;cursor:pointer}
 #preview-options>summary::-webkit-details-marker,#conversation-menu>summary::-webkit-details-marker {display:none}
 .preview-extra-controls:empty {display:none}
-#settings-btn {gap:5px}
-#settings-btn svg {display:none}
+#settings-btn,#plugins-btn {gap:5px}
+#settings-btn svg,#plugins-btn svg {display:none}
 #preview-status {flex:1 1 180px;font-size:11px;line-height:1.5;margin:0;min-width:0;overflow-wrap:anywhere}
 .icon-action {display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
 .icon-action svg {width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
@@ -861,11 +861,12 @@ padding:7px;
 flex-wrap:wrap;
 gap:5px
 }
-#settings-btn {width:40px;height:40px;padding:0;margin-left:auto;border-color:transparent;background:transparent}
-#settings-btn>span {display:none}
-#settings-btn svg {display:block;width:19px;height:19px}
+#settings-btn,#plugins-btn {width:40px;height:40px;padding:0;border-color:transparent;background:transparent}
+#settings-btn {margin-left:auto}
+#settings-btn>span,#plugins-btn>span {display:none}
+#settings-btn svg,#plugins-btn svg {display:block;width:19px;height:19px}
 #workspace-select {
-max-width:140px
+max-width:140px;min-width:0;flex:1
 }
 #session-tabs {
 order:4;

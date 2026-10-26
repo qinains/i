@@ -1,4 +1,11 @@
 {
+  "Close": "Close",
+  "Host security checks": "Host security checks",
+  "Checked before installation and again before enabling.": "Checked before installation and again before enabling.",
+  "No access to app credentials, connection settings, browser storage, network or shell.": "No access to app credentials, connection settings, browser storage, network or shell.",
+  "Only the workspace and private plugin storage permissions shown below may be granted.": "Only the workspace and private plugin storage permissions shown below may be granted.",
+  "Capability checks do not prove plugin code is harmless. Review the publisher and requested access.": "Capability checks do not prove plugin code is harmless. Review the publisher and requested access.",
+  "Direct WASM imports are blocked.": "Direct WASM imports are blocked.",
   "Plugin catalog": "Plugin catalog",
   "Load catalog": "Load catalog",
   "Download and inspect": "Download and inspect",

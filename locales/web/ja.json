@@ -1,4 +1,11 @@
 {
+  "Close": "閉じる",
+  "Host security checks": "ホストのセキュリティチェック",
+  "Checked before installation and again before enabling.": "インストール前と有効化前に再確認します。",
+  "No access to app credentials, connection settings, browser storage, network or shell.": "アプリの認証情報、接続設定、ブラウザストレージ、ネットワーク、シェルにはアクセスできません。",
+  "Only the workspace and private plugin storage permissions shown below may be granted.": "以下に示すワークスペースとプラグイン専用ストレージの権限のみ付与できます。",
+  "Capability checks do not prove plugin code is harmless. Review the publisher and requested access.": "能力の確認はプラグインのコードが無害であることを証明しません。公開者と要求されたアクセス権を確認してください。",
+  "Direct WASM imports are blocked.": "WASM の直接インポートは禁止されています。",
   "Plugin catalog": "プラグインカタログ",
   "Load catalog": "カタログを読み込む",
   "Download and inspect": "ダウンロードして確認",

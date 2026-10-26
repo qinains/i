@@ -1,4 +1,11 @@
 {
+  "Close": "关闭",
+  "Host security checks": "宿主安全检查",
+  "Checked before installation and again before enabling.": "安装前检查，启用前再次检查。",
+  "No access to app credentials, connection settings, browser storage, network or shell.": "无法访问应用凭据、连接设置、浏览器存储、网络或 shell。",
+  "Only the workspace and private plugin storage permissions shown below may be granted.": "只能授予下方列出的工作区和插件私有存储权限。",
+  "Capability checks do not prove plugin code is harmless. Review the publisher and requested access.": "能力检查不能证明插件代码无害。请审核发布者和请求的访问权限。",
+  "Direct WASM imports are blocked.": "禁止直接 WASM 导入。",
   "Plugin catalog": "插件目录",
   "Load catalog": "加载目录",
   "Download and inspect": "下载并检查",

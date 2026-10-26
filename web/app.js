@@ -440,7 +440,9 @@ function saveConfig(){
     if(!$('welcome-connection').hidden){dismissWelcome();$('settings-modal').close();}
 }
 function dismissWelcome(){if($('welcome-connection').hidden)return;try{localStorage.setItem('i_harness_welcome_seen','1');}catch{}$('welcome-connection').hidden=true;}
-function openSettings(){if(!$('settings-modal').open)$('settings-modal').showModal();updateControls();if(!document.querySelector('[data-settings-panel=plugins]').hidden)pluginUi?.refresh();}
+function openSettings(){if($('plugins-modal').open)$('plugins-modal').close();if(!$('settings-modal').open)$('settings-modal').showModal();updateControls();}
+function openPlugins(){if($('settings-modal').open)$('settings-modal').close();if(!$('plugins-modal').open)$('plugins-modal').showModal();pluginUi?.refresh();}
+function closePlugins(){$('plugins-modal').close();$('plugins-btn').focus();}
 function showHistory(){
     const record=active();$('history-list').replaceChildren();
     for(const item of [...controller.records.values()].filter(item=>item.workspaceId===record.workspaceId).sort((a,b)=>b.updatedAt-a.updatedAt)){
@@ -494,11 +496,14 @@ function bind(){
     $('workspace-select').addEventListener('change',safe(async()=>{const value=$('workspace-select').value;if(value==='__new__'){const name=prompt(uiText('New workspace name:'));if(!name)return;$('workspace-select').value='';const record={id:crypto.randomUUID(),name:displayName(name),createdAt:Date.now(),storageKind:'persistent'};await opfsOpenWorkspace(record.id);await store.createWorkspace(record);workspaces.set(record.id,record);renderWorkspaces();await newSession(record.id);return;}if(value==='__scratch__'){$('workspace-select').value='';if(runningId||updateLocked)return;const name=prompt(uiText('Temporary workspace name (all files are lost on reload; download first):'));if(!name)return;const id=`temp-${crypto.randomUUID()}`;await opfsOpenWorkspace(id);workspaces.set(id,{id,name:displayName(name),storageKind:'temporary'});renderWorkspaces();await newSession(id);return;}const found=ui.openedSessionIds.map(id=>controller.records.get(id)).find(record=>record?.workspaceId===value)??[...controller.records.values()].find(record=>record.workspaceId===value);if(found)await selectSession(found.id);else await newSession(value);}));
     $('btn-history').addEventListener('click',showHistory);$('close-history').addEventListener('click',()=>$('history-modal').close());
     $('settings-btn').addEventListener('click',openSettings);$('close-settings').addEventListener('click',()=>{dismissWelcome();$('settings-modal').close();});
+    $('plugins-btn').addEventListener('click',openPlugins);$('close-plugins').addEventListener('click',closePlugins);
+    $('plugins-modal').addEventListener('cancel',event=>{event.preventDefault();closePlugins();});
+    $('plugins-modal').addEventListener('close',()=>{const focused=document.activeElement;if(!$('settings-modal').open&&(focused===document.body||$('plugins-modal').contains(focused)))$('plugins-btn').focus();});
     $('settings-modal').addEventListener('cancel',dismissWelcome);
     $('connection-form').addEventListener('submit',event=>event.preventDefault());
     $('relay-form').addEventListener('submit',event=>event.preventDefault());
-    $('settings-modal').addEventListener('close',()=>{dismissWelcome();const focused=document.activeElement;if(focused===document.body||$('settings-modal').contains(focused))$('settings-btn').focus();});
-    for(const button of document.querySelectorAll('[data-settings-tab]'))button.addEventListener('click',()=>{for(const panel of document.querySelectorAll('[data-settings-panel]'))panel.hidden=panel.dataset.settingsPanel!==button.dataset.settingsTab;for(const item of document.querySelectorAll('[data-settings-tab]'))item.setAttribute('aria-selected',String(item===button));document.querySelector('#settings-modal .dialog-footer').hidden=button.dataset.settingsTab==='plugins';if(button.dataset.settingsTab==='plugins')pluginUi.refresh();});
+    $('settings-modal').addEventListener('close',()=>{dismissWelcome();const focused=document.activeElement;if(!$('plugins-modal').open&&(focused===document.body||$('settings-modal').contains(focused)))$('settings-btn').focus();});
+    for(const button of document.querySelectorAll('[data-settings-tab]'))button.addEventListener('click',()=>{for(const panel of document.querySelectorAll('[data-settings-panel]'))panel.hidden=panel.dataset.settingsPanel!==button.dataset.settingsTab;for(const item of document.querySelectorAll('[data-settings-tab]'))item.setAttribute('aria-selected',String(item===button));});
     $('transport').addEventListener('change',updateTransport);
     $('toggle-key').addEventListener('click',()=>{$('api-key').type=$('api-key').type==='password'?'text':'password';setText('toggle-key',$('api-key').type==='password'?'Show':'Hide');});
     $('settings-modal').addEventListener('input',()=>{setText('config-status','Unsaved changes');});
@@ -567,7 +572,7 @@ async function main(){
         $('file-panel').hidden=!ui.panels.files;$('btn-files').setAttribute('aria-expanded',String(!!ui.panels.files));updateControls();
         let welcomed=false;try{welcomed=localStorage.getItem('i_harness_welcome_seen')==='1';}catch{}
         if(!connections.records.length&&!welcomed){$('welcome-connection').hidden=false;$('remember-config').checked=true;openSettings();$('base-url').focus();}
-        if(new URL(location.href).searchParams.get('settings')==='plugins'){openSettings();document.querySelector('[data-settings-tab=plugins]').click();}
+        if(new URL(location.href).searchParams.get('settings')==='plugins')openPlugins();
         registerPwa({isBusy:()=>!!runningId||!!testController||pluginBusy,onLock:value=>{updateLocked=value;updateControls();},onStatus:key=>{setText('pwa-status',key);$('pwa-status').dataset.i18nTitle=key;$('pwa-status').title=uiText(key);$('pwa-status').dataset.updateNotice=String(/^(Update postponed|Saving state|Checking open|Finish or stop)/u.test(key));},beforeUpdate:async()=>{await controller.flush();await uiQueue;await viewQueue;}}).catch(error=>report(new Error(`PWA unavailable: ${error.message}`)));
     }catch(error){ready=false;updateControls();report(error);$('status').textContent='Unavailable';$('output').append(node('div',`Initialization failed: ${redact(error.message)}. Build with scripts/build_web.sh and serve over localhost/HTTPS.`,'line error'));}
 }

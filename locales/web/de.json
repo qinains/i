@@ -1,4 +1,11 @@
 {
+  "Close": "Schließen",
+  "Host security checks": "Sicherheitsprüfungen des Hosts",
+  "Checked before installation and again before enabling.": "Prüfung vor der Installation und erneut vor der Aktivierung.",
+  "No access to app credentials, connection settings, browser storage, network or shell.": "Kein Zugriff auf App-Zugangsdaten, Verbindungseinstellungen, Browserspeicher, Netzwerk oder Shell.",
+  "Only the workspace and private plugin storage permissions shown below may be granted.": "Nur die unten angezeigten Berechtigungen für Arbeitsbereich und privaten Plugin-Speicher können erteilt werden.",
+  "Capability checks do not prove plugin code is harmless. Review the publisher and requested access.": "Fähigkeitsprüfungen beweisen nicht, dass Plugin-Code harmlos ist. Prüfen Sie Herausgeber und angeforderte Zugriffe.",
+  "Direct WASM imports are blocked.": "Direkte WASM-Importe sind gesperrt.",
   "Plugin catalog": "Plugin-Katalog",
   "Load catalog": "Katalog laden",
   "Download and inspect": "Herunterladen und prüfen",

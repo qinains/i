@@ -1,4 +1,11 @@
 {
+  "Close": "닫기",
+  "Host security checks": "호스트 보안 검사",
+  "Checked before installation and again before enabling.": "설치 전에 검사하고 활성화 전에 다시 검사합니다.",
+  "No access to app credentials, connection settings, browser storage, network or shell.": "앱 자격 증명, 연결 설정, 브라우저 저장소, 네트워크 또는 셸에 접근할 수 없습니다.",
+  "Only the workspace and private plugin storage permissions shown below may be granted.": "아래에 표시된 작업 공간 및 플러그인 전용 저장소 권한만 부여할 수 있습니다.",
+  "Capability checks do not prove plugin code is harmless. Review the publisher and requested access.": "기능 검사는 플러그인 코드가 무해함을 입증하지 않습니다. 게시자와 요청한 접근 권한을 검토하세요.",
+  "Direct WASM imports are blocked.": "직접 WASM 가져오기는 차단됩니다.",
   "Plugin catalog": "플러그인 카탈로그",
   "Load catalog": "카탈로그 불러오기",
   "Download and inspect": "다운로드 및 검사",

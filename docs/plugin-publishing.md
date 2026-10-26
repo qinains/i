@@ -1,8 +1,8 @@
 # 发布浏览器插件到社区目录
 
 [插件目录](https://i.lninl.com/plugins/)使用独立的
-[qinains/i-plugins 注册表](https://github.com/qinains/i-plugins)，参考 Zed extensions 的
-PR 审核工作流。插件作者拥有并维护自己的源码仓库、固定源码提交和 release。
+[qinains/i-plugins 注册表](https://github.com/qinains/i-plugins)，采用独立的社区 PR
+审核流程。插件作者拥有并维护自己的源码仓库、固定源码提交和 release。
 先按照[插件开发教程](plugin-development.md)构建 `.hplugin.zip`，再提交注册表 PR。
 桌面 NDJSON worker 不属于此目录。
 

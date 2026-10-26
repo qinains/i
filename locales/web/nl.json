@@ -1,4 +1,11 @@
 {
+  "Close": "Sluiten",
+  "Host security checks": "Beveiligingscontroles van de host",
+  "Checked before installation and again before enabling.": "Gecontroleerd vóór installatie en opnieuw vóór inschakeling.",
+  "No access to app credentials, connection settings, browser storage, network or shell.": "Geen toegang tot app-inloggegevens, verbindingsinstellingen, browseropslag, netwerk of shell.",
+  "Only the workspace and private plugin storage permissions shown below may be granted.": "Alleen de hieronder getoonde rechten voor werkruimte en privéopslag van de plug-in kunnen worden verleend.",
+  "Capability checks do not prove plugin code is harmless. Review the publisher and requested access.": "Controles van mogelijkheden bewijzen niet dat plug-incode onschadelijk is. Controleer de uitgever en gevraagde toegang.",
+  "Direct WASM imports are blocked.": "Directe WASM-imports zijn geblokkeerd.",
   "Plugin catalog": "Plug-incatalogus",
   "Load catalog": "Catalogus laden",
   "Download and inspect": "Downloaden en inspecteren",

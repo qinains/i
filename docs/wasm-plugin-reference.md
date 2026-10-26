@@ -4,7 +4,7 @@
 
 `builtin.prompts` 来自 `plugins/wasm-prompts`，Rust 编译为独立 WASM，通过相同的
 Worker、包校验和授权流程运行。持久工作区第一次使用插件时自动安装、启用；用户
-禁用或卸载后不会在该工作区自动恢复。设置 → 插件可编辑系统提示词或恢复默认。
+禁用或卸载后不会在该工作区自动恢复。顶部「插件」可编辑系统提示词或恢复默认。
 
 模型工具 `manage_prompt` 支持 `action: get|set|reset`，`set` 额外传 `prompt`。
 提示词上限 128 KiB UTF-8，保存到插件的工作区隔离 IndexedDB KV，不是连接配置、
@@ -22,7 +22,27 @@ Worker、包校验和授权流程运行。持久工作区第一次使用插件�
 
 协议来源是 `plugins/wasm-protocol/`、`plugins/wasm-sdk/`、`plugins/wasm-package/`
 及 `web/plugins/`。本页描述浏览器工具插件，不描述原生 subprocess/hooks。
-入门见 [Rust 插件教程](plugin-development.md)。
+入门见 [Rust 插件教程](plugin-development.md)，社区目录提交见[发布指南](plugin-publishing.md)。
+
+## 宿主安全检查与真实权限边界
+
+导入预览、安装、启用以及执行前，宿主都重新检查实际插件包和模块，而不是信任目录、
+缓存的报告或插件自称的能力。检查包括包结构与散列、WASM ABI 和模块限制，以及
+host policy 允许的清单字段和权限。启用时核对工作区授权不超过包内声明；运行时
+按固定版本与散列重新加载校验，并由 broker 对每次 host 请求执行实际授权、参数、
+工作区路径与写入审批检查。旧检查报告不会替代当前检查，不能因已安装就绕过启用或运行检查。
+
+WASM 模块禁止所有直接 imports，在 Worker 内执行；插件通过协议请求宿主 broker，
+不能直接调用浏览器 API。唯一可授予的资源能力是当前工作区的 `none`、`read` 或
+`read-write` 文件访问，以及按 `(workspaceId, pluginId)` 隔离的私有 KV。
+私有 KV 是宿主代理能力，不是直接访问浏览器 `localStorage`、IndexedDB 或 OPFS。
+应用凭据、连接设置、任意浏览器存储、网络、shell 和进程都不是可申请的插件能力；
+API key 不会因启用插件就传入 Worker。
+
+这些检查约束能力，不会扫描并证明代码无害，也不验证发布者身份。恶意插件仍可能
+滥用用户已授予的读写能力，或在工具结果中暴露读到的内容。请审核来源和所请求的权限。
+如果你主动把 API key 等秘密写入已授权可读的工作区文件、插件参数或该插件的私有 KV，
+插件仍可读取这些数据；宿主隔离应用连接凭据并不能保护你另行提供给插件的秘密。
 
 ## 包格式
 
@@ -125,7 +145,7 @@ KV 归属 `(workspaceId, pluginId)`，不同插件和工作区不能通过猜 ke
 
 ## ABI 与执行限制
 
-WASM 使用 `wasm32-unknown-unknown`，不允许任意 imports。必要导出包括单一 memory：
+WASM 使用 `wasm32-unknown-unknown`，禁止所有 imports。必要导出包括单一 memory：
 
 - `harness_abi_version() -> i32`：版本 1。
 - `harness_alloc(len:i32) -> i32`、`harness_free(ptr:i32,len:i32)`。
@@ -133,7 +153,7 @@ WASM 使用 `wasm32-unknown-unknown`，不允许任意 imports。必要导出包
 
 优先用 SDK 管理分配和响应，不手写指针约定。模块必须声明最大内存，单个非共享
 wasm32 memory 上限 64 MiB；不允许 memory64、线程、GC、异常等被禁用特性。
-如果有 table，数量和最大值受校验器约束。不得依赖浏览器链接未声明的 host imports。
+如果有 table，数量和最大值受校验器约束。模块没有直接 host imports；宿主操作只能通过协议请求 broker。
 
 协议帧最多 16 MiB，最终文本或错误最多 1 MiB。默认 invocation 执行预算 15 秒，
 审批等待会暂停该预算。超时或取消终止 Worker，但**已完成文件副作用不回滚**；
@@ -141,7 +161,7 @@ wasm32 memory 上限 64 MiB；不允许 memory64、线程、GC、异常等被禁
 
 ## 安装、启用和更新
 
-构建 ZIP → 设置 / 插件 / 导入 → 检查身份、权限与散列 → 为所选持久工作区显式启用。
+构建 ZIP → 顶部「插件」/ 导入 → 检查身份、权限与散列 → 为所选持久工作区显式启用。
 安装不等于全局启用。当前任务使用固定的插件版本快照；更新或删除不应在任务中途
 替换代码。临时工作区与插件存储支持以实际安装器限制为准，不假装支持临时授权落盘。
 

@@ -94,7 +94,7 @@ npm ci
 node serve.mjs
 ```
 
-打开终端输出的 localhost 地址。设置 → 插件 → 选择 `.hplugin.zip`，检查权限后
+打开终端输出的 localhost 地址。顶部「插件」→ 选择 `.hplugin.zip`，检查权限后
 为当前持久工作区启用。上传 `notes.txt`，内容为 `hello world`。
 配置自己的模型后可要求调用统计工具，预期 `words:2,characters:11`。
 这一步会调用服务商；不要把自己的 key 发进 issue 或测试日志。

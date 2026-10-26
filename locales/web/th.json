@@ -1,4 +1,11 @@
 {
+  "Close": "ปิด",
+  "Host security checks": "การตรวจสอบความปลอดภัยโดยโฮสต์",
+  "Checked before installation and again before enabling.": "ตรวจสอบก่อนติดตั้งและตรวจสอบอีกครั้งก่อนเปิดใช้งาน",
+  "No access to app credentials, connection settings, browser storage, network or shell.": "เข้าถึงข้อมูลรับรองแอป การตั้งค่าการเชื่อมต่อ ที่เก็บข้อมูลเบราว์เซอร์ เครือข่าย หรือเชลล์ไม่ได้",
+  "Only the workspace and private plugin storage permissions shown below may be granted.": "ให้ได้เฉพาะสิทธิ์พื้นที่ทำงานและที่เก็บข้อมูลส่วนตัวของปลั๊กอินที่แสดงด้านล่างเท่านั้น",
+  "Capability checks do not prove plugin code is harmless. Review the publisher and requested access.": "การตรวจสอบความสามารถไม่ได้พิสูจน์ว่าโค้ดปลั๊กอินไม่เป็นอันตราย โปรดตรวจสอบผู้เผยแพร่และสิทธิ์การเข้าถึงที่ร้องขอ",
+  "Direct WASM imports are blocked.": "บล็อกการนำเข้า WASM โดยตรง",
   "Plugin catalog": "แค็ตตาล็อกปลั๊กอิน",
   "Load catalog": "โหลดแค็ตตาล็อก",
   "Download and inspect": "ดาวน์โหลดและตรวจสอบ",

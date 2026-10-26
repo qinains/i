@@ -1,4 +1,11 @@
 {
+  "Close": "إغلاق",
+  "Host security checks": "فحوص أمان المضيف",
+  "Checked before installation and again before enabling.": "يُفحص قبل التثبيت ومرة أخرى قبل التفعيل.",
+  "No access to app credentials, connection settings, browser storage, network or shell.": "لا وصول إلى بيانات اعتماد التطبيق أو إعدادات الاتصال أو تخزين المتصفح أو الشبكة أو الصدفة.",
+  "Only the workspace and private plugin storage permissions shown below may be granted.": "لا يمكن منح سوى أذونات مساحة العمل والتخزين الخاص بالإضافة الموضحة أدناه.",
+  "Capability checks do not prove plugin code is harmless. Review the publisher and requested access.": "فحوص القدرات لا تثبت أن شيفرة الإضافة غير ضارة. راجع الناشر والوصول المطلوب.",
+  "Direct WASM imports are blocked.": "عمليات استيراد WASM المباشرة محظورة.",
   "Plugin catalog": "دليل الإضافات",
   "Load catalog": "تحميل الدليل",
   "Download and inspect": "تنزيل وفحص",

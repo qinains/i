@@ -1,4 +1,11 @@
 {
+  "Close": "Kapat",
+  "Host security checks": "Ana makine güvenlik kontrolleri",
+  "Checked before installation and again before enabling.": "Yüklemeden önce ve etkinleştirmeden önce yeniden kontrol edilir.",
+  "No access to app credentials, connection settings, browser storage, network or shell.": "Uygulama kimlik bilgilerine, bağlantı ayarlarına, tarayıcı depolamasına, ağa veya kabuğa erişim yoktur.",
+  "Only the workspace and private plugin storage permissions shown below may be granted.": "Yalnızca aşağıda gösterilen çalışma alanı ve özel eklenti depolama izinleri verilebilir.",
+  "Capability checks do not prove plugin code is harmless. Review the publisher and requested access.": "Yetenek kontrolleri eklenti kodunun zararsız olduğunu kanıtlamaz. Yayıncıyı ve istenen erişimi inceleyin.",
+  "Direct WASM imports are blocked.": "Doğrudan WASM içe aktarımları engellenir.",
   "Plugin catalog": "Eklenti kataloğu",
   "Load catalog": "Kataloğu yükle",
   "Download and inspect": "İndir ve incele",

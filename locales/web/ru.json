@@ -1,4 +1,11 @@
 {
+  "Close": "Закрыть",
+  "Host security checks": "Проверки безопасности хоста",
+  "Checked before installation and again before enabling.": "Проверяется перед установкой и повторно перед включением.",
+  "No access to app credentials, connection settings, browser storage, network or shell.": "Нет доступа к учётным данным приложения, настройкам подключения, хранилищу браузера, сети или оболочке.",
+  "Only the workspace and private plugin storage permissions shown below may be granted.": "Можно предоставить только указанные ниже разрешения для рабочего пространства и личного хранилища плагина.",
+  "Capability checks do not prove plugin code is harmless. Review the publisher and requested access.": "Проверки возможностей не доказывают безвредность кода плагина. Проверьте издателя и запрашиваемый доступ.",
+  "Direct WASM imports are blocked.": "Прямые импорты WASM заблокированы.",
   "Plugin catalog": "Каталог плагинов",
   "Load catalog": "Загрузить каталог",
   "Download and inspect": "Скачать и проверить",

@@ -1,4 +1,11 @@
 {
+  "Close": "Đóng",
+  "Host security checks": "Kiểm tra bảo mật của ứng dụng chủ",
+  "Checked before installation and again before enabling.": "Kiểm tra trước khi cài đặt và kiểm tra lại trước khi bật.",
+  "No access to app credentials, connection settings, browser storage, network or shell.": "Không có quyền truy cập thông tin xác thực ứng dụng, cài đặt kết nối, bộ nhớ trình duyệt, mạng hoặc shell.",
+  "Only the workspace and private plugin storage permissions shown below may be granted.": "Chỉ có thể cấp các quyền truy cập không gian làm việc và bộ nhớ riêng của plugin hiển thị bên dưới.",
+  "Capability checks do not prove plugin code is harmless. Review the publisher and requested access.": "Kiểm tra khả năng không chứng minh mã plugin vô hại. Hãy xem xét nhà phát hành và quyền truy cập được yêu cầu.",
+  "Direct WASM imports are blocked.": "Các lệnh nhập WASM trực tiếp bị chặn.",
   "Plugin catalog": "Danh mục plugin",
   "Load catalog": "Tải danh mục",
   "Download and inspect": "Tải xuống và kiểm tra",
