@@ -562,7 +562,7 @@ async function main(){
         $('file-panel').hidden=!ui.panels.files;$('btn-files').setAttribute('aria-expanded',String(!!ui.panels.files));updateControls();
         let welcomed=false;try{welcomed=localStorage.getItem('i_harness_welcome_seen')==='1';}catch{}
         if(!connections.records.length&&!welcomed){$('welcome-connection').hidden=false;$('remember-config').checked=true;openSettings();$('base-url').focus();}
-        registerPwa({isBusy:()=>!!runningId||!!testController||pluginBusy,onLock:value=>{updateLocked=value;updateControls();},onStatus:text=>{$('pwa-status').textContent=text;},beforeUpdate:async()=>{await controller.flush();await uiQueue;await viewQueue;}}).catch(error=>report(new Error(`PWA unavailable: ${error.message}`)));
+        registerPwa({isBusy:()=>!!runningId||!!testController||pluginBusy,onLock:value=>{updateLocked=value;updateControls();},onStatus:key=>{setText('pwa-status',key);$('pwa-status').dataset.i18nTitle=key;$('pwa-status').title=uiText(key);$('pwa-status').dataset.updateNotice=String(/^(Update postponed|Saving state|Checking open|Finish or stop)/u.test(key));},beforeUpdate:async()=>{await controller.flush();await uiQueue;await viewQueue;}}).catch(error=>report(new Error(`PWA unavailable: ${error.message}`)));
     }catch(error){ready=false;updateControls();report(error);$('status').textContent='Unavailable';$('output').append(node('div',`Initialization failed: ${redact(error.message)}. Build with scripts/build_web.sh and serve over localhost/HTTPS.`,'line error'));}
 }
 main();

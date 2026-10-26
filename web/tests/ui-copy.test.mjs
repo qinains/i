@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {copy} from '../ui-copy.js';
+import {readFile} from 'node:fs/promises';
+
+test('every PWA status is translated in each supported UI language',async()=>{
+    const source=await readFile(new URL('../pwa.js',import.meta.url),'utf8');
+    const keys=[...source.matchAll(/'([^'\n]*(?:Update |Updating|Saving state|Checking open|Finish or stop|No update|PWA |Online\.|Offline:)[^'\n]*)'/gu)].map(match=>match[1]);
+    assert.ok(keys.length>=16);
+    for(const language of ['zh-CN','zh-TW','ja','ko','fr','de'])for(const key of keys)assert.ok(copy[language][key]&&copy[language][key]!==key,`${language}:${key}`);
+});
 
 test('connection guide and draggable control instructions cover every translated UI',()=>{
     const keys=[

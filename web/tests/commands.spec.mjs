@@ -1,5 +1,14 @@
 import {test,expect} from './fixtures.mjs';
 async function start(page){await page.goto('/');await expect(page.locator('#status')).toHaveText('Ready');}
+test('slash command labels and input use the same upright monospace font on desktop and mobile',async({page})=>{
+    await start(page);
+    for(const width of [1280,390]){
+        await page.setViewportSize({width,height:844});await page.locator('#input').fill('/');
+        await expect(page.locator('#command-menu')).toBeVisible();
+        const fonts=await page.evaluate(()=>['#input','#command-menu strong'].map(selector=>{const style=getComputedStyle(document.querySelector(selector));return {family:style.fontFamily,style:style.fontStyle};}));
+        expect(fonts[1]).toEqual(fonts[0]);expect(fonts[0].family).toContain('monospace');expect(fonts[0].style).toBe('normal');
+    }
+});
 test('slash menu filters, completes without executing, and supports Escape, IME and phone taps',async({page})=>{
     await start(page);const input=page.locator('#input'),menu=page.locator('#command-menu');await input.fill('/');await expect(menu).toBeVisible();await expect(menu).toContainText('/mode');await expect(menu).not.toContainText('/compact');await input.fill('/mo');await input.press('Enter');await expect(input).toHaveValue('/mode');await expect(page.locator('#output')).not.toContainText('> /mode');await input.fill('/mode a');await input.press('ArrowDown');await input.press('Tab');await expect(input).toHaveValue('/mode auto');await expect(page.locator('#execution-mode')).toHaveValue('ask');await input.press('Enter');await expect(page.locator('#execution-mode')).toHaveValue('auto');
     await input.fill('/');await input.press('Escape');await expect(menu).toBeHidden();await input.fill('explain /mode');await expect(menu).toBeHidden();await input.dispatchEvent('compositionstart');await input.fill('/mo');await expect(menu).toBeHidden();await input.dispatchEvent('compositionend');await expect(menu).toBeVisible();

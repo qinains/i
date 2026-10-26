@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Make app updates wait up to 30 seconds for saved, idle pages; distinguish busy,
+  unresponsive and save-failed pages, reject late acknowledgements, and retain
+  the shorter safety lease when updating older app pages. Localize update status
+  in all UI languages and show actionable notices on mobile.
+- Use the input's monospace font for slash-command labels, and hide the update
+  action when there is no waiting version after first installation.
 - Replace the optional Node relay with a standalone `i-relay` executable, retaining
   protocol-native JSON/SSE, authentication, public DNS pinning, quotas, disconnect
   cancellation and inactivity deadlines. Caddy serves static assets separately.

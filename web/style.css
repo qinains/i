@@ -306,7 +306,7 @@ flex-direction:column;
 min-height:360px;
 overflow:hidden
 }
-#output,#input,.file-item {
+#output,#input,.file-item,.command-menu strong {
 font-family:ui-monospace,SFMono-Regular,Consolas,monospace
 }
 header {
@@ -933,6 +933,8 @@ padding-bottom:env(safe-area-inset-bottom)
 #pwa-status {
 display:none
 }
+#status-bar:has(#pwa-status[data-update-notice=true]) {flex-wrap:wrap}
+#pwa-status[data-update-notice=true] {display:block;flex:1 0 100%;max-width:none;white-space:normal;font-size:11px;line-height:1.4;max-height:4.2em;overflow:auto}
 dialog {
 width:calc(100vw - 16px);
 max-height:94dvh

@@ -183,3 +183,107 @@ const connectionGuide={
     'Step-by-step guide and troubleshooting →':['完整教程与常见错误处理 →','完整教學與常見錯誤處理 →','詳しい手順とトラブルシューティング →','단계별 안내 및 문제 해결 →','Guide détaillé et dépannage →','Schritt-für-Schritt-Anleitung und Fehlerhilfe →'],
 };
 for(const [key,row]of Object.entries(connectionGuide))for(const [index,language]of ['zh-CN','zh-TW','ja','ko','fr','de'].entries())copy[language][key]=row[index];
+const pwaCopy={
+    'Update postponed: another app tab is running a task. Finish or stop it, then retry. Your files and settings have not been cleared.':[
+        '更新已暂缓：其他应用页面正在运行任务。请等任务完成或停止后重试；文件和设置未被清除。',
+        '更新已暫緩：其他應用程式頁面正在執行工作。請等工作完成或停止後重試；檔案與設定未被清除。',
+        '更新を保留しました。別のアプリ画面でタスク実行中です。完了または停止後に再試行してください。ファイルと設定は削除されていません。',
+        '다른 앱 탭에서 작업 중이므로 업데이트를 보류했습니다. 완료하거나 중지한 뒤 다시 시도하세요. 파일과 설정은 삭제되지 않았습니다.',
+        'Mise à jour reportée : une autre page exécute une tâche. Terminez-la ou arrêtez-la, puis réessayez. Aucun fichier ni réglage n’a été effacé.',
+        'Update verschoben: Ein anderer App-Tab führt eine Aufgabe aus. Nach Abschluss oder Stopp erneut versuchen. Dateien und Einstellungen wurden nicht gelöscht.',
+    ],
+    'Update postponed: a page could not save its state. Check its save status and back up your work before retrying. Nothing has been cleared.':[
+        '更新已暂缓：有页面未能保存状态。请检查保存状态并备份后重试；没有清除任何数据。',
+        '更新已暫緩：有頁面無法儲存狀態。請檢查儲存狀態並備份後重試；沒有清除任何資料。',
+        '更新を保留しました。状態を保存できない画面があります。保存状態を確認し、バックアップ後に再試行してください。データは削除されていません。',
+        '상태를 저장하지 못한 페이지가 있어 업데이트를 보류했습니다. 저장 상태를 확인하고 백업한 뒤 다시 시도하세요. 삭제된 데이터는 없습니다.',
+        'Mise à jour reportée : une page n’a pas pu enregistrer son état. Vérifiez l’enregistrement et sauvegardez votre travail avant de réessayer. Rien n’a été effacé.',
+        'Update verschoben: Eine Seite konnte ihren Zustand nicht speichern. Speicherstatus prüfen und Arbeit vor dem erneuten Versuch sichern. Nichts wurde gelöscht.',
+    ],
+    'Update postponed: another app page opened during the check. Retry when all app pages are ready.':[
+        '更新已暂缓：检查期间打开了新的应用页面。请在所有应用页面就绪后重试。',
+        '更新已暫緩：檢查期間開啟了新的應用程式頁面。請在所有頁面就緒後重試。',
+        '確認中に別のアプリ画面が開いたため更新を保留しました。すべての画面の準備ができてから再試行してください。',
+        '확인 중 새 앱 페이지가 열려 업데이트를 보류했습니다. 모든 앱 페이지가 준비되면 다시 시도하세요.',
+        'Mise à jour reportée : une nouvelle page de l’app s’est ouverte pendant la vérification. Réessayez quand toutes les pages sont prêtes.',
+        'Update verschoben: Während der Prüfung wurde eine weitere App-Seite geöffnet. Erneut versuchen, wenn alle Seiten bereit sind.',
+    ],
+    'Update postponed: an app page did not respond. Bring other app tabs or PWA windows to the foreground, or close idle ones, then retry. Do not clear site data.':[
+        '更新已暂缓：有应用页面未响应。请切到其他应用标签页或 PWA 窗口唤醒它，或关闭空闲页面后重试。不要清除网站数据。',
+        '更新已暫緩：有應用程式頁面未回應。請切到其他分頁或 PWA 視窗喚醒它，或關閉閒置頁面後重試。不要清除網站資料。',
+        '応答しないアプリ画面があるため更新を保留しました。他のタブや PWA を前面に出すか、使っていない画面を閉じて再試行してください。サイトデータは削除しないでください。',
+        '응답하지 않는 앱 페이지가 있어 업데이트를 보류했습니다. 다른 앱 탭이나 PWA 창을 앞으로 가져오거나 사용하지 않는 창을 닫고 다시 시도하세요. 사이트 데이터를 삭제하지 마세요.',
+        'Mise à jour reportée : une page ne répond pas. Affichez les autres onglets ou fenêtres PWA, ou fermez ceux qui sont inactifs, puis réessayez. N’effacez pas les données du site.',
+        'Update verschoben: Eine App-Seite antwortet nicht. Andere App-Tabs oder PWA-Fenster in den Vordergrund holen oder ungenutzte schließen und erneut versuchen. Keine Websitedaten löschen.',
+    ],
+    'Saving state and checking other app pages… This may take up to 30 seconds.':[
+        '正在保存状态并检查其他应用页面… 最多等待 30 秒。',
+        '正在儲存狀態並檢查其他應用程式頁面… 最多等候 30 秒。',
+        '状態を保存し、他のアプリ画面を確認中… 最大 30 秒かかります。',
+        '상태 저장 및 다른 앱 페이지 확인 중… 최대 30초가 걸릴 수 있습니다.',
+        'Enregistrement et vérification des autres pages… Cela peut prendre 30 secondes.',
+        'Zustand speichern und andere App-Seiten prüfen… Dies kann bis zu 30 Sekunden dauern.',
+    ],
+    'Update available. Finish tasks in all app tabs and download temporary files before applying. Saved workspace data is retained.':[
+        '有新版本。请先完成各页面的任务并下载临时文件，再应用更新；已保存的工作区数据会保留。',
+        '有新版本。請先完成各頁面的工作並下載暫存檔，再套用更新；已儲存的工作區資料會保留。',
+        '新しいバージョンがあります。各画面のタスクを完了し、一時ファイルをダウンロードしてから更新してください。保存済みデータは保持されます。',
+        '새 버전이 있습니다. 모든 탭의 작업을 완료하고 임시 파일을 다운로드한 뒤 업데이트하세요. 저장된 작업 공간 데이터는 유지됩니다.',
+        'Mise à jour disponible. Terminez les tâches et téléchargez les fichiers temporaires avant de l’appliquer. Les données enregistrées sont conservées.',
+        'Update verfügbar. Erst Aufgaben in allen Tabs beenden und temporäre Dateien herunterladen. Gespeicherte Arbeitsbereichsdaten bleiben erhalten.',
+    ],
+    'Finish or stop the current task before updating.':[
+        '请先完成或停止当前任务，再更新应用。','請先完成或停止目前的工作，再更新應用程式。',
+        '現在のタスクを完了または停止してから更新してください。','현재 작업을 완료하거나 중지한 뒤 업데이트하세요.',
+        'Terminez ou arrêtez la tâche en cours avant la mise à jour.','Vor dem Update die aktuelle Aufgabe beenden oder stoppen.',
+    ],
+    'No update is waiting. Reopen the app to check again.':[
+        '目前没有待应用的更新。重新打开应用可再次检查。','目前沒有待套用的更新。重新開啟應用程式可再次檢查。',
+        '適用待ちの更新はありません。アプリを開き直して確認してください。','대기 중인 업데이트가 없습니다. 앱을 다시 열어 확인하세요.',
+        'Aucune mise à jour en attente. Rouvrez l’app pour vérifier.','Kein Update wartet. App zur erneuten Prüfung wieder öffnen.',
+    ],
+    'Checking open app tabs before updating… This may take up to 30 seconds.':[
+        '正在检查已打开的应用页面… 最多等待 30 秒。','正在檢查已開啟的應用程式頁面… 最多等候 30 秒。',
+        '開いているアプリ画面を確認中… 最大 30 秒かかります。','열린 앱 탭 확인 중… 최대 30초가 걸릴 수 있습니다.',
+        'Vérification des pages ouvertes… Cela peut prendre 30 secondes.','Offene App-Tabs prüfen… Dies kann bis zu 30 Sekunden dauern.',
+    ],
+    'Update postponed: the update service did not respond. Close idle app tabs and PWA windows, then reopen. Do not clear site data.':[
+        '更新已暂缓：更新服务未响应。请关闭空闲应用标签页和 PWA 窗口，再重新打开。不要清除网站数据。',
+        '更新已暫緩：更新服務未回應。請關閉閒置的應用程式分頁與 PWA 視窗，再重新開啟。不要清除網站資料。',
+        '更新サービスが応答しません。使っていないアプリタブや PWA を閉じて開き直してください。サイトデータは削除しないでください。',
+        '업데이트 서비스가 응답하지 않습니다. 사용하지 않는 앱 탭과 PWA 창을 닫고 다시 여세요. 사이트 데이터를 삭제하지 마세요.',
+        'Le service de mise à jour ne répond pas. Fermez les onglets et PWA inactifs, puis rouvrez l’app. N’effacez pas les données du site.',
+        'Der Update-Dienst antwortet nicht. Ungenutzte App-Tabs und PWA-Fenster schließen, dann erneut öffnen. Keine Websitedaten löschen.',
+    ],
+    'PWA requires HTTPS and Service Worker support.':[
+        '安装应用需要 HTTPS 和 Service Worker 支持。','安裝應用程式需要 HTTPS 與 Service Worker 支援。',
+        'PWA には HTTPS と Service Worker の対応が必要です。','PWA에는 HTTPS와 Service Worker 지원이 필요합니다.',
+        'La PWA nécessite HTTPS et Service Worker.','PWA benötigt HTTPS und Service-Worker-Unterstützung.',
+    ],
+    'PWA registration unavailable; local workspace remains usable.':[
+        '暂时无法注册离线应用；本地工作区仍可使用。','暫時無法註冊離線應用程式；本機工作區仍可使用。',
+        'PWA を登録できません。ローカルの作業スペースは利用できます。','PWA를 등록할 수 없습니다. 로컬 작업 공간은 계속 사용할 수 있습니다.',
+        'Inscription PWA indisponible ; l’espace local reste utilisable.','PWA-Registrierung nicht verfügbar; der lokale Arbeitsbereich bleibt nutzbar.',
+    ],
+    'Online. AI requires a reachable endpoint.':[
+        '已联网；AI 仍需模型接口可访问。','已連線；AI 仍需模型端點可存取。',
+        'オンラインです。AI の利用には接続可能な API が必要です。','온라인입니다. AI를 사용하려면 API에 연결할 수 있어야 합니다.',
+        'En ligne. L’AI nécessite une API accessible.','Online. KI benötigt einen erreichbaren API-Endpunkt.',
+    ],
+    'Offline: AI unavailable; local files and ZIP export remain available.':[
+        '当前离线：AI 不可用；仍可操作本地文件和导出 ZIP。','目前離線：AI 無法使用；仍可操作本機檔案與匯出 ZIP。',
+        'オフライン：AI は使えません。ローカルファイルと ZIP 出力は利用できます。','오프라인: AI는 사용할 수 없지만 로컬 파일과 ZIP 내보내기는 가능합니다.',
+        'Hors ligne : AI indisponible ; fichiers locaux et export ZIP accessibles.','Offline: KI nicht verfügbar; lokale Dateien und ZIP-Export bleiben nutzbar.',
+    ],
+    'PWA ready; local files are available offline.':[
+        '离线应用已就绪，本地文件可离线使用。','離線應用程式已就緒，本機檔案可離線使用。',
+        'PWA の準備ができました。ローカルファイルはオフラインで使えます。','PWA가 준비되었습니다. 로컬 파일은 오프라인으로 사용할 수 있습니다.',
+        'PWA prête ; fichiers locaux accessibles hors ligne.','PWA bereit; lokale Dateien sind offline verfügbar.',
+    ],
+    'Offline: local files only.':[
+        '当前离线，仅可操作本地文件。','目前離線，僅可操作本機檔案。',
+        'オフライン：ローカルファイルのみ利用できます。','오프라인: 로컬 파일만 사용할 수 있습니다.',
+        'Hors ligne : fichiers locaux uniquement.','Offline: nur lokale Dateien verfügbar.',
+    ],
+};
+for(const [key,row]of Object.entries(pwaCopy))for(const [index,language]of ['zh-CN','zh-TW','ja','ko','fr','de'].entries())copy[language][key]=row[index];

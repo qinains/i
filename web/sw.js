@@ -37,27 +37,49 @@ async function activateSafely() {
     updating = true;
     const id = crypto.randomUUID();
     let pages = [];
+    let reason = 'unresponsive';
+    const leases = [];
+    let expireLegacy;
+    const legacyExpired = new Promise((_,reject) => {expireLegacy=reject;});
     try {
         pages = (await self.clients.matchAll({type:'window',includeUncontrolled:true})).filter(client => client.url.startsWith(scope));
         if (!pages.length) return;
-        const acks = pages.map(page => new Promise(resolve => {
-            const timer = setTimeout(() => {replies.delete(page.id); resolve(false);},3000);
-            replies.set(page.id,{id,resolve:value => {clearTimeout(timer); replies.delete(page.id); resolve(value);}});
+        const acks = pages.map(page => new Promise((resolve,reject) => {
+            const finish = value => {
+                clearTimeout(timer); replies.delete(page.id);
+                if (['ready','unresponsive'].includes(value)) resolve({page:page.id,reason:value});
+                else reject(value);
+            };
+            const timer = setTimeout(() => finish('unresponsive'),30000);
+            replies.set(page.id,{id,resolve:(value,protocol)=>{
+                // Older pages release their update lock after ten seconds.
+                if (value === 'ready' && protocol !== 2) leases.push(setTimeout(()=>expireLegacy('unresponsive'),8000));
+                finish(value);
+            },cancel:()=>{clearTimeout(timer);replies.delete(page.id);resolve({page:page.id,reason:'cancelled'});}});
             page.postMessage({type:'pwa_lock',id});
         }));
-        const ready = (await Promise.all(acks)).every(Boolean);
+        const results = await Promise.race([Promise.all(acks),legacyExpired]);
         const current = (await self.clients.matchAll({type:'window',includeUncontrolled:true})).filter(client => client.url.startsWith(scope));
-        if (!ready || current.some(client => !pages.some(page => page.id === client.id))) throw new Error('Another tab is busy or unavailable');
+        if (current.some(client => !pages.some(page => page.id === client.id))) throw 'changed';
+        if (current.some(client => results.find(result => result.page === client.id)?.reason !== 'ready')) throw 'unresponsive';
         await self.skipWaiting();
-    } catch {
-        for (const page of pages) page.postMessage({type:'pwa_unlock',id});
-    } finally {updating = false;}
+    } catch (error) {
+        if (['busy','save-failed','changed'].includes(error)) reason = error;
+        for (const page of pages) {
+            try {page.postMessage({type:'pwa_unlock',id,reason});}
+            catch {} // A discarded client must not strand other pages' locks.
+        }
+    } finally {
+        for (const timer of leases) clearTimeout(timer);
+        for (const reply of replies.values()) if (reply.id === id) reply.cancel();
+        updating = false;
+    }
 }
 self.addEventListener('message',event => {
     if (!event.source?.url?.startsWith(scope)) return;
     if (event.data?.type === 'pwa_update') event.waitUntil(activateSafely());
     if (event.data?.type === 'pwa_idle') {
         const reply = replies.get(event.source.id);
-        if (reply?.id === event.data.id) reply.resolve(event.data.idle === true);
+        if (reply?.id === event.data.id) reply.resolve(event.data.idle === true ? 'ready' : event.data.reason === 'save-failed' ? 'save-failed' : 'busy',event.data.protocol);
     }
 });
