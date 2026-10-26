@@ -4,6 +4,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {chromium,webkit} from '../web/node_modules/playwright/index.mjs';
 import {languageOptions} from './assets/languages.js';
+import './test-button-contrast.mjs';
 
 const profile=await mkdtemp(join(tmpdir(),'lninl-site-'));
 const origin=process.env.SITE_TEST_ORIGIN||'http://localhost:8090';

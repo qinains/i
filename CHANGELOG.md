@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep filled website buttons readable in light and dark themes, including
+  navigation, hover and keyboard-focus states; check their contrast in browsers.
 - Align the website, browser workspace and native locale registry across 17
   languages, with complete UI catalogs, build-time key/placeholder validation,
   Arabic RTL layout, region-aware defaults and persistent language selection.

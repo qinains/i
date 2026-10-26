@@ -1,5 +1,5 @@
-html[data-page=home]{color-scheme:dark;--bg:#090e13;--surface:#10171f;--soft:#131e29;--ink:#e9f1f8;--muted:#94a6b9;--line:#25313e;--accent:#81dfcf;--accent-soft:#142f30;--shadow:0 24px 90px #0006}
-html[data-page=home][data-theme=light]{color-scheme:light;--bg:#f6f9fc;--surface:#fff;--soft:#eaf1f7;--ink:#152a3a;--muted:#536a7d;--line:#cbd9e5;--accent:#087c71;--accent-soft:#e0f3ef;--shadow:0 24px 90px #294e6c13}
+html[data-page=home]{color-scheme:dark;--bg:#090e13;--surface:#10171f;--soft:#131e29;--ink:#e9f1f8;--muted:#94a6b9;--line:#25313e;--accent:#81dfcf;--accent-soft:#142f30;--button-ink:#09211f;--shadow:0 24px 90px #0006}
+html[data-page=home][data-theme=light]{color-scheme:light;--bg:#f6f9fc;--surface:#fff;--soft:#eaf1f7;--ink:#152a3a;--muted:#536a7d;--line:#cbd9e5;--accent:#087c71;--accent-soft:#e0f3ef;--button-ink:#fff;--shadow:0 24px 90px #294e6c13}
 html[data-page=home] body{background:radial-gradient(ellipse at 74% 12%,#237e8414,transparent 32%),var(--bg)}
 html[data-page=home] header{background:var(--bg);border-color:var(--line)}
 html[data-page=home] .header-inner{max-width:1440px;padding:20px 48px}
@@ -7,7 +7,7 @@ html[data-page=home] .brand{font-size:27px;letter-spacing:-2px}
 html[data-page=home] .brand small{display:none}
 html[data-page=home] .header-inner nav{gap:22px}
 html[data-page=home] .header-inner nav>a{color:var(--muted)}
-html[data-page=home] .button,html[data-page=home] .header-inner nav>a.button{background:var(--accent);border-color:var(--accent);color:#09211f;border-radius:6px;gap:22px;box-shadow:0 0 24px #81dfcf0c}
+html[data-page=home] .button,html[data-page=home] .header-inner nav>a.button{background:var(--accent);border-color:var(--accent);color:var(--button-ink);border-radius:6px;gap:22px;box-shadow:0 0 24px #81dfcf0c}
 html[data-page=home] .button:hover{background:var(--ink);border-color:var(--ink);color:var(--bg);text-decoration:none;transform:translateY(-2px)}
 html[data-page=home] .button.secondary{background:transparent;color:var(--ink);border-color:var(--line)}
 html[data-page=home] .button.secondary:hover{border-color:var(--accent);color:var(--accent);background:var(--surface)}
