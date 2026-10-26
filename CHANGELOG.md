@@ -4,6 +4,7 @@
 
 - Mirror dropdown arrows and gutters in Arabic layouts; audit website and
   workspace controls across themes and improve compact disclosure hit areas.
+  Give the website language selector consistent inset arrows and label space.
 - Keep filled website buttons readable in light and dark themes, including
   navigation, hover and keyboard-focus states; check their contrast in browsers.
 - Align the website, browser workspace and native locale registry across 17

@@ -17,6 +17,8 @@ html[dir=rtl] .runtime-panel+.runtime-panel {border-left:0;border-right:1px soli
 html[dir=rtl] :is(.home-hero h1,.home-section h2) {letter-spacing:normal}
 @media(max-width:720px){html[dir=rtl] #search-results{left:16px;right:16px}html[dir=rtl] .runtime-panel+.runtime-panel{border-right:0}}
 .brand span{color:var(--brand-accent)}
-#site-language{max-width:100px;border:1px solid var(--line);border-radius:6px;padding-block:6px;padding-inline:9px 24px;background-color:var(--surface);color:var(--ink);font:12px system-ui,sans-serif;cursor:pointer}
+#site-language{appearance:none;-webkit-appearance:none;width:118px;min-width:100px;max-width:132px;border:1px solid var(--line);border-radius:6px;padding-block:7px;padding-inline:12px 34px;background-color:var(--surface);background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%;background-size:5px 5px;background-repeat:no-repeat;color:var(--ink);font:12px system-ui,sans-serif;cursor:pointer}
+html[dir=rtl] #site-language{background-position:13px 50%,18px 50%}
+@media(forced-colors:active){#site-language{appearance:auto;-webkit-appearance:auto;background-image:none;padding-inline:12px 24px}}
 #site-language:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
-@media(max-width:450px){.header-inner{flex-wrap:wrap}.header-inner nav{flex-wrap:wrap;gap:10px}html[data-page=docs] .header-inner nav>a.button{display:none}#site-language{max-width:85px}}
+@media(max-width:450px){.header-inner{flex-wrap:wrap}.header-inner nav{flex-wrap:wrap;gap:10px}html[data-page=docs] .header-inner nav>a.button{display:none}#site-language{max-width:104px}}
