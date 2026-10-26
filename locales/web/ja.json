@@ -1,4 +1,11 @@
 {
+  "Plugin catalog": "プラグインカタログ",
+  "Load catalog": "カタログを読み込む",
+  "Download and inspect": "ダウンロードして確認",
+  "Submit a plugin": "プラグインを提出",
+  "Catalog updated. Choose a package to inspect before installing.": "カタログを更新しました。インストール前にパッケージを選んで確認してください。",
+  "Catalog listing does not grant permissions or verify publisher identity.": "カタログ掲載は権限の付与や公開者の本人確認を意味しません。",
+  "No plugins available.": "利用可能なプラグインはありません。",
   "Browser workspace. Shell is disabled; workspace files are saved on this device. Conversations save automatically. Use /help for commands.": "ブラウザーのワークスペースです。シェルは無効で、ワークスペースのファイルはこの端末に保存されます。会話は自動保存されます。コマンドは /help で確認できます。",
   "Shell commands are disabled in browser mode.": "ブラウザーモードではシェルコマンドは無効です。",
   "Unknown command. Use /help.": "不明なコマンドです。/help を使用してください。",

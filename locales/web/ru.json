@@ -1,4 +1,11 @@
 {
+  "Plugin catalog": "Каталог плагинов",
+  "Load catalog": "Загрузить каталог",
+  "Download and inspect": "Скачать и проверить",
+  "Submit a plugin": "Предложить плагин",
+  "Catalog updated. Choose a package to inspect before installing.": "Каталог обновлён. Выберите пакет для проверки перед установкой.",
+  "Catalog listing does not grant permissions or verify publisher identity.": "Включение в каталог не предоставляет разрешений и не подтверждает личность издателя.",
+  "No plugins available.": "Нет доступных плагинов.",
   "Browser workspace. Shell is disabled; workspace files are saved on this device. Conversations save automatically. Use /help for commands.": "Рабочая область в браузере. Командная оболочка отключена; файлы рабочей области сохраняются на этом устройстве. Разговоры сохраняются автоматически. Список команд: /help.",
   "Shell commands are disabled in browser mode.": "Команды оболочки отключены в режиме браузера.",
   "Unknown command. Use /help.": "Неизвестная команда. Используйте /help.",

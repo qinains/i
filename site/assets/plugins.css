@@ -1,0 +1,11 @@
+.plugin-directory{max-width:72rem;margin:2rem auto;padding:0 1rem}
+.plugin-directory>p{max-width:65ch}
+.plugin-actions{display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap;margin:1.5rem 0}
+.plugin-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr));gap:1.25rem;margin:1.5rem 0 3rem}
+.plugin-card{border:1px solid var(--line);border-radius:12px;padding:1.25rem;min-width:0}
+.plugin-card h2{margin-top:0;font-size:1.25rem;overflow-wrap:anywhere}
+.plugin-card p,.plugin-card code{overflow-wrap:anywhere}
+.plugin-card pre{white-space:pre-wrap;font-size:.8rem}
+.plugin-card nav{display:flex;gap:1rem;flex-wrap:wrap}
+#plugins-load{padding:.65rem 1rem;font:inherit;cursor:pointer;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px}
+#plugins-load:disabled{cursor:wait}

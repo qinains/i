@@ -8,7 +8,8 @@ for(const [name,type]of Object.entries({chromium,webkit})){
     const browser=await type.launch({headless:true});
     try{
         const page=await browser.newPage({viewport:{width:1440,height:1000},reducedMotion:'reduce'});
-        for(const path of ['/','/docs/plugin-development/']){
+        await page.route('https://qinains.github.io/i-plugins/index.json',route=>route.fulfill({contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:'{"schema_version":1,"plugins":[]}'}));
+        for(const path of ['/','/docs/plugin-development/','/plugins/']){
             await page.goto(origin+path);await page.locator('#site-language option[value=ar]').waitFor({state:'attached'});
             for(const width of [1440,390])for(const scheme of ['light','dark'])for(const theme of ['auto','light','dark']){
                 await page.setViewportSize({width,height:1000});

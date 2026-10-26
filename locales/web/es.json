@@ -1,4 +1,11 @@
 {
+  "Plugin catalog": "Catálogo de plugins",
+  "Load catalog": "Cargar catálogo",
+  "Download and inspect": "Descargar e inspeccionar",
+  "Submit a plugin": "Enviar un plugin",
+  "Catalog updated. Choose a package to inspect before installing.": "Catálogo actualizado. Elige un paquete para inspeccionarlo antes de instalarlo.",
+  "Catalog listing does not grant permissions or verify publisher identity.": "Aparecer en el catálogo no otorga permisos ni verifica la identidad del editor.",
+  "No plugins available.": "No hay plugins disponibles.",
   "Browser workspace. Shell is disabled; workspace files are saved on this device. Conversations save automatically. Use /help for commands.": "Espacio de trabajo del navegador. El shell está desactivado; los archivos del espacio de trabajo se guardan en este dispositivo. Las conversaciones se guardan automáticamente. Usa /help para ver los comandos.",
   "Shell commands are disabled in browser mode.": "Los comandos del shell están desactivados en el modo navegador.",
   "Unknown command. Use /help.": "Comando desconocido. Usa /help.",

@@ -1,4 +1,11 @@
 {
+  "Plugin catalog": "Eklenti kataloğu",
+  "Load catalog": "Kataloğu yükle",
+  "Download and inspect": "İndir ve incele",
+  "Submit a plugin": "Eklenti gönder",
+  "Catalog updated. Choose a package to inspect before installing.": "Katalog güncellendi. Yüklemeden önce incelemek için bir paket seçin.",
+  "Catalog listing does not grant permissions or verify publisher identity.": "Katalogda listelenmek izin vermez veya yayıncının kimliğini doğrulamaz.",
+  "No plugins available.": "Kullanılabilir eklenti yok.",
   "Browser workspace. Shell is disabled; workspace files are saved on this device. Conversations save automatically. Use /help for commands.": "Tarayıcı çalışma alanı. Kabuk devre dışıdır; çalışma alanı dosyaları bu cihazda kaydedilir. Konuşmalar otomatik kaydedilir. Komutlar için /help kullanın.",
   "Shell commands are disabled in browser mode.": "Tarayıcı modunda kabuk komutları devre dışıdır.",
   "Unknown command. Use /help.": "Bilinmeyen komut. /help kullanın.",

@@ -1,4 +1,11 @@
 {
+  "Plugin catalog": "แค็ตตาล็อกปลั๊กอิน",
+  "Load catalog": "โหลดแค็ตตาล็อก",
+  "Download and inspect": "ดาวน์โหลดและตรวจสอบ",
+  "Submit a plugin": "ส่งปลั๊กอิน",
+  "Catalog updated. Choose a package to inspect before installing.": "อัปเดตแค็ตตาล็อกแล้ว เลือกแพ็กเกจเพื่อตรวจสอบก่อนติดตั้ง",
+  "Catalog listing does not grant permissions or verify publisher identity.": "การแสดงในแค็ตตาล็อกไม่ได้ให้สิทธิ์หรือยืนยันตัวตนของผู้เผยแพร่",
+  "No plugins available.": "ไม่มีปลั๊กอินที่พร้อมใช้งาน",
   "Browser workspace. Shell is disabled; workspace files are saved on this device. Conversations save automatically. Use /help for commands.": "พื้นที่ทำงานบนเบราว์เซอร์ เชลล์ปิดใช้งาน ไฟล์พื้นที่ทำงานบันทึกบนอุปกรณ์นี้ การสนทนาบันทึกอัตโนมัติ ใช้ /help เพื่อดูคำสั่ง",
   "Shell commands are disabled in browser mode.": "คำสั่งเชลล์ปิดใช้งานในโหมดเบราว์เซอร์",
   "Unknown command. Use /help.": "ไม่รู้จักคำสั่ง ใช้ /help",

@@ -48,6 +48,7 @@ jobs:
       - name: Report the installable debug executable size
         run: python3 -c "from pathlib import Path; p=Path('target/debug/i.exe' if __import__('os').name=='nt' else 'target/debug/i'); print('Debug executable bytes:', p.stat().st_size)"
       - run: cargo test --workspace --locked --features bundled
+      - run: cargo test --locked -p i-wasm-package --features cli
       - run: cargo check --locked --no-default-features -p i
       - name: Verify interactive editor with a pseudo-terminal
         if: runner.os != 'Windows'

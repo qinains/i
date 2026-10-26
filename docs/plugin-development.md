@@ -3,6 +3,9 @@
 本教程产出两个不同的插件：浏览器 `.hplugin.zip` 和桌面 NDJSON worker。
 都不需要真实 API key 即可构建和测试。CORS 浏览器扩展不属于此教程的工具插件。
 
+完成浏览器插件后，参阅[插件发布指南](plugin-publishing.md)，通过
+[社区注册表](https://github.com/qinains/i-plugins)的 PR 提交到[插件目录](https://i.lninl.com/plugins/)。
+
 ## 准备环境
 
 从源码仓库根目录操作，要求 Rust 1.91+、Cargo、Node.js、Python 3。浏览器测试

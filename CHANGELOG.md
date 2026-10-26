@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add a PR-managed community plugin catalog, public plugin directory and
+  digest-verified downloads. Inspection, installation and workspace permission
+  approval remain separate actions; catalog publishing needs no app release.
 - Mirror dropdown arrows and gutters in Arabic layouts; audit website and
   workspace controls across themes and improve compact disclosure hit areas.
   Give the website language selector consistent inset arrows and label space.

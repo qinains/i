@@ -1,4 +1,11 @@
 {
+  "Plugin catalog": "دليل الإضافات",
+  "Load catalog": "تحميل الدليل",
+  "Download and inspect": "تنزيل وفحص",
+  "Submit a plugin": "إرسال إضافة",
+  "Catalog updated. Choose a package to inspect before installing.": "تم تحديث الدليل. اختر حزمة لفحصها قبل التثبيت.",
+  "Catalog listing does not grant permissions or verify publisher identity.": "الإدراج في الدليل لا يمنح أذونات ولا يتحقق من هوية الناشر.",
+  "No plugins available.": "لا توجد إضافات متاحة.",
   "Browser workspace. Shell is disabled; workspace files are saved on this device. Conversations save automatically. Use /help for commands.": "مساحة عمل في المتصفح. واجهة الأوامر معطلة؛ تحفظ ملفات مساحة العمل على هذا الجهاز. تحفظ المحادثات تلقائيا. استخدم /help للاطلاع على الأوامر.",
   "Shell commands are disabled in browser mode.": "أوامر واجهة الأوامر معطلة في وضع المتصفح.",
   "Unknown command. Use /help.": "أمر غير معروف. استخدم /help.",

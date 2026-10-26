@@ -1,4 +1,11 @@
 {
+  "Plugin catalog": "Katalog wtyczek",
+  "Load catalog": "Wczytaj katalog",
+  "Download and inspect": "Pobierz i sprawdź",
+  "Submit a plugin": "Zgłoś wtyczkę",
+  "Catalog updated. Choose a package to inspect before installing.": "Katalog zaktualizowano. Wybierz pakiet do sprawdzenia przed instalacją.",
+  "Catalog listing does not grant permissions or verify publisher identity.": "Wpis w katalogu nie przyznaje uprawnień ani nie potwierdza tożsamości wydawcy.",
+  "No plugins available.": "Brak dostępnych wtyczek.",
   "Browser workspace. Shell is disabled; workspace files are saved on this device. Conversations save automatically. Use /help for commands.": "Obszar roboczy w przeglądarce. Powłoka jest wyłączona; pliki obszaru roboczego są zapisywane na tym urządzeniu. Rozmowy zapisują się automatycznie. Listę poleceń znajdziesz w /help.",
   "Shell commands are disabled in browser mode.": "Polecenia powłoki są wyłączone w trybie przeglądarki.",
   "Unknown command. Use /help.": "Nieznane polecenie. Użyj /help.",

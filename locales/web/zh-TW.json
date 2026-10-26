@@ -1,4 +1,11 @@
 {
+  "Plugin catalog": "外掛目錄",
+  "Load catalog": "載入目錄",
+  "Download and inspect": "下載並檢查",
+  "Submit a plugin": "提交外掛",
+  "Catalog updated. Choose a package to inspect before installing.": "目錄已更新。安裝前請選擇外掛套件進行檢查。",
+  "Catalog listing does not grant permissions or verify publisher identity.": "目錄收錄不代表授予權限，也不代表驗證發布者身分。",
+  "No plugins available.": "目前沒有外掛。",
   "Browser workspace. Shell is disabled; workspace files are saved on this device. Conversations save automatically. Use /help for commands.": "瀏覽器工作區。Shell 已停用；工作區檔案儲存在此裝置上。對話會自動儲存。輸入 /help 查看命令。",
   "Shell commands are disabled in browser mode.": "瀏覽器模式已停用 Shell 命令。",
   "Unknown command. Use /help.": "未知命令。請使用 /help。",

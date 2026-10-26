@@ -2,6 +2,7 @@ import {node} from '../render.js';
 import {uiText} from '../i18n.js';
 import {isTemporaryWorkspace} from '../workspaces.js';
 import {promptEditor} from './prompts.js';
+import {fetchCatalog,previewCatalogPlugin} from './catalog.js';
 const text=(tag,key,className='')=>{const element=node(tag,uiText(key),className);element.dataset.i18n=key;return element;};
 function permissions(p){return [uiText(p.workspace==='read-write'?'Read and modify workspace files':p.workspace==='read'?'Read workspace files':'No workspace file access'),uiText(p.storage?'Private plugin storage':'No private plugin storage')].join(' · ');}
 export function mountPluginSettings({manager,currentWorkspace,isBusy,onError,onBusy=()=>{},promptStore,defaultPrompt}){
@@ -10,11 +11,35 @@ export function mountPluginSettings({manager,currentWorkspace,isBusy,onError,onB
     const status=node('p','','note');status.id='plugin-status';status.role='status';
     const previewBox=node('section','','plugin-card');previewBox.id='plugin-preview';previewBox.hidden=true;
     const list=node('div');list.id='plugin-list';
-    panel.append(text('h2','Installed plugins'),text('p','Import a Rust-built WASM plugin package. Installation does not enable it.','note'),file,status,previewBox,list);
+    const catalog=node('section');catalog.id='plugin-catalog';const catalogList=node('div');catalogList.id='plugin-catalog-list';
+    const abort=new AbortController();
+    panel.append(catalog,text('h2','Installed plugins'),text('p','Import a Rust-built WASM plugin package. Installation does not enable it.','note'),file,status,previewBox,list);
     const getManager=()=>typeof manager==='function'?manager():Promise.resolve(manager);
     function controls(){for(const element of panel.querySelectorAll('input,button'))element.disabled=busy||isBusy();}
     async function action(fn){if(busy||isBusy())return;busy=true;onBusy(true);controls();try{await fn();}catch(error){status.textContent=uiText('Plugin operation failed: {reason}',{reason:String(error?.message??error)});onError(error);}finally{busy=false;onBusy(false);controls();}}
     function button(key,fn){const element=text('button',key);element.type='button';element.addEventListener('click',()=>action(fn));return element;}
+    const load=button('Load catalog',async()=>{
+        const result=await fetchCatalog({signal:abort.signal});catalogList.replaceChildren();
+        if(!result.plugins.length)catalogList.append(text('p','No plugins available.','note'));
+        for(const entry of result.plugins){
+            const card=node('section','','plugin-card');card.dataset.catalogPlugin=entry.id;
+            card.append(node('h3',`${entry.name} · ${entry.version}`),node('p',entry.description),node('p',`${entry.id} · ${entry.license}`,'note'),node('p',permissions(entry.permissions),'note'));
+            const source=node('a',entry.repository);source.href=entry.repository;source.target='_blank';source.rel='noopener noreferrer';source.referrerPolicy='no-referrer';card.append(source);
+            const inspect=button('Download and inspect',async()=>{const m=await getManager(),p=await previewCatalogPlugin(m,entry,{signal:abort.signal});showPreview(p,m);});
+            inspect.dataset.catalogInspect=entry.id;card.append(inspect);catalogList.append(card);
+        }
+        status.textContent=uiText('Catalog updated. Choose a package to inspect before installing.');
+    });load.id='plugin-catalog-load';
+    const submit=text('a','Submit a plugin');submit.href='https://github.com/qinains/i-plugins';submit.target='_blank';submit.rel='noopener noreferrer';
+    const catalogActions=node('div','','actions');catalogActions.append(load,submit);
+    catalog.append(text('h2','Plugin catalog'),text('p','Catalog listing does not grant permissions or verify publisher identity.','note'),catalogActions,catalogList);
+    function showPreview(p,m){
+        preview=p;previewBox.replaceChildren();previewBox.hidden=false;
+        previewBox.append(node('h3',`${p.manifest.name} · ${p.manifest.version}`),text('p','Unverified publisher','plugin-warning'),node('p',p.manifest.id,'note'),node('p',permissions(p.manifest.permissions),'note'),node('p',p.digest,'plugin-digest note'));
+        const tools=node('ul');for(const tool of p.manifest.tools)tools.append(node('li',`${tool.name} — ${tool.description}`));previewBox.append(tools);
+        const install=button('Install / update',async()=>{await m.install(p);preview=null;previewBox.hidden=true;file.value='';status.textContent=uiText('Installed. Enable it for a workspace. Updates require re-enabling.');await refresh();});install.id='plugin-install';
+        const cancel=button('Cancel',async()=>{preview=null;previewBox.hidden=true;previewBox.replaceChildren();file.value='';});previewBox.append(install,cancel);
+    }
     async function refresh(){
         const workspace=currentWorkspace();if(!workspace)return;
         const m=await getManager(),records=await m.list();list.replaceChildren();
@@ -47,10 +72,7 @@ export function mountPluginSettings({manager,currentWorkspace,isBusy,onError,onB
         preview=null;previewBox.replaceChildren();previewBox.hidden=true;const selected=file.files[0];if(!selected)return;
         if(selected.size>10*1024*1024)throw new Error(uiText('Plugin package exceeds 10 MiB.'));
         const m=await getManager();preview=await m.preview(new Uint8Array(await selected.arrayBuffer()));
-        const p=preview;previewBox.append(node('h3',`${p.manifest.name} · ${p.manifest.version}`),text('p','Unverified publisher','plugin-warning'),node('p',p.manifest.id,'note'),node('p',permissions(p.manifest.permissions),'note'),node('p',p.digest,'plugin-digest note'));
-        const tools=node('ul');for(const tool of p.manifest.tools)tools.append(node('li',`${tool.name} — ${tool.description}`));previewBox.append(tools);
-        const install=button('Install / update',async()=>{await m.install(p);preview=null;previewBox.hidden=true;file.value='';status.textContent=uiText('Installed. Enable it for a workspace. Updates require re-enabling.');await refresh();});install.id='plugin-install';
-        const cancel=button('Cancel',async()=>{preview=null;previewBox.hidden=true;previewBox.replaceChildren();file.value='';});previewBox.append(install,cancel);previewBox.hidden=false;
+        showPreview(preview,m);
     }));
-    return {refresh:()=>action(refresh),updateControls:controls,dispose:()=>{preview=null;panel.replaceChildren();}};
+    return {refresh:()=>action(refresh),updateControls:controls,dispose:()=>{abort.abort();preview=null;panel.replaceChildren();}};
 }

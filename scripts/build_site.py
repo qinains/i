@@ -15,7 +15,7 @@ from urllib.parse import quote, urlsplit
 ROOT = Path(__file__).resolve().parent.parent
 REPOSITORY = "https://github.com/qinains/i"
 EXCLUDED = {"tools-composer-verification.md", "dependency-size-history.md", "dependency-audit.md", "dependency-size.md", "size-report.md"}
-FEATURED = ["index", "connect-model", "system-overview", "plugin-development", "wasm-plugin-reference", "plugins", "wasm", "deployment", "providers", "file-tools", "cors-extension", "site-deployment", "opfs-concurrency"]
+FEATURED = ["index", "connect-model", "system-overview", "plugin-development", "plugin-publishing", "wasm-plugin-reference", "plugins", "wasm", "deployment", "providers", "file-tools", "cors-extension", "site-deployment", "opfs-concurrency"]
 ENGLISH_DOCUMENTS = {"README.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE", "compaction.md", "console.md", "composer.md", "file-tools.md", "opfs-concurrency.md", "network.md", "wasm-size.md"}
 
 
@@ -201,14 +201,20 @@ def main():
     def emit(url, title, body, toc="", docs=False):
         canonical = origin + url; destination = staging / url.lstrip("/") / "index.html"; destination.parent.mkdir(parents=True, exist_ok=True)
         home = url == "/"
+        plugins = url == "/plugins/"
         values = {"TITLE": html.escape(title), "CANONICAL": html.escape(canonical, quote=True), "BODY": body, "SIDEBAR": sidebar if docs else "", "TOC": toc, "LAYOUT": "documentation" if docs else "landing", "PAGE_KIND": "home" if home else "docs", "PAGE_ASSETS": '<link rel="stylesheet" href="/assets/home.css">' if home else ""}
         rendered = template
+        if plugins:
+            values["PAGE_KIND"] = "plugins"
+            values["PAGE_ASSETS"] = '<link rel="stylesheet" href="/assets/plugins.css"><script type="module" src="/assets/plugins.js"></script>'
+            rendered = rendered.replace("connect-src 'self';", "connect-src 'self' https://qinains.github.io;")
         for key, value in values.items():
             rendered = rendered.replace("{{" + key + "}}", value)
         rendered = re.sub(r'(<select\b[^>]*id="site-language"[^>]*>).*?(</select>)', lambda match: match[1] + language_options + match[2], rendered, flags=re.S)
         rendered = re.sub(r'(<[^>]+\bdata-site-i18n="([^"]+)"[^>]*>)[^<]*(</[^>]+>)', lambda match: match[1] + html.escape(default_messages[match[2]]) + match[3], rendered)
         destination.write_text(rendered)
     emit("/", default_messages["page.title"], (ROOT / "site/home.html").read_text().replace('{{CLIENT_INSTALL}}', render_client_install()))
+    emit("/plugins/", default_messages["plugins.title"] + " · i", (ROOT / "site/plugins.html").read_text())
     for page in pages:
         body, sections = markdown(page["text"], page["source"])
         toc = '<nav aria-label="本页目录"><strong>本页内容</strong>' + "".join(f'<a class="level-{level}" href="#{html.escape(identifier)}">{html.escape(title)}</a>' for level, title, identifier in sections) + "</nav>"
@@ -217,7 +223,7 @@ def main():
     shutil.copytree(ROOT / "site/assets", staging / "assets")
     shutil.copyfile(ROOT / "THIRD_PARTY_LICENSES.txt", staging / "third-party-licenses.txt")
     (staging / "search-index.json").write_text(json.dumps([{key: page[key] for key in ["title", "url", "text"]} for page in pages], ensure_ascii=False))
-    urls = ["/"] + [page["url"] for page in pages] + ["/app/"]
+    urls = ["/", "/plugins/"] + [page["url"] for page in pages] + ["/app/"]
     (staging / "sitemap.xml").write_text('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + "".join("<url><loc>" + html.escape(origin + url) + "</loc></url>" for url in urls) + "</urlset>")
     (staging / "robots.txt").write_text("User-agent: *\nAllow: /\nSitemap: " + origin + "/sitemap.xml\n")
     (staging / "CNAME").write_text(urlsplit(origin).hostname + "\n"); (staging / ".nojekyll").write_text("")

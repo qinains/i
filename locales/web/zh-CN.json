@@ -1,4 +1,11 @@
 {
+  "Plugin catalog": "插件目录",
+  "Load catalog": "加载目录",
+  "Download and inspect": "下载并检查",
+  "Submit a plugin": "提交插件",
+  "Catalog updated. Choose a package to inspect before installing.": "目录已更新。安装前请选择插件包进行检查。",
+  "Catalog listing does not grant permissions or verify publisher identity.": "目录收录不代表授予权限，也不代表验证发布者身份。",
+  "No plugins available.": "暂无插件。",
   "Browser workspace. Shell is disabled; workspace files are saved on this device. Conversations save automatically. Use /help for commands.": "浏览器工作区已就绪。本机 Shell 已禁用，工作区文件保存在此设备上。会话自动保存，输入 /help 查看命令。",
   "Shell commands are disabled in browser mode.": "浏览器模式不支持本机 Shell 命令。",
   "Unknown command. Use /help.": "未知命令，请输入 /help 查看可用命令。",

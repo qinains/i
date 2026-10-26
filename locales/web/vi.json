@@ -1,4 +1,11 @@
 {
+  "Plugin catalog": "Danh mục plugin",
+  "Load catalog": "Tải danh mục",
+  "Download and inspect": "Tải xuống và kiểm tra",
+  "Submit a plugin": "Gửi plugin",
+  "Catalog updated. Choose a package to inspect before installing.": "Đã cập nhật danh mục. Chọn gói để kiểm tra trước khi cài đặt.",
+  "Catalog listing does not grant permissions or verify publisher identity.": "Việc liệt kê trong danh mục không cấp quyền hay xác minh danh tính nhà phát hành.",
+  "No plugins available.": "Không có plugin nào.",
   "Browser workspace. Shell is disabled; workspace files are saved on this device. Conversations save automatically. Use /help for commands.": "Không gian làm việc trong trình duyệt. Shell bị tắt; tệp không gian làm việc được lưu trên thiết bị này. Hội thoại được lưu tự động. Dùng /help để xem lệnh.",
   "Shell commands are disabled in browser mode.": "Lệnh shell bị tắt trong chế độ trình duyệt.",
   "Unknown command. Use /help.": "Lệnh không xác định. Dùng /help.",

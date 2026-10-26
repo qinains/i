@@ -1,4 +1,11 @@
 {
+  "Plugin catalog": "Plug-incatalogus",
+  "Load catalog": "Catalogus laden",
+  "Download and inspect": "Downloaden en inspecteren",
+  "Submit a plugin": "Plug-in indienen",
+  "Catalog updated. Choose a package to inspect before installing.": "Catalogus bijgewerkt. Kies een pakket om vóór installatie te inspecteren.",
+  "Catalog listing does not grant permissions or verify publisher identity.": "Vermelding in de catalogus verleent geen rechten en verifieert niet de identiteit van de uitgever.",
+  "No plugins available.": "Geen plug-ins beschikbaar.",
   "Browser workspace. Shell is disabled; workspace files are saved on this device. Conversations save automatically. Use /help for commands.": "Browserwerkruimte. De shell is uitgeschakeld; werkruimtebestanden worden op dit apparaat opgeslagen. Gesprekken worden automatisch opgeslagen. Gebruik /help voor opdrachten.",
   "Shell commands are disabled in browser mode.": "Shellopdrachten zijn uitgeschakeld in browsermodus.",
   "Unknown command. Use /help.": "Onbekende opdracht. Gebruik /help.",

@@ -1,4 +1,11 @@
 {
+  "Plugin catalog": "Plugin catalog",
+  "Load catalog": "Load catalog",
+  "Download and inspect": "Download and inspect",
+  "Submit a plugin": "Submit a plugin",
+  "Catalog updated. Choose a package to inspect before installing.": "Catalog updated. Choose a package to inspect before installing.",
+  "Catalog listing does not grant permissions or verify publisher identity.": "Catalog listing does not grant permissions or verify publisher identity.",
+  "No plugins available.": "No plugins available.",
   "Browser workspace. Shell is disabled; workspace files are saved on this device. Conversations save automatically. Use /help for commands.": "Browser workspace. Shell is disabled; workspace files are saved on this device. Conversations save automatically. Use /help for commands.",
   "Shell commands are disabled in browser mode.": "Shell commands are disabled in browser mode.",
   "Unknown command. Use /help.": "Unknown command. Use /help.",
