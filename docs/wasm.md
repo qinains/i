@@ -169,7 +169,7 @@ npm --prefix web exec -- playwright install chromium webkit
 npm --prefix web test
 sh scripts/build_plugin_fixtures.sh
 npm --prefix web run test:browser
-npm --prefix server test
+cargo test --locked -p i-relay
 ```
 
 Web 测试启动 localhost 静态服务与 mock API，不依赖付费模型。覆盖模型工具审批/拒绝、OPFS 持久化及隔离、会话 Tab/历史/草稿恢复、连接换绑、损坏会话隔离、事务失败/多窗口冲突、未知工具结果恢复、保存失败仍可备份、二进制上传、ZIP 独立 unzip 解压、取消晚到响应、IME、截断批次、CORS 失败、OPFS 不可用以及 PWA 离线/更新。另覆盖临时工作区不落盘、/tmp 生命周期、聚合内存配额及清理、虚拟挂载 ZIP 重名拒绝、真实 WASM 工具临时写入、预览 HTML/CSS/脚本/fetch、默认脚本禁用/可信确认、父存储隔离、HTTP 外跳阻止、挂载快照隔离和工作区锁争用。Anthropic 测试覆盖原生鉴权、流式/非流式工具循环、thinking/signature 续聊、空参数工具、初始文本与多文本块、截断拒绝、混合 shell 批次拒绝、中继、刷新无请求和协议切换元数据隔离；设置测试覆盖桌面控件对齐、手机宽度、中英文切换及输入节点保留、语言独立持久化、API URL 归一化和测试失败文案。桌面 WebKit 与手机 viewport 不等同于真实 iPhone 实测。

@@ -2,7 +2,7 @@ import http from 'node:http';
 import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {createRelayServer} from '../../server/relay.mjs';
+import {forwardRustRelay} from './rust-relay-fixture.mjs';
 import {sendResponses} from './responses-fixture.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const call = (name, args, id) => ({choices: [{finish_reason: 'tool_calls', message: {role: 'assistant', content: null,
@@ -10,7 +10,6 @@ const call = (name, args, id) => ({choices: [{finish_reason: 'tool_calls', messa
 const final = content => ({choices: [{finish_reason: 'stop', message: {role: 'assistant', content}}]});
 let releaseStream;
 let pwaRevision = '', missingAsset = false;
-const relays = new Map();
 function anthropicResponse(body) {
     const text=body.messages.filter(message=>message.role==='user').flatMap(message=>message.content).filter(block=>block.type==='text').map(block=>block.text).at(-1) ?? '';
     const results=body.messages.flatMap(message=>message.content).filter(block=>block.type==='tool_result');
@@ -44,10 +43,7 @@ function sendAnthropic(res,body) {
 http.createServer(async (req, res) => {
     if (req.url === '/api/chat/completions') {
         if (!/^127\.0\.0\.1:\d+$/u.test(req.headers.host ?? '')) {res.writeHead(403); res.end(); return;}
-        const origin = `http://${req.headers.host}`;
-        if (!relays.has(origin)) relays.set(origin,await createRelayServer({token:'fixture-relay-token-'.repeat(3),origin,endpoints:['https://api.example/v1/chat/completions','https://api.example/v1/messages','https://api.example/v1/responses'],
-            lookup:async () => [{address:'8.8.8.8',family:4}],connect:(url,options,callback) => http.request(`http://127.0.0.1:4174${url.pathname}`,{...options,lookup:undefined},callback)}));
-        relays.get(origin).emit('request',req,res); return;
+        await forwardRustRelay(req,res); return;
     }
     if (/^http:\/\/127\.0\.0\.1:\d+$/u.test(req.headers.origin ?? '')) {
         res.setHeader('access-control-allow-origin',req.headers.origin);

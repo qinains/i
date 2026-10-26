@@ -677,6 +677,7 @@ dependencies = [
  "http",
  "http-body",
  "httparse",
+ "httpdate",
  "itoa",
  "pin-project-lite",
  "smallvec",
@@ -782,6 +783,23 @@ dependencies = [
  "url",
  "uuid",
  "walkdir",
+]
+
+[[package]]
+name = "i-relay"
+version = "0.1.2"
+dependencies = [
+ "bytes",
+ "futures-util",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "reqwest",
+ "serde_json",
+ "sha2",
+ "subtle",
+ "tokio",
+ "url",
 ]
 
 [[package]]

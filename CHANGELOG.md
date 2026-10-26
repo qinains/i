@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Replace the optional Node relay with a standalone `i-relay` executable, retaining
+  protocol-native JSON/SSE, authentication, public DNS pinning, quotas, disconnect
+  cancellation and inactivity deadlines. Caddy serves static assets separately.
+- Lead homepage and repository introductions with user tasks and quick start;
+  keep implementation details in developer references. Add a themed, multilingual
+  Product Hunt link card without third-party image requests.
 - Use checksum-locked crates.io globset 0.4.20 instead of a local feature patch;
   retain upstream notices without shipping a separate source copy.
 - Add a three-step connection guide with official API-key links and URL/model

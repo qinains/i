@@ -3,7 +3,7 @@ name = "i"
 version = "0.1.2"
 edition = "2024"
 rust-version = "1.91"
-description = "A plugin-first Rust coding agent for native terminals and browser WASM"
+description = "An AI coding assistant for your browser and terminal: edit files, preview websites and export your work"
 license = "MIT"
 default-run = "i"
 repository = "https://github.com/qinains/i"
@@ -90,7 +90,7 @@ packaging = ["native", "dep:tar", "dep:flate2", "zip/deflate"]
 wasm = ["dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "dep:web-sys", "dep:i-wasm-protocol"]
 
 [workspace]
-members = ["plugins/runtime", "plugins/wasm-protocol", "plugins/wasm-package", "plugins/wasm-sdk"]
+members = ["plugins/runtime", "plugins/wasm-protocol", "plugins/wasm-package", "plugins/wasm-sdk", "server"]
 default-members = ["."]
 exclude = ["examples/rust-plugin", "examples/wasm-word-count", "examples/wasm-json-format"]
 resolver = "2"

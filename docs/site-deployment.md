@@ -53,7 +53,9 @@ i.lninl.com {
 ```
 
 不要覆盖无关站点，也不要把仓库根目录设为 Web root。Relay 是另外的授权服务，
-如果站点托管在 GitHub Pages，不能假设它自动拥有同源 `/relay` 路由。
+如果站点托管在 GitHub Pages，不能假设它自动拥有同源 `/app/api/chat/completions` 路由。
+自建时可运行独立的 `i-relay` 中继程序，不需要 Node 服务；中继只转发 API，不提供静态文件。
+完整环境变量、安全限制及 Caddy 路由示例见 [中继部署](../server/README.md)。
 
 ## 发布后验收
 

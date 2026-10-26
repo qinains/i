@@ -11,7 +11,7 @@ import tomllib
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
-FIRST_PARTY = {"i", "i-plugins", "i-wasm-protocol", "i-wasm-package", "i-wasm-sdk"}
+FIRST_PARTY = {"i", "i-plugins", "i-relay", "i-wasm-protocol", "i-wasm-package", "i-wasm-sdk"}
 SUPPLEMENTS = ROOT / "vendor/licenses"
 PUBLIC_REPOSITORIES = {"madsmtm/objc2", "DoumanAsh/clipboard-win", "r-efi/r-efi", "bytecodealliance/wasm-tools"}
 
