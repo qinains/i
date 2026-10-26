@@ -272,7 +272,6 @@ fn main() -> Result<()> {
 
     // Copy logo and license
     fs::copy(root.join("assets/lninl.svg"), package_dir.join("logo.svg"))?;
-    fs::copy(root.join("vendor/globset/LICENSE-MIT"), package_dir.join("LICENSE-globset.txt"))?;
     fs::copy(root.join("LICENSE"), package_dir.join("LICENSE.txt"))?;
     fs::copy(root.join("THIRD_PARTY_LICENSES.txt"), package_dir.join("THIRD_PARTY_LICENSES.txt"))?;
 

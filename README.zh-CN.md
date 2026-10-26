@@ -280,7 +280,7 @@ python3 scripts/check_package.py 'dist/*.tar.gz' 'dist/*.tar.xz'
 
 六个 provider 文件占运行时1076行，核心加它们已为2100行，尚未包含 Responses 和运行时支持。调用模型必需选用一个 provider，不宣称完整客户端全部必需代码不超过1024行。
 
-另随源码保存 globset 的3405行上游 Rust（含测试/bench，原先由 registry 获取）；上游 Rust 源码未改，只调整依赖 feature，并有哈希及特性合并检查。详见 [来源与校验](vendor/globset/VENDORED.md)。HTTP/重试/worker 传输仍留在核心；服务商编码按新架构移入可替换 provider，单独披露。
+globset 已改回未经修改的 crates.io 官方依赖，由 Cargo.lock 锁定，不再维护本地 feature 补丁与源码副本。其许可保留在 THIRD_PARTY_LICENSES.txt。HTTP/重试/worker 传输仍留在核心；服务商编码按新架构移入可替换 provider，单独披露。
 
 包含 rustfmt 后的注释/空行，排除独立测试模块，测试入口声明仍计入。核心测试递归检查 `src/` 生产 Rust 和存在的 `build.rs`，不能把必需核心逻辑藏进插件。`src/tools.json` 是必需静态 schema 资产，单独披露，不算 Rust 行数。
 

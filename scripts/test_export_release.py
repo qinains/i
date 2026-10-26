@@ -22,7 +22,7 @@ class ExportPolicyTests(unittest.TestCase):
             self.assertFalse(release.included(Path(name)), name)
 
     def test_source_tests_and_licenses_are_retained(self):
-        for name in ["LICENSE", "vendor/globset/LICENSE-MIT", "web/module-lexer.LICENSE", "tests/network.rs", "examples/wasm-word-count/src/lib.rs", ".github/workflows/pages.yml"]:
+        for name in ["LICENSE", "THIRD_PARTY_LICENSES.txt", "web/module-lexer.LICENSE", "tests/network.rs", "examples/wasm-word-count/src/lib.rs", ".github/workflows/pages.yml"]:
             self.assertTrue(release.included(Path(name)), name)
 
 

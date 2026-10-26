@@ -7,7 +7,7 @@ i / lninl 的自有代码使用仓库根目录的 MIT License。第三方代码�
 哈希去重；它是构建、测试和目标平台依赖的保守超集，不表示每个分发产物都链接了
 全部列出的依赖。[下载完整文本](https://i.lninl.com/third-party-licenses.txt)。
 
-直接放入仓库的 globset 保留 `vendor/globset/` 内的上游许可和变更说明。
+globset 使用 crates.io 官方依赖，其上游许可保留在 `THIRD_PARTY_LICENSES.txt` 中；仓库不再维护本地修改版。
 JavaScript 模块词法分析器的许可及声明分别位于 `web/module-lexer.LICENSE` 与
 `web/module-lexer.NOTICE`，随浏览器工作台一并分发。
 

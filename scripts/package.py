@@ -211,7 +211,6 @@ def main():
         (package / 'start.sh').write_text(LAUNCHER)
         (package / 'start.sh').chmod(0o755)
         shutil.copy2(ROOT / 'assets/lninl.svg', package / 'logo.svg')
-        shutil.copy2(ROOT / 'vendor/globset/LICENSE-MIT', package / 'LICENSE-globset.txt')
         shutil.copy2(ROOT / 'LICENSE', package / 'LICENSE.txt')
         shutil.copy2(ROOT / 'THIRD_PARTY_LICENSES.txt', package / 'THIRD_PARTY_LICENSES.txt')
         metadata = dict(version=version, target=host, profile=args.profile, layout='bundled',

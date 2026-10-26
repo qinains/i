@@ -48,3 +48,26 @@ wasm-pack Binaryen 117 download failed, so there is no measured or claimed
 `wasm-opt` saving in these results. Further reductions would require measuring
 that pass or changing dependency/feature boundaries; no Unicode search,
 plugin validation, ZIP, OPFS or model functionality was removed here.
+
+## Official globset dependency, 2026-10-26
+
+The local feature-only globset patch was removed in favor of checksum-locked,
+unmodified crates.io globset 0.4.20. No glob syntax or matching implementation was
+rewritten. Local min-size artifacts measured before/after the switch:
+
+| Agent module | Raw | gzip level 9 | Brotli quality 11 |
+| --- | ---: | ---: | ---: |
+| Before, local feature patch | 1,362,270 | 493,773 | 388,118 |
+| After, official crates.io dependency | 1,362,527 | 493,668 | 387,602 |
+
+The raw module grew 257 bytes (about 0.019%); compressed payloads were slightly
+smaller. This is a local artifact comparison, not a general performance claim.
+Third-party notices remain in the distribution; removing the source copy does not
+remove the dependency from compiled code. Download sizes depend on server
+compression. Historical measurements above are retained as dated results.
+
+The offline native literal-search fixture (6.4 MB, seven runs per binary,
+including process startup and file reads) had medians of 33.781 ms before and
+33.843 ms after. This small, noisy fixture showed no material regression; it
+does not establish performance for all glob or regex workloads. Reproduce with
+`python3 scripts/bench_search.py BEFORE AFTER --runs 7`.

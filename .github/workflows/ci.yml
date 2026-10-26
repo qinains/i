@@ -34,7 +34,6 @@ jobs:
           $alias = Join-Path (Split-Path $python) 'python3.exe'
           if (-not (Test-Path $alias)) { Copy-Item $python $alias }
       - run: python3 scripts/check_globset.py
-      - run: python3 scripts/check_globset.py --test
       - run: cargo fmt --all --check
       - run: cargo fmt --manifest-path examples/rust-plugin/Cargo.toml --check
       - name: Install Linux native TLS build prerequisites
@@ -47,7 +46,6 @@ jobs:
       - run: python3 -m unittest discover -s scripts -p 'test_*.py'
       - name: Report the installable debug executable size
         run: python3 -c "from pathlib import Path; p=Path('target/debug/i.exe' if __import__('os').name=='nt' else 'target/debug/i'); print('Debug executable bytes:', p.stat().st_size)"
-      - run: python3 scripts/check_globset.py --graph
       - run: cargo test --workspace --locked --features bundled
       - run: cargo check --locked --no-default-features -p i
       - name: Verify interactive editor with a pseudo-terminal

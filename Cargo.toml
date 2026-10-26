@@ -35,7 +35,7 @@ httpdate = "1"
 serde_json = "1"
 sha2 = "0.10"
 serde = { version = "1", features = ["derive"] }
-globset = { version = "0.4", default-features = false }
+globset = { version = "=0.4.20", default-features = false }
 regex = { version = "1", default-features = false, features = ["std", "perf", "unicode-case", "unicode-perl"] }
 i-wasm-protocol = { path = "plugins/wasm-protocol", optional = true }
 
@@ -92,12 +92,8 @@ wasm = ["dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "dep:web-s
 [workspace]
 members = ["plugins/runtime", "plugins/wasm-protocol", "plugins/wasm-package", "plugins/wasm-sdk"]
 default-members = ["."]
-exclude = ["examples/rust-plugin", "examples/wasm-word-count", "examples/wasm-json-format", "vendor/globset"]
+exclude = ["examples/rust-plugin", "examples/wasm-word-count", "examples/wasm-json-format"]
 resolver = "2"
-
-# Upstream Rust sources unchanged; narrow globset's regex backend features only.
-[patch.crates-io]
-globset = { path = "vendor/globset" }
 
 [profile.dev]
 # Keep stack traces without full dependency DWARF in the installable test binary.

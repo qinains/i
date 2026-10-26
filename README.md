@@ -308,7 +308,7 @@ The table and validation counts below describe the earlier native snapshot, not 
 
 The six provider source files contribute 1,076 of the runtime lines. Core plus those files is already 2,100 lines, before Responses/runtime support. A selected provider is required for model calls; the complete client is not claimed to fit in 1,024 lines.
 
-The separately vendored globset dependency adds 3405 upstream Rust lines including tests/benches, previously fetched from the registry; its Rust sources are unchanged, only dependency features differ. See [provenance and integrity checks](vendor/globset/VENDORED.md). HTTP/retry/worker transport stays in the core; vendor encoding moved to replaceable providers as documented above.
+Globset is an unmodified crates.io dependency, pinned in Cargo.lock; the earlier local feature-only patch has been removed. Its notices are included in THIRD_PARTY_LICENSES.txt. HTTP/retry/worker transport stays in the core; provider encoding lives in replaceable providers as documented above.
 
 Counts include blank lines/comments under committed rustfmt settings. Dedicated test modules are excluded; test entry declarations remain counted. The core test recursively checks all production Rust under `src/`, plus `build.rs` if present. Required core logic must not be hidden in plugins. `src/tools.json` is a required static schema asset, parsed once; it is disclosed separately rather than counted as Rust.
 
