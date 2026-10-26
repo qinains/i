@@ -17,6 +17,6 @@ html[dir=rtl] .runtime-panel+.runtime-panel {border-left:0;border-right:1px soli
 html[dir=rtl] :is(.home-hero h1,.home-section h2) {letter-spacing:normal}
 @media(max-width:720px){html[dir=rtl] #search-results{left:16px;right:16px}html[dir=rtl] .runtime-panel+.runtime-panel{border-right:0}}
 .brand span{color:var(--brand-accent)}
-#site-language{max-width:100px;border:1px solid var(--line);border-radius:6px;padding:6px 24px 6px 9px;background-color:var(--surface);color:var(--ink);font:12px system-ui,sans-serif;cursor:pointer}
+#site-language{max-width:100px;border:1px solid var(--line);border-radius:6px;padding-block:6px;padding-inline:9px 24px;background-color:var(--surface);color:var(--ink);font:12px system-ui,sans-serif;cursor:pointer}
 #site-language:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
 @media(max-width:450px){.header-inner{flex-wrap:wrap}.header-inner nav{flex-wrap:wrap;gap:10px}html[data-page=docs] .header-inner nav>a.button{display:none}#site-language{max-width:85px}}

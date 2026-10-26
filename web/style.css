@@ -275,6 +275,9 @@ outline-offset:2px;
 border-color:var(--accent)
 }
 select:disabled { opacity:.45;cursor:not-allowed }
+html[dir=rtl] select {background-position:18px 50%,13px 50%;text-align:start}
+html[dir=rtl] #mode-control select {padding:3px 5px 3px 28px;background-position:13px 50%,8px 50%}
+button:focus-visible {outline:2px solid var(--accent);outline-offset:2px}
 @media (forced-colors:active) {
 select,#mode-control select { appearance:auto;-webkit-appearance:auto;background-image:none;padding-inline-end:10px }
 }
@@ -707,6 +710,8 @@ padding:20px 24px;
 max-height:60dvh;
 overflow:auto
 }
+.settings-body summary {min-height:32px;padding-block:7px;cursor:pointer}
+@media (pointer:coarse) {.settings-body summary {min-height:44px}}
 #connection-guide{border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:20px;overflow-wrap:anywhere;font-size:13px;line-height:1.7}
 #connection-guide summary{cursor:pointer;font-weight:600}
 #connection-guide ol{padding-left:22px;margin:14px 0}
