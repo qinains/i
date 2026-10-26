@@ -16,7 +16,7 @@ try{
             const homeGate=new Promise(resolve=>{releaseHome=resolve;});
             await page.route('**/assets/home.js',async route=>{await homeGate;await route.continue();});
             await page.goto(origin+'/',{waitUntil:'commit'});await page.locator('.home-hero h1').waitFor();await page.locator('html[lang=en]').waitFor();
-            assert.ok((await page.locator('.home-hero h1').textContent()).includes('Small core.'));
+            assert.ok((await page.locator('.home-hero h1').textContent()).includes('Describe it.'));
             assert.equal(await page.locator('[data-client-tab=macos]').isDisabled(),true);releaseHome();
             for(const platform of ['macos','windows','linux','browser']){
                 await page.locator(`[data-client-tab=${platform}]`).click();await page.locator(`#client-${platform}:visible`).waitFor();
@@ -28,12 +28,16 @@ try{
             for(const language of ['zh-CN','zh-TW','en','ja','ko','fr','de']){
                 await page.locator('#site-language').selectOption(language);assert.equal(await page.locator('html').getAttribute('lang'),language);
                 assert.ok(await page.locator('.home-hero h1').textContent());
-                for(const key of ['connect.guide','security.summary','security.link','boundary.data.detail','boundary.credentials.detail','boundary.plugins.detail','boundary.preview.detail']){
+                for(const key of ['launch.description','launch.cta','connect.guide','security.summary','security.link','boundary.data.detail','boundary.credentials.detail','boundary.plugins.detail','boundary.preview.detail']){
                     const text=await page.locator(`[data-site-i18n="${key}"]`).textContent();
                     assert.ok(text.trim().length>5,`${name}:${language}:${key}:missing security copy`);
                     if(language==='en')assert.ok(!/[\u4e00-\u9fff]/u.test(text),`${key}:untranslated English`);
                 }
                 assert.equal(await page.locator('#security a[href="/docs/security/"]').count(),1);
+                await page.locator('.launch-card').scrollIntoViewIfNeeded();
+                await page.waitForFunction(()=>{const image=document.querySelector('.launch-card img');return image.complete&&image.naturalWidth>0;});
+                assert.equal(await page.locator('.launch-card img').evaluate(image=>image.complete&&image.naturalWidth>0),true);
+                assert.equal(new URL(await page.locator('.launch-card a').getAttribute('href')).hostname,'www.producthunt.com');
                 await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${name}:${language}:mobile overflow`);
                 for(const platform of ['macos','windows','linux','browser']){
                     await page.locator(`[data-client-tab=${platform}]`).click();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${name}:${language}:${platform}:mobile overflow`);

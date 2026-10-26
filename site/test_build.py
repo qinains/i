@@ -84,6 +84,9 @@ class WebsiteTests(unittest.TestCase):
         for boundary in ['localStorage', 'API key', 'debugger', 'same-origin', 'not encrypted']:
             self.assertIn(boundary, security)
         self.assertIn('href="/docs/connect-model/"', home)
+        self.assertIn('class="launch-card"', home)
+        self.assertIn('https://www.producthunt.com/products/i-lninl?embed=true&amp;utm_source=embed&amp;utm_medium=post_embed', home)
+        self.assertNotIn('ph-files.imgix.net', home)
         guide = (output / 'docs/connect-model/index.html').read_text()
         for value in ['https://platform.deepseek.com/', 'deepseek-flash', 'https://platform.openai.com/api-keys', 'https://platform.claude.com/settings/keys', 'qwen-plus', 'CORS', '401']:
             self.assertIn(value, guide)

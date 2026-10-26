@@ -2,13 +2,23 @@
 
 ![lninl — the central i](assets/lninl.svg)
 
-**Small core. Your tools. Your model.**
+**Describe a task. Build something useful.**
 
-A plugin-first Rust coding agent with a shared Native/browser WASM core. Native tools and plugin tools share one execution pipeline; plugins run as persistent, bounded JSON-line workers. The expanded cross-platform implementation is no longer subject to the historical 1,024-line target. The central **i** in **lninl** is generated in Rust, not embedded in model prompts.
+A coding assistant for your browser and terminal. Bring your own model API, ask it to create or edit files, preview a website, and download your work as a ZIP. Keep workspaces and conversations on your device, and review changes before approving them.
 
 [简体中文](README.zh-CN.md) · [Website & docs](https://i.lninl.com/docs/) · [Write a plugin](docs/plugin-development.md) · [Contributing / PR](CONTRIBUTING.md) · [MIT](LICENSE)
 
-## What is implemented
+## Start here
+
+1. **No installation:** [open the browser workspace](https://i.lninl.com/app/).
+2. **Connect a model:** enter your API URL, model ID and key. [First-time connection guide](docs/connect-model.md) explains where to get them. Model API usage is billed separately.
+3. **Describe your task:** upload files or start from an empty workspace. Approve changes, preview the result, and export a ZIP.
+
+Prefer your terminal? [Download a native client](https://github.com/qinains/i/releases/latest), extract it and run `bin/i` (`bin/i.exe` on Windows). First launch guides you through configuration. No Rust or Node installation is needed to run a release binary.
+
+In direct browser mode, requests go to your chosen model service. Local file storage does not mean local AI inference. See [security boundaries](SECURITY.md) before saving credentials or enabling plugins.
+
+## Capabilities and developer details
 
 - [Browser WASM PWA](docs/wasm.md): isolated workspaces, independent conversation tabs, reload recovery of history/drafts, streaming Chat Completions / Responses / Anthropic Messages, persistent OPFS files, approvals, ZIP downloads and offline startup. Direct mode is default; an [own same-origin relay](server/README.md) is optional for APIs without CORS. Shell/process plugins are disabled. Build with `./scripts/build_web.sh`, then publish static assets over HTTPS (localhost for development).
   Scratch workspaces and a separate `/tmp` mount live only in page memory. Isolated HTML previews disable scripts by default; trusted JavaScript can be explicitly enabled. Install Rust/WASM tool plugins as `.hplugin.zip` packages. This is not a backend server; see the [browser guide](docs/wasm.md) for preview capabilities and limits.
@@ -26,7 +36,7 @@ There is no core provider/model capacity table. Official runtime plugins and the
 
 ## Install
 
-### From source (recommended)
+### From source (for developers)
 
 Requires Rust 1.91+. Build the audited repository rather than assuming a
 same-named crates.io package or Homebrew tap is this project:

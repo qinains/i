@@ -27,6 +27,14 @@ html[data-page=home] .landing{max-width:1440px;padding:0 48px}
 .text-link:hover{color:var(--accent);text-decoration:none}
 .hero-note{font-size:11px;color:var(--muted);margin:0}
 .hero-note a{display:inline-block;margin-top:8px;color:var(--accent);text-underline-offset:4px}
+.launch-card{display:flex;align-items:center;gap:22px;padding:26px;border:1px solid var(--line);border-radius:12px;background:var(--surface);margin:24px 0;min-width:0}
+.launch-card>img{flex-shrink:0;border-radius:12px}
+.launch-card>div{flex:1;min-width:0}
+.launch-card .eyebrow{margin:0 0 6px;color:var(--muted);font-size:9px}
+.launch-card h2{font:600 22px ui-monospace,monospace;margin:0 0 6px}
+.launch-card p:not(.eyebrow){color:var(--muted);font-size:13px;line-height:1.7;margin:0}
+.launch-card>.button{flex-shrink:0;font-size:12px;white-space:normal}
+@media(max-width:600px){.launch-card{flex-wrap:wrap;gap:16px;padding:20px}.launch-card>img{width:48px;height:48px}.launch-card>.button{margin-left:64px;max-width:calc(100% - 64px)}}
 .hero-security{display:flex;align-items:flex-start;gap:10px;margin-top:22px;padding:14px 16px;border:1px solid var(--line);border-radius:8px;max-width:490px;font-size:12px;line-height:1.7}
 .hero-security>.signal{flex:none;margin-top:7px}
 .hero-security p{margin:0 0 5px;color:var(--muted)}
