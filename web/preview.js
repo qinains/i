@@ -139,11 +139,17 @@ export function mountPreview({owner,isBusy,onError,onChange=()=>{},onBack=()=>{}
     const button=node('button','Preview HTML');button.id='btn-preview';document.getElementById('btn-download').before(button);
     button.dataset.i18n=button.textContent;
     entry.dataset.i18nAriaLabel='HTML entry path';
-    let generation=0,workspaceId,previousOptionsOpen=false;
+    let generation=0,workspaceId,previousOptionsOpen=false,exitPosition,exitDrag,suppressExitClick=false;
+    function positionExit(x,y){
+        exitPosition={x:Math.max(12,Math.min(x,panel.clientWidth-56)),y:Math.max(12,Math.min(y,panel.clientHeight-56))};
+        exitFullscreen.style.setProperty('--preview-exit-x',`${exitPosition.x}px`);
+        exitFullscreen.style.setProperty('--preview-exit-y',`${exitPosition.y}px`);
+    }
     function setFullscreen(enabled,{focus=true}={}){
         if(enabled===panel.classList.contains('fullscreen'))return;
         if(enabled){previousOptionsOpen=options.open;options.open=false;}
         panel.classList.toggle('fullscreen',enabled);
+        if(enabled&&exitPosition)positionExit(exitPosition.x,exitPosition.y);
         if(!enabled)options.open=previousOptionsOpen;
         fullscreen.setAttribute('aria-pressed',String(enabled));
         if(focus)(enabled?exitFullscreen:fullscreen).focus();
@@ -201,7 +207,35 @@ export function mountPreview({owner,isBusy,onError,onChange=()=>{},onBack=()=>{}
     mode.addEventListener('change',()=>{show().catch(onError);});back.addEventListener('click',()=>{hide();onBack();});
     button.addEventListener('click',()=>show().catch(onError));refresh.addEventListener('click',()=>show().catch(onError));close.addEventListener('click',()=>hide());
     fullscreen.addEventListener('click',()=>setFullscreen(!panel.classList.contains('fullscreen')));
-    exitFullscreen.addEventListener('click',()=>setFullscreen(false));
+    exitFullscreen.dataset.i18nTitle='Drag to move; click to exit fullscreen';
+    exitFullscreen.title=uiText('Drag to move; click to exit fullscreen');
+    exitFullscreen.addEventListener('pointerdown',event=>{
+        if(event.button!==0||!event.isPrimary)return;
+        const box=exitFullscreen.getBoundingClientRect();
+        exitDrag={id:event.pointerId,x:event.clientX,y:event.clientY,left:box.left,top:box.top,moved:false};
+        suppressExitClick=false;exitFullscreen.setPointerCapture(event.pointerId);
+    });
+    exitFullscreen.addEventListener('pointermove',event=>{
+        if(exitDrag?.id!==event.pointerId)return;
+        const dx=event.clientX-exitDrag.x,dy=event.clientY-exitDrag.y;
+        if(!exitDrag.moved&&Math.hypot(dx,dy)<5)return;
+        exitDrag.moved=true;positionExit(exitDrag.left+dx,exitDrag.top+dy);
+    });
+    function finishExitDrag(event){
+        if(exitDrag?.id!==event.pointerId)return;
+        suppressExitClick=exitDrag.moved||event.type==='pointercancel';exitDrag=null;
+        if(exitFullscreen.hasPointerCapture(event.pointerId))exitFullscreen.releasePointerCapture(event.pointerId);
+    }
+    exitFullscreen.addEventListener('pointerup',finishExitDrag);
+    exitFullscreen.addEventListener('pointercancel',finishExitDrag);
+    exitFullscreen.addEventListener('lostpointercapture',finishExitDrag);
+    exitFullscreen.addEventListener('click',event=>{if(suppressExitClick&&event.detail!==0){suppressExitClick=false;return;}setFullscreen(false);});
+    exitFullscreen.addEventListener('keydown',event=>{
+        const direction={ArrowLeft:[-10,0],ArrowRight:[10,0],ArrowUp:[0,-10],ArrowDown:[0,10]}[event.key];
+        if(!direction)return;event.preventDefault();const box=exitFullscreen.getBoundingClientRect();
+        positionExit(box.left+direction[0],box.top+direction[1]);
+    });
+    window.addEventListener('resize',()=>{if(exitPosition&&panel.classList.contains('fullscreen'))positionExit(exitPosition.x,exitPosition.y);});
     document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!event.defaultPrevented&&panel.classList.contains('fullscreen')){event.preventDefault();setFullscreen(false);}});
     return {show,hide,restore:async state=>{hide(false);mode.value=state.mode;if(state.selected)entry.value=state.selected;else entry.value='index.html';if(state.open&&state.selected)await show(state.selected);},selectWorkspace:id=>{if(workspaceId&&workspaceId!==id)hide(false);}};
 }

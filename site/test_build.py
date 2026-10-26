@@ -76,6 +76,17 @@ class WebsiteTests(unittest.TestCase):
         tutorial = (output / "docs/plugin-development/index.html").read_text()
         home = (output / 'index.html').read_text()
         self.assertNotIn('{{', home)
+        self.assertIn('href="#security"', home)
+        self.assertIn('id="security"', home)
+        for key in ['boundary.data.detail', 'boundary.credentials.detail', 'boundary.plugins.detail', 'boundary.preview.detail']:
+            self.assertIn('data-site-i18n="' + key + '"', home)
+        security = (output / 'docs/security/index.html').read_text()
+        for boundary in ['localStorage', 'API key', 'debugger', 'same-origin', 'not encrypted']:
+            self.assertIn(boundary, security)
+        self.assertIn('href="/docs/connect-model/"', home)
+        guide = (output / 'docs/connect-model/index.html').read_text()
+        for value in ['https://platform.deepseek.com/', 'deepseek-flash', 'https://platform.openai.com/api-keys', 'https://platform.claude.com/settings/keys', 'qwen-plus', 'CORS', '401']:
+            self.assertIn(value, guide)
         for platform in ['macos', 'windows', 'linux', 'browser']:
             self.assertIn('id="client-' + platform + '"', home)
         self.assertIn('<article lang="zh-CN">', tutorial)

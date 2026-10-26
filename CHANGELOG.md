@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Use checksum-locked crates.io globset 0.4.20 instead of a local feature patch;
+  retain upstream notices without shipping a separate source copy.
+- Add a three-step connection guide with official API-key links and URL/model
+  examples. Explain model billing, CORS and mismatched region/plan credentials.
+- Make the fullscreen preview exit control draggable with pointer capture,
+  viewport bounds, mobile touch support and keyboard movement.
+- Highlight local-storage, model-request, plugin, preview and browser-extension
+  security boundaries on the multilingual homepage and in the security policy.
 - Fullscreen browser previews fill the viewport without workspace borders,
   padding or toolbar rows. A floating exit control restores the previous layout;
   host-page Escape also exits. Preview sandbox permissions remain unchanged.

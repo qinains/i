@@ -19,6 +19,12 @@ test('first visit guides setup, remembers explicitly saved credentials and makes
     await expect(page.locator('#settings-modal')).toBeVisible();await expect(page.locator('#welcome-connection')).toBeVisible();
     await expect(page.locator('#remember-config')).toBeChecked();await expect(page.locator('#base-url')).toBeFocused();
     await expect(page.locator('#max-tokens')).toHaveValue('65536');
+    await page.locator('#connection-guide>summary').click();
+    await expect(page.locator('#connection-guide')).toContainText('https://api.deepseek.com');
+    await expect(page.locator('#connection-guide')).toContainText('deepseek-flash');
+    await expect(page.locator('#connection-guide a[href="https://i.lninl.com/docs/connect-model/"]')).toHaveAttribute('rel','noopener noreferrer');
+    await expect(page.locator('#base-url')).toHaveValue('');
+    await expect(page.locator('#api-key')).toHaveValue('');
     await expect(page.locator('#credential-privacy')).toContainText('WASM');
     await page.locator('#base-url').fill('https://model.invalid');await page.locator('#model').fill('fixture');await page.locator('#api-key').fill('ONBOARDING_FAKE_KEY');
     await page.locator('#save-config').click();await expect(page.locator('#settings-modal')).not.toBeVisible();

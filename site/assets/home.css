@@ -26,6 +26,16 @@ html[data-page=home] .landing{max-width:1440px;padding:0 48px}
 .text-link{display:inline-flex;align-items:center;gap:10px;color:var(--ink);font-size:13px;text-decoration:none}
 .text-link:hover{color:var(--accent);text-decoration:none}
 .hero-note{font-size:11px;color:var(--muted);margin:0}
+.hero-note a{display:inline-block;margin-top:8px;color:var(--accent);text-underline-offset:4px}
+.hero-security{display:flex;align-items:flex-start;gap:10px;margin-top:22px;padding:14px 16px;border:1px solid var(--line);border-radius:8px;max-width:490px;font-size:12px;line-height:1.7}
+.hero-security>.signal{flex:none;margin-top:7px}
+.hero-security p{margin:0 0 5px;color:var(--muted)}
+.hero-security a{color:var(--accent);text-decoration:none}
+#security{scroll-margin-top:30px}
+#security .section-foot{align-items:flex-start;gap:24px}
+#security .section-foot>span{max-width:760px}
+#security .section-foot>a{flex-shrink:0}
+@media(max-width:600px){#security .section-foot{flex-direction:column;gap:12px}.hero-security{font-size:11px}}
 .workbench-demo{position:relative;min-width:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface);box-shadow:var(--shadow);transform:perspective(1400px) rotateY(-3deg) rotateX(2deg)}
 .workbench-demo:before{content:"";position:absolute;inset:0 20% auto;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent)}
 .demo-top{display:flex;align-items:center;gap:16px;padding:16px 18px;border-bottom:1px solid var(--line);font:10px ui-monospace,monospace;color:var(--muted)}

@@ -13,7 +13,7 @@ from urllib.parse import quote, urlsplit
 ROOT = Path(__file__).resolve().parent.parent
 REPOSITORY = "https://github.com/qinains/i"
 EXCLUDED = {"tools-composer-verification.md", "dependency-size-history.md", "dependency-audit.md", "dependency-size.md", "size-report.md"}
-FEATURED = ["index", "system-overview", "plugin-development", "wasm-plugin-reference", "plugins", "wasm", "deployment", "providers", "file-tools", "cors-extension", "site-deployment", "opfs-concurrency"]
+FEATURED = ["index", "connect-model", "system-overview", "plugin-development", "wasm-plugin-reference", "plugins", "wasm", "deployment", "providers", "file-tools", "cors-extension", "site-deployment", "opfs-concurrency"]
 ENGLISH_DOCUMENTS = {"README.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE", "compaction.md", "console.md", "composer.md", "file-tools.md", "opfs-concurrency.md", "network.md", "wasm-size.md"}
 
 

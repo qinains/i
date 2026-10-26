@@ -28,6 +28,12 @@ try{
             for(const language of ['zh-CN','zh-TW','en','ja','ko','fr','de']){
                 await page.locator('#site-language').selectOption(language);assert.equal(await page.locator('html').getAttribute('lang'),language);
                 assert.ok(await page.locator('.home-hero h1').textContent());
+                for(const key of ['connect.guide','security.summary','security.link','boundary.data.detail','boundary.credentials.detail','boundary.plugins.detail','boundary.preview.detail']){
+                    const text=await page.locator(`[data-site-i18n="${key}"]`).textContent();
+                    assert.ok(text.trim().length>5,`${name}:${language}:${key}:missing security copy`);
+                    if(language==='en')assert.ok(!/[\u4e00-\u9fff]/u.test(text),`${key}:untranslated English`);
+                }
+                assert.equal(await page.locator('#security a[href="/docs/security/"]').count(),1);
                 await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${name}:${language}:mobile overflow`);
                 for(const platform of ['macos','windows','linux','browser']){
                     await page.locator(`[data-client-tab=${platform}]`).click();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${name}:${language}:${platform}:mobile overflow`);

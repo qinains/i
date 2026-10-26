@@ -94,7 +94,7 @@ border:0;
 #preview-panel.fullscreen>.preview-toolbar,#preview-panel.fullscreen>#preview-options {display:none}
 #preview-panel.fullscreen>.preview-content {gap:0;overflow:hidden}
 #preview-panel.fullscreen #preview-frame,#preview-panel.fullscreen #preview-source {border:0;border-radius:0;min-height:0}
-#preview-panel.fullscreen>#preview-exit-fullscreen {display:inline-flex;position:absolute;right:max(12px,env(safe-area-inset-right));top:max(12px,env(safe-area-inset-top));z-index:1;width:44px;height:44px;min-height:44px;padding:0;background:var(--panel);box-shadow:0 2px 12px #0003;border-radius:50%}
+#preview-panel.fullscreen>#preview-exit-fullscreen {display:inline-flex;position:absolute;right:max(12px,env(safe-area-inset-right));left:clamp(max(12px,env(safe-area-inset-left)),var(--preview-exit-x),calc(100% - 44px - max(12px,env(safe-area-inset-right))));top:clamp(max(12px,env(safe-area-inset-top)),var(--preview-exit-y,12px),calc(100% - 44px - max(12px,env(safe-area-inset-bottom))));z-index:1;width:44px;height:44px;min-height:44px;padding:0;background:var(--panel);box-shadow:0 2px 12px #0003;border-radius:50%;touch-action:none;user-select:none;cursor:move}
 #app:has(#preview-panel.fullscreen:not([hidden]))>header,
 #app:has(#preview-panel.fullscreen:not([hidden])) #context-bar,
 #app:has(#preview-panel.fullscreen:not([hidden])) #file-panel,
@@ -695,6 +695,12 @@ padding:20px 24px;
 max-height:60dvh;
 overflow:auto
 }
+#connection-guide{border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:20px;overflow-wrap:anywhere;font-size:13px;line-height:1.7}
+#connection-guide summary{cursor:pointer;font-weight:600}
+#connection-guide ol{padding-left:22px;margin:14px 0}
+#connection-guide li+li{margin-top:12px}
+#connection-guide a{color:var(--accent);text-underline-offset:3px}
+.guide-links{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px}
 .settings-body fieldset {
 border:0;
 margin:0;

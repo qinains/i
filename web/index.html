@@ -88,6 +88,15 @@
         <h2 data-i18n="Welcome — connect your AI">Welcome — connect your AI</h2>
         <p data-i18n="Enter your provider's API URL, model and API key below, then save to get started. Nothing is sent until you send a message or test the connection.">Enter your provider's API URL, model and API key below, then save to get started. Nothing is sent until you send a message or test the connection.</p>
       </div>
+      <details id="connection-guide">
+        <summary data-i18n="First time? Get an API key and connect in 3 steps">First time? Get an API key and connect in 3 steps</summary>
+        <ol>
+          <li><span data-i18n="1. Create an API key on your provider’s official platform. API usage is billed separately from chat subscriptions.">1. Create an API key on your provider’s official platform. API usage is billed separately from chat subscriptions.</span><div class="guide-links"><a href="https://platform.deepseek.com/" target="_blank" rel="noopener noreferrer">DeepSeek ↗</a><a href="https://help.aliyun.com/zh/model-studio/get-api-key" target="_blank" rel="noopener noreferrer">Alibaba Cloud ↗</a><a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">OpenAI ↗</a><a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener noreferrer">Anthropic ↗</a></div></li>
+          <li><span data-i18n="2. Copy the API URL and exact model ID, then paste the key only into the API key field.">2. Copy the API URL and exact model ID, then paste the key only into the API key field.</span><p class="note" data-i18n="DeepSeek example: OpenAI-compatible (Chat Completions), API URL https://api.deepseek.com, model deepseek-flash. For other providers, use their own settings; do not mix keys, regions or plans.">DeepSeek example: OpenAI-compatible (Chat Completions), API URL https://api.deepseek.com, model deepseek-flash. For other providers, use their own settings; do not mix keys, regions or plans.</p></li>
+          <li data-i18n="3. Test the connection, then Save changes. Testing sends a small paid API request. Direct browser access also requires CORS support.">3. Test the connection, then Save changes. Testing sends a small paid API request. Direct browser access also requires CORS support.</li>
+        </ol>
+        <a href="https://i.lninl.com/docs/connect-model/" target="_blank" rel="noopener noreferrer" data-i18n="Step-by-step guide and troubleshooting →">Step-by-step guide and troubleshooting →</a>
+      </details>
       <div class="connection-actions">
         <div class="form-field"><label for="profile-select" data-i18n="Connection">Connection</label><select id="profile-select"><option value="" data-i18n="This session only">This session only</option></select></div>
         <div class="connection-buttons"><button id="save-as-profile" data-i18n="Add connection">Add connection</button><button id="delete-profile" data-i18n="Delete this connection">Delete this connection</button></div>

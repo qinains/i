@@ -5,6 +5,7 @@
 
 ## 开始使用
 
+- [第一次连接 AI](connect-model.md)：到哪里申请 API Key，URL 和模型怎么填，失败时怎么查。
 - [系统与模块概览](system-overview.md)：组件、数据流、文件与会话边界。
 - [浏览器工作台](wasm.md)：构建、模型连接、PWA、预览、文件与恢复。
 - [桌面安装与配置](deployment.md)：源码、发布包、目录与凭据。
