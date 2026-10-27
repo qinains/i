@@ -280,14 +280,13 @@ pub fn setup(binary: &Path) -> Result<()> {
     let root = temp.path().canonicalize()?;
     fs::create_dir(root.join("config"))?;
     let original =
-        json!({"protocol":"deepseek","base_url":"https://user:never-print-url-secret@localhost","model":"offline"})
-            .to_string();
+        json!({"protocol":"deepseek","base_url":"https://user:YOUR_PASSWORD@localhost","model":"offline"}).to_string();
     fs::write(root.join("config/config.json"), &original)?;
     let mut cmd = command(binary, &root);
     cmd.args(["setup", "--provider", "deepseek", "--model", "offline", "--key-env", "I_SETUP_FAKE", "--confirm"]);
     let mut pty = Pty::new(&mut cmd)?;
     pty.until(|p| p.child.try_wait().ok().flatten().is_some())?;
-    ensure!(!pty.child.wait()?.success() && !pty.text().contains("never-print-url-secret"), "Private URL was exposed");
+    ensure!(!pty.child.wait()?.success() && !pty.text().contains("YOUR_PASSWORD"), "Private URL was exposed");
     ensure!(fs::read_to_string(root.join("config/config.json"))? == original, "Failed setup changed config");
     println!("PASS: setup hidden input, cancellation, signal restoration and private URL");
     Ok(())
