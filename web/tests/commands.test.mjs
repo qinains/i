@@ -11,3 +11,7 @@ test('dynamic candidates use real session ids and workspace paths, not unrelated
     const result=commandCandidates(catalog,'/resume ',{sessions:[{id:'abc',name:'A name'}]});assert.equal(result[0].value,'/resume abc');
     assert.equal(commandCandidates(catalog,'/download as',{files:[{path:'assets/app.js'}]})[0].value,'/download assets/app.js');assert.equal(commandCandidates(catalog,'/files a',{files:[{path:'a'}]}).length,0);
 });
+test('reflection command is explicit with only supported role scopes',()=>{
+    assert.deepEqual(commandCandidates(catalog,'/ref').map(item=>item.value),['/reflect']);
+    assert.deepEqual(commandCandidates(catalog,'/reflect ').map(item=>item.value),['/reflect all','/reflect user','/reflect assistant']);
+});

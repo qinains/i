@@ -37,7 +37,9 @@ Web/console 支持待发送图片与长文本折叠标记，图片可补充说�
 - 参考资料以快照/增量追加，保持已有前缀；缓存命中以**服务端真实 usage**为准。
 - 桌面配置集中在 `~/.i/config/`；持久数据、可删除缓存、临时运行文件分开。
 
-核心没有服务商/模型容量表。正式运行时、插件和控制台全部是 Rust；Python 仅用于开发测试与可选示例。
+核心没有服务商/模型容量表。正式运行时、插件、控制台、开发测试 fixture 和仓库工具全部是 Rust；前端测试与 PWA 资源使用 Node.js，无需安装 Python。
+
+`tools/` 下的独立工具各有锁文件。从仓库根目录执行时，可给 Cargo 加 `--target-dir target`，或把 `CARGO_TARGET_DIR` 设为仓库 `target/` 的绝对路径，共享兼容的构建产物，避免每个工具单独生成 target。并发构建可能等待 Cargo 锁，不同 feature/profile 组合仍可能重新编译。
 
 ## 安装与启动
 
@@ -272,11 +274,11 @@ API 配置可增加 `"proxy":"socks5h://127.0.0.1:3067"`，通过 Xray SOCKS5 �
 
 ```sh
 # AArch64 额外体积优化；其他架构去掉 --outline。
-python3 scripts/package.py --profile min-size --outline
-python3 scripts/check_package.py 'dist/*.tar.gz' 'dist/*.tar.xz'
+cargo run --features packaging --bin i-package -- --profile min-size --outline
+cargo run --locked --manifest-path tools/native-tool/Cargo.toml -- check-package 'dist/*.tar.gz' 'dist/*.tar.xz'
 ```
 
-打包/检查脚本属于开发工具，发布的 Rust 程序无需 Python。在源码目录设置好 `DEEPSEEK_API_KEY` 后，可用短命令 `./scripts/start.sh [工作区]` 构建并启动，避免长命令粘贴时被换行拆开。
+打包和检查使用 Rust 工具，发布的程序无需开发工具链。在源码目录设置好 `DEEPSEEK_API_KEY` 后，可用短命令 `./scripts/start.sh [工作区]` 构建并启动，避免长命令粘贴时被换行拆开。
 
 ## 行数与验证（历史原生快照）
 
@@ -299,9 +301,10 @@ cargo fmt --all -- --check
 cargo build --workspace --locked --features bundled
 cargo test --workspace --locked --features bundled
 cargo clippy --workspace --locked --all-targets --features bundled -- -D warnings
-python3 scripts/check_tls.py --web
-python3 scripts/check_console.py
-python3 -m unittest discover -s examples -p 'test_plugins.py'
+cargo run --locked --manifest-path tools/native-tool/Cargo.toml -- check-tls target/debug/i --web
+cargo run --locked --manifest-path tools/native-tool/Cargo.toml -- check-console target/debug/i
+cargo test --locked --manifest-path examples/rust-plugin/Cargo.toml
+cargo test --locked --manifest-path tools/repo-tool/Cargo.toml
 ```
 
 当前本地通过 **188个 bundled 工作区 Rust 测试（非 bundled 为182个）、295个 globset 上游测试及5个文档测试、1个 Rust 替换示例测试、3个协议示例测试**，另通过伪终端编辑与本地自签证书拒绝测试，环境为 macOS、mock API。替换网络实现之前的一次真实 DeepSeek `deepseek-flash` 冒烟请求返回 `OK`，退出码0，端到端1.98秒：输入113 tokens、缓存读取0 tokens、无工具、输出上限32 tokens。另一次 thinking + PNG 测试（low effort、上限1024 tokens）在2.13秒内正确识别左侧红色正方形和右侧蓝色圆形：输入349、输出44（含推理33）、缓存读取0 tokens，无工具调用；思考字段非空但未展示。这些单次请求仅验证连通性/基础看图，不验证热工作负载缓存目标或 worker 加速。CI 配置了 Ubuntu/macOS/Windows，但不宣称 Windows 已运行通过、移动端已实现或已有吞吐基准。HTTP 成功/错误体上限48 MiB；文件竞态、硬链接、脱离进程组的子进程、并发会话写入及用户权限代码不属于沙箱保证。

@@ -1,4 +1,97 @@
 use super::*;
+
+#[tokio::test]
+async fn analysis_dispatch_is_filtered_local_and_independent_of_other_plugins() {
+    let dir = tempfile::tempdir().unwrap();
+    let exec = support::fixture(
+        "analysis-filter",
+        json!({"phases":true,"denied":["HOST_SECRET","assistant-secret","SYSTEM_SECRET"]}),
+    );
+    let manifest = dir.path().join("analysis.json");
+    std::fs::write(&manifest,json!({"tools":[],"analyses":[{"name":"review","selection":{"roles":["user"]},"exec":exec},{"name":"unused","selection":{},"exec":["DO_NOT_RUN_OTHER_PLUGIN"]}]}).to_string()).unwrap();
+    let plugins = load_plugins(Some(&manifest)).unwrap();
+    let api = Api {
+        client: net::client(None).unwrap(),
+        url: "https://unused.invalid".into(),
+        key: "HOST_SECRET".into(),
+        protocol: "openai".into(),
+        model: "fixture".into(),
+        max_tokens: 8192,
+        config: ApiConfig::default(),
+        plugins,
+    };
+    let history = vec![
+        json!({"role":"system","content":"SYSTEM_SECRET"}),
+        json!({"role":"user","content":"question"}),
+        json!({"role":"assistant","content":"assistant-secret"}),
+    ];
+    let original = history.clone();
+    assert_eq!(api.analyze("review", &history, &[]).await.unwrap(), "local reflection checked");
+    assert_eq!(history, original);
+    assert!(api.analyze("review", &history, &["assistant".into()]).await.is_err());
+    assert!(api.analyze("missing", &history, &[]).await.is_err());
+}
+
+#[test]
+fn analysis_manifest_rejects_duplicate_names_and_invalid_access() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("manifest.json");
+    for analyses in [
+        json!([{"name":"x","selection":{"roles":["system"]},"exec":["worker"]}]),
+        json!([{"name":"x","selection":{},"exec":["worker"]},{"name":"x","selection":{},"exec":["worker"]}]),
+    ] {
+        std::fs::write(&path, json!({"tools":[],"analyses":analyses}).to_string()).unwrap();
+        assert!(load_plugins(Some(&path)).is_err());
+    }
+}
+
+#[tokio::test]
+async fn model_analysis_uses_one_tool_free_request_and_rejects_incomplete_output() {
+    for reason in ["stop", "length", "tool_calls"] {
+        let dir = tempfile::tempdir().unwrap();
+        let policy = support::fixture("analysis-policy", json!({}));
+        let provider = support::fixture("analysis-provider", json!({"reason":reason,"content":"report"}));
+        let path = dir.path().join("manifest.json");
+        std::fs::write(&path,json!({"tools":[],"analyses":[{"name":"test","selection":{},"exec":policy}],"provider":{"completion":"plugin","exec":provider}}).to_string()).unwrap();
+        let api = Api {
+            client: net::client(None).unwrap(),
+            url: "https://unused.invalid".into(),
+            key: "HOST_SECRET".into(),
+            protocol: "openai".into(),
+            model: "fixture".into(),
+            max_tokens: 8192,
+            config: ApiConfig::default(),
+            plugins: load_plugins(Some(&path)).unwrap(),
+        };
+        let result = api.analyze("test", &[json!({"role":"user","content":"question"})], &[]).await;
+        if reason == "stop" {
+            assert_eq!(result.unwrap(), "report");
+        } else {
+            assert!(result.is_err());
+        }
+    }
+}
+
+#[tokio::test]
+async fn connection_plugin_completes_without_receiving_host_credentials_or_using_http() {
+    let dir = tempfile::tempdir().unwrap();
+    let exec = support::fixture("connection-provider", json!({"content":"plugin result"}));
+    let manifest = dir.path().join("plugins.json");
+    std::fs::write(&manifest, json!({"tools":[],"provider":{"exec":exec,"completion":"plugin"}}).to_string()).unwrap();
+    let plugins = load_plugins(Some(&manifest)).unwrap();
+    let api = Api {
+        client: net::client(None).unwrap(),
+        url: "https://unused.invalid".into(),
+        key: "HOST_SECRET_NOT_FOR_PLUGIN".into(),
+        protocol: "responses".into(),
+        model: "test-model".into(),
+        max_tokens: 65536,
+        config: ApiConfig::default(),
+        plugins,
+    };
+    let result = api.complete(&[json!({"role":"user","content":"hello"})], false).await.unwrap();
+    assert_eq!(result["choices"][0]["message"]["content"], "plugin result");
+}
 use std::fs;
 use tempfile::TempDir;
 #[test]
@@ -213,13 +306,9 @@ fn transcript_redaction_removes_images_and_private_adapter_state() {
 #[test]
 fn rpc_rejects_bad_json_failures_and_excessive_output() {
     let dir = tempfile::tempdir().unwrap();
-    for code in [
-        "print('not json')",
-        "raise RuntimeError('fixture failure')",
-        "import sys,time; sys.stderr.write('x'*30000); sys.stderr.flush(); time.sleep(30)",
-    ] {
+    for mode in ["invalid-json", "error-exit", "stderr-flood"] {
         let start = Instant::now();
-        assert!(rpc(&json!(["python3", "-c", code]), &json!({}), dir.path(), 24000).is_err());
+        assert!(rpc(&support::fixture(mode, json!({})), &json!({}), dir.path(), 24000).is_err());
         assert!(start.elapsed() < Duration::from_secs(5));
     }
 }
@@ -228,8 +317,7 @@ fn rpc_rejects_bad_json_failures_and_excessive_output() {
 fn worker_pool_reuses_processes_and_separates_working_directories() {
     let dir = tempfile::tempdir().unwrap();
     fs::create_dir(dir.path().join("sub")).unwrap();
-    let code = "import json,os,sys\nn=0\nfor line in sys.stdin:\n e=json.loads(line); n+=1; print(json.dumps({'id':e['id'],'data':{'pid':os.getpid(),'n':n,'cwd':os.getcwd()}}),flush=True)";
-    let entry = json!({"exec":["python3","-c",code]});
+    let entry = json!({"exec":support::fixture("pool",json!({}))});
     let mut plugins = load_plugins(None).unwrap();
     plugins.dir = dir.path().into();
     let first = plugins.call(&entry, "tool", json!({})).unwrap();
@@ -251,10 +339,9 @@ fn worker_pool_reuses_processes_and_separates_working_directories() {
 #[test]
 fn failed_worker_operations_are_not_replayed_and_next_call_restarts() {
     let dir = tempfile::tempdir().unwrap();
-    let code = "import json,os,sys\nfrom pathlib import Path\nfor line in sys.stdin:\n e=json.loads(line)\n with Path('effects').open('a') as f: f.write(str(os.getpid())+'\\n')\n print(json.dumps({'id':e['id'],'error':'side effect already happened'}),flush=True)";
     let mut plugins = load_plugins(None).unwrap();
     plugins.dir = dir.path().into();
-    let entry = json!({"exec":["python3","-c",code]});
+    let entry = json!({"exec":support::fixture("effect-error",json!({}))});
     assert!(plugins.call(&entry, "tool", json!({})).is_err());
     assert_eq!(fs::read_to_string(dir.path().join("effects")).unwrap().lines().count(), 1);
     assert!(plugins.workers.borrow().is_empty());
@@ -267,8 +354,7 @@ fn failed_worker_operations_are_not_replayed_and_next_call_restarts() {
 #[test]
 fn worker_timeout_covers_blocked_stdin_and_kills_the_process() {
     let dir = tempfile::tempdir().unwrap();
-    let code = "import time\nfrom pathlib import Path\ntime.sleep(0.7)\nPath('late-effect').write_text('bad')";
-    let mut worker = Worker::start(&json!(["python3", "-c", code]), dir.path(), 1000).unwrap();
+    let mut worker = Worker::start(&support::fixture("block-stdin", json!({})), dir.path(), 1000).unwrap();
     let start = Instant::now();
     assert!(worker.call(json!({"payload":"x".repeat(1_000_000)}), Duration::from_millis(100)).is_err());
     drop(worker);
@@ -279,13 +365,8 @@ fn worker_timeout_covers_blocked_stdin_and_kills_the_process() {
 #[test]
 fn worker_rejects_mismatched_ids_eof_and_oversized_frames() {
     let dir = tempfile::tempdir().unwrap();
-    for code in [
-        "import json,sys\ne=json.loads(sys.stdin.readline()); print(json.dumps({'id':e['id']+1,'data':{}}),flush=True)",
-        "import json,sys\ne=json.loads(sys.stdin.readline()); print(json.dumps({'id':e['id'],'data':[]} ),flush=True)",
-        "import sys\nsys.stdin.readline(); sys.stdout.write('x'*(48*1024*1024+1)); sys.stdout.flush()",
-        "import sys\nsys.stdin.readline()",
-    ] {
-        let mut worker = Worker::start(&json!(["python3", "-c", code]), dir.path(), 24000).unwrap();
+    for mode in ["mismatch", "nonobject", "oversize", "eof"] {
+        let mut worker = Worker::start(&support::fixture(mode, json!({})), dir.path(), 24000).unwrap();
         assert!(worker.call(json!({}), Duration::from_secs(3)).is_err());
     }
 }

@@ -200,7 +200,7 @@ fn native_worker_serves_multiple_frames_and_reports_errors_with_ids() {
     assert_eq!(frames[2]["data"]["seed"], 3);
 }
 #[test]
-fn production_plugins_run_without_python_or_path() {
+fn production_plugins_run_without_interpreters_or_path() {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(root.path().join("main.rs"), "needle").unwrap();
     for (plugin, event, data) in [
@@ -276,7 +276,10 @@ fn executable_generates_self_contained_manifest() {
     for section in ["tools", "hooks"] {
         for item in value[section].as_array().unwrap() {
             assert!(std::path::Path::new(item["exec"][0].as_str().unwrap()).is_absolute());
-            assert_ne!(item["exec"][0], "python3");
+            assert_eq!(
+                std::path::Path::new(item["exec"][0].as_str().unwrap()).canonicalize().unwrap(),
+                std::path::Path::new(env!("CARGO_BIN_EXE_i-plugins")).canonicalize().unwrap()
+            );
         }
     }
 }

@@ -1,0 +1,9 @@
+[extend]
+useDefault = true
+
+[[rules]]
+id = "jwt"
+
+[[rules.allowlists]]
+description = "Synthetic JWT signature/claim fixtures, with a public JWK and no private signing key"
+paths = ['''^plugins/connections/src/test-jwt\.json$''']

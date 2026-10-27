@@ -15,9 +15,10 @@ JavaScript 模块词法分析器的许可及声明分别位于 `web/module-lexer
 
 ```sh
 cargo fetch --locked
-python3 scripts/build_license_notices.py
-python3 scripts/build_license_notices.py --check
-python3 -m unittest discover -s scripts -p 'test_*.py'
+cargo fetch --locked --manifest-path tools/repo-tool/Cargo.toml
+cargo run --locked --manifest-path tools/repo-tool/Cargo.toml -- licenses
+cargo run --locked --manifest-path tools/repo-tool/Cargo.toml -- licenses --check
+cargo test --locked --manifest-path tools/repo-tool/Cargo.toml
 ```
 
 收集器只读取锁定依赖源码中的许可文件，不执行它们。少数上游 crate 没有打包其
@@ -25,6 +26,12 @@ python3 -m unittest discover -s scripts -p 'test_*.py'
 这些补充文本随仓库保存，普通构建与校验不需要 GitHub 凭据或联网获取补充声明。
 `--fetch-missing` 是维护者显式操作：仅查询代码中批准的公开上游仓库，并使用 crate
 携带的固定 VCS revision；新增来源必须人工审查。
+
+默认还扫描 `tools/*/Cargo.toml` 的独立工作区，逐一校验完整锁文件并合并去重依赖；
+这些工作区也应先分别执行 `cargo fetch --locked --manifest-path PATH`。metadata 必须
+覆盖锁定的可选、测试和目标平台包，缓存不完整会失败而不是省略。补充文件验证原始
+SHA-256，显式下载还校验固定提交中的 Git blob SHA-1。`asn1-rs-impl 0.2.0` 未随子 crate
+分发的 MIT/Apache 文本来自已审查的 `rusticata/asn1-rs` 固定提交，来源记录与文本均保留。
 
 升级依赖后应重新生成、查看 diff，核对上游许可变化，再提交更新。不能仅靠 SPDX
 标识推断全部许可义务已满足，也不要删除上游版权、NOTICE 或许可文本来减小体积。

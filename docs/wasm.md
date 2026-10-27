@@ -1,14 +1,26 @@
 # 浏览器 WASM
 
+## 显式对话反思
+
+内置声明式分析插件提供 `/reflect [all|user|assistant]`，默认 `all`。每次都需要手动执行并确认，向当前连接的模型额外发送一次请求；不会自动在后台执行，也不会作为排队消息运行。
+
+宿主按 `plugins/reflection-spec.json` 的范围和预算借用投影历史：默认最近最多 40 条、48,000 字节，保留原始消息索引和截断统计；`all` 包含 user、assistant 和 tool。system 主提示、隐藏推理、签名、加密状态、图片和其他二进制内容不交给分析插件。模型请求不带工具，工具调用响应不会执行。
+
+结果仅保存为独立的反思报告，可随会话重新打开；不会加入模型历史、改变系统提示或会话标题，也不会修改工作区文件。停止按钮会取消请求，取消后的迟到结果不会保存。已有连接绑定仍适用，不能借反思把旧对话静默发送到另一个连接。
+
+反思借用当前会话快照，不在等待模型期间占用工作区文件锁。`user` 视图不把已有压缩摘要、参考资料注入或工具图片当作真实用户输入；完整视图保留这些上下文并标注来源，不自动读取旧备份。
+
+构建时 `scripts/build_pwa.mjs` 将规范复制为 `web/reflection.json` 并纳入离线缓存；离线仍不能调用模型。此入口不授予第三方 WASM 工具插件访问聊天、密钥或浏览器存储的权限。若发现反思建议需要修改提示或工作流，先审阅，再手动应用。
+
 ## 构建与启动
 
-需要 Rust 1.91+、`wasm32-unknown-unknown`、wasm-pack、Node.js 22+ 和 Python 3.11+（构建静态 PWA 与发布包）；纯直连的 Web 运行时不需要 npm 或服务端 Agent。
+需要 Rust 1.91+、`wasm32-unknown-unknown`、wasm-pack 和 Node.js 22+；静态站构建、翻译和发布检查使用 Rust 仓库工具，不需要 Python。纯直连的 Web 运行时不需要 npm 或服务端 Agent。
 
 ```sh
 rustup target add wasm32-unknown-unknown
 cargo install wasm-pack --locked
 ./scripts/build_web.sh
-python3 -m http.server 8080 --bind 127.0.0.1 --directory web
+node web/serve.mjs
 ```
 
 默认对主模块和插件校验模块使用 `min-size` profile，不裁剪功能。当前实测体积及 gzip/Brotli 数据、对比命令见 [WASM 体积](wasm-size.md)；`node scripts/measure_wasm.mjs` 可复测。
@@ -27,7 +39,15 @@ python3 -m http.server 8080 --bind 127.0.0.1 --directory web
 | OpenAI (Responses) | `https://api.openai.com`、`https://api.openai.com/v1` 或 `https://api.openai.com/v1/responses` | `https://api.openai.com/v1/responses` |
 | Anthropic (Messages) | `https://api.anthropic.com`、`https://api.anthropic.com/v1` 或 `https://api.anthropic.com/v1/messages` | `https://api.anthropic.com/v1/messages` |
 
-也支持自定义服务的路径前缀，不根据域名或模型名称猜测协议。Anthropic 使用原生 Messages 请求、system/content blocks、tool_use/tool_result 和图片格式，支持 JSON 和流式响应；续聊保留 thinking/signature 原始块。切换协议或账号仍需新建会话或明确换绑，不自动发送旧历史。浏览器不支持原生进程 provider/plugin；原生已有协议不变。
+也支持自定义服务的路径前缀，不根据域名或模型名称猜测协议。Anthropic 使用原生 Messages 请求、system/content blocks、tool_use/tool_result 和图片格式，支持 JSON 和流式响应；续聊保留 thinking/signature 原始块。切换协议或账号仍需新建会话或明确换绑，不自动发送旧历史。浏览器不能直接启动原生进程，但可显式配对同机运行的原生连接插件；原生已有协议不变。
+
+### 可选本地连接插件
+
+设置的 **Local connection plugins** 管理入口与工作区 WASM 工具插件分开。用户需自行安装可信的 `i-chatgpt-plugin` 或 `i-claude-plugin`，运行 `serve --origin <页面确切 origin> --port 0`，打开其 `#connection-plugin=...` 配对链接，再在模型连接中检查插件、登录服务商、选择实际返回的账户/模型并保存更改。配对先创建未保存草稿，不替换已有连接，页面也不自动安装可执行程序。完整命令及 CLI 用法见 [原生连接插件](chatgpt-login.md)。
+
+OAuth 凭据保留在原生插件侧；浏览器使用的是独立的本地配对能力密钥，可按记住配置选项保存。删除连接只清浏览器配对，不等于服务商登出；同一助手实例的账户选择会影响共享它的所有连接。原生插件有当前用户的 OS 权限，**不受 WASM 沙箱隔离**，不能因不转发主 API key 就将其视为无害。
+
+本地助手必须持续运行，手机不能独立使用此模式。HTTPS 访问 loopback 可能需要浏览器本地网络授权，无法绕过安全策略；受阻时使用 CLI 或本机 HTTP 服务的 Web UI 并重新配对对应 origin。ChatGPT 套餐授权路径固定流式且忽略最大输出 token 设置；Claude Console OAuth 使用 API 权限与计费，不是 Pro/Max 额度。真实 OAuth 和模型调用需用户授权验证，离线测试不代表已实测登录。
 
 Responses 是独立协议，并非只替换 URL。使用原生 `input`、`input_text/input_image`、扁平 function schemas、`function_call/function_call_output` 和 `max_output_tokens`，支持普通 JSON 与 typed SSE。函数 schema 显式 `strict: false`，保留现有工具可选参数。工具仍走本地文件系统与审批，不启用服务商托管工具。默认 `store: false`，不使用 `previous_response_id`；浏览器保存并在后续请求重放完整输出项和加密 reasoning，刷新不自动发请求。保存的原生输出必须与规范化历史中的文本及工具批次一致，不能通过篡改恢复元数据改变待执行工具。
 

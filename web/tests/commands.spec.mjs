@@ -11,7 +11,10 @@ test('slash command labels and input use the same upright monospace font on desk
 });
 test('slash menu filters, completes without executing, and supports Escape, IME and phone taps',async({page})=>{
     await start(page);const input=page.locator('#input'),menu=page.locator('#command-menu');await input.fill('/');await expect(menu).toBeVisible();await expect(menu).toContainText('/mode');await expect(menu).not.toContainText('/compact');await input.fill('/mo');await input.press('Enter');await expect(input).toHaveValue('/mode');await expect(page.locator('#output')).not.toContainText('> /mode');await input.fill('/mode a');await input.press('ArrowDown');await input.press('Tab');await expect(input).toHaveValue('/mode auto');await expect(page.locator('#execution-mode')).toHaveValue('ask');await input.press('Enter');await expect(page.locator('#execution-mode')).toHaveValue('auto');
-    await input.fill('/');await input.press('Escape');await expect(menu).toBeHidden();await input.fill('explain /mode');await expect(menu).toBeHidden();await input.dispatchEvent('compositionstart');await input.fill('/mo');await expect(menu).toBeHidden();await input.dispatchEvent('compositionend');await expect(menu).toBeVisible();
+    await input.fill('/');await input.press('Escape');await expect(menu).toBeHidden();await input.fill('explain /mode');await expect(menu).toBeHidden();
+    // fill() ends native composition in Firefox; simulate the IME's input event instead.
+    await input.evaluate(element=>{element.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));element.value='/mo';element.dispatchEvent(new InputEvent('input',{bubbles:true,isComposing:true,inputType:'insertCompositionText',data:'/mo'}));});
+    await expect(menu).toBeHidden();await input.dispatchEvent('compositionend');await expect(menu).toBeVisible();
     await page.setViewportSize({width:390,height:844});await input.fill('/new');await input.press('Backspace');await menu.locator('button').first().click();await expect(input).toHaveValue('/new');await expect(page.locator('[role=tab]')).toHaveCount(1);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
 test('mode control is below input, shortcut is local and auto still needs explicit confirmation',async({page})=>{

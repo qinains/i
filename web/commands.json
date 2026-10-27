@@ -7,6 +7,7 @@
   {"name":"/download","description":"Download workspace or selected path as ZIP","platforms":["web"],"arguments":[]},
   {"name":"/resume","description":"Show saved conversations","platforms":["web","readline"],"arguments":[]},
   {"name":"/config","description":"Open settings","platforms":["web"],"arguments":[]},
+  {"name":"/reflect","description":"Reflect on this conversation (one extra model request)","platforms":["web","console"],"arguments":["all","user","assistant"]},
   {"name":"/queue","description":"Queue a follow-up task","platforms":["console"],"arguments":[]},
   {"name":"/steer","description":"Send steering instructions","platforms":["console"],"arguments":[]},
   {"name":"/approve","description":"Allow the pending request","platforms":["console"],"arguments":[]},

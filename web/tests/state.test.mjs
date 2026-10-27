@@ -30,6 +30,10 @@ test('legacy labels map to one default directory without pretending files are is
 test('corrupt transcript data is rejected before rendering',()=>{
     assert.throws(()=>validateSession({id:'a',workspaceId:'default',name:'a',connectionId:'',connectionIdentity:'',draft:'',revision:1,history:[],transcript:[null],status:'idle'}),/Invalid/);
 });
+test('analysis reports persist as independent transcript entries, never model history',()=>{
+    const record={id:'report',workspaceId:'default',name:'Original title',connectionId:'',connectionIdentity:'',draft:'',revision:1,history:[],transcript:[{type:'analysis',text:'Independent reflection'}],status:'idle'};
+    assert.equal(validateSession(record),record);assert.deepEqual(record.history,[]);assert.equal(record.name,'Original title');
+});
 test('old sessions default to ask while unknown persisted execution modes are rejected',()=>{
     const record={id:'a',workspaceId:'default',name:'a',connectionId:'',connectionIdentity:'',draft:'',revision:1,history:[],transcript:[],status:'idle'};
     assert.equal(validateSession(record).mode??'ask','ask');assert.equal(validateSession({...record,mode:'auto'}).mode,'auto');assert.throws(()=>validateSession({...record,mode:'unsafe'}),/Invalid/);

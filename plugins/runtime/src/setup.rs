@@ -39,10 +39,21 @@ fn env_name(value: &str) -> bool {
         && value.bytes().enumerate().all(|(i, c)| c == b'_' || c.is_ascii_alphabetic() || i > 0 && c.is_ascii_digit())
 }
 fn generated_legacy(old: &Value, new: &Value) -> bool {
-    if old.as_object().is_none_or(|o| o.keys().any(|k| !matches!(k.as_str(), "tools" | "hooks" | "provider"))) {
+    if old
+        .as_object()
+        .is_none_or(|o| o.keys().any(|k| !matches!(k.as_str(), "tools" | "hooks" | "provider" | "analyses")))
+    {
         return false;
     }
-    for section in ["tools", "hooks", "provider"] {
+    for section in ["tools", "hooks", "provider", "analyses"] {
+        // Older generated manifests predate analyses; explicit entries must still match exactly.
+        if section == "analyses" {
+            match old.get(section) {
+                None => continue,
+                Some(value) if !value.is_array() => return false,
+                Some(_) => {}
+            }
+        }
         let old = if section == "provider" {
             old.get(section).map(|v| vec![v.clone()]).unwrap_or_default()
         } else {
@@ -86,6 +97,7 @@ fn generated_legacy(old: &Value, new: &Value) -> bool {
     }
     true
 }
+
 fn secret() -> Result<String> {
     use std::sync::{
         Arc,
@@ -314,4 +326,46 @@ pub(super) fn run(args: &[String]) -> Result<i32> {
     }
     println!("Configured. No model requests made. Run i start (or bare i in a terminal).");
     Ok(0)
+}
+
+#[cfg(test)]
+mod migration_tests {
+    use super::*;
+    fn current() -> Value {
+        json!({"tools":[],"hooks":[],"provider":{"exec":["/current/i","--runtime","provider"],"cwd":"/config","module":"provider"},
+            "analyses":[{"name":"reflection","selection":{"roles":["user","assistant","tool"],"start":0,"end":null,"max_messages":40,"max_bytes":48000},
+                "exec":["/current/i","--runtime","reflection"],"cwd":"/config","module":"reflection"}]})
+    }
+    #[test]
+    fn legacy_migration_accepts_current_generated_analyses_and_absent_older_section() {
+        let new = current();
+        let mut old = new.clone();
+        old["provider"]["exec"] = json!(["/retired/i-plugins", "provider"]);
+        assert!(generated_legacy(&old, &new));
+        old["analyses"][0]["exec"] = json!(["/retired/i-plugins", "reflection"]);
+        assert!(generated_legacy(&old, &new));
+        old.as_object_mut().unwrap().remove("analyses");
+        assert!(generated_legacy(&old, &new));
+    }
+    #[test]
+    fn legacy_migration_rejects_custom_analysis_policy_binding_and_shape() {
+        let new = current();
+        let mut changed = new.clone();
+        changed["analyses"][0]["selection"]["max_bytes"] = json!(96000);
+        assert!(!generated_legacy(&changed, &new));
+        changed = new.clone();
+        changed["analyses"][0]["exec"] = json!(["/custom/worker", "reflection"]);
+        assert!(!generated_legacy(&changed, &new));
+        changed = new.clone();
+        changed["analyses"][0]["cwd"] = json!("/custom/config");
+        assert!(!generated_legacy(&changed, &new));
+        for analyses in [json!(null), json!({}), json!([]), json!([{"name":"custom"}])] {
+            changed = new.clone();
+            changed["analyses"] = analyses;
+            assert!(!generated_legacy(&changed, &new));
+        }
+        changed = new.clone();
+        changed["unexpected"] = json!(true);
+        assert!(!generated_legacy(&changed, &new));
+    }
 }

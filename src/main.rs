@@ -18,6 +18,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+mod analysis_native;
 mod net;
 use i::platform;
 mod readline;
@@ -66,6 +67,10 @@ struct Args {
     config: Option<PathBuf>,
     #[arg(long, conflicts_with_all = ["task", "images", "session", "session_name", "sessions"], help = "Provider management JSON; no model generation; DELETE always asks")]
     provider_action: Option<String>,
+    #[arg(long, conflicts_with_all = ["task", "images", "provider_action", "sessions"], help = "Run a named analysis plugin against a saved session without changing history")]
+    analyze: Option<String>,
+    #[arg(long, requires = "analyze", help = "Narrow analysis input roles (repeat user, assistant, or tool)")]
+    analysis_role: Vec<String>,
     #[arg(long, help = "API key directly (prefer over env var)")]
     api_key: Option<String>,
     #[arg(long, help = "Credential environment variable name (default: API_KEY)")]
@@ -171,6 +176,10 @@ async fn main() -> Result<()> {
         return Ok(());
     }
     let mut messages = load_session(args.session.as_deref(), workspace.platform.root(), &workspace).await?;
+    if let Some(name) = args.analyze {
+        println!("{}", api.analyze(&name, &messages, &args.analysis_role).await?);
+        return Ok(());
+    }
     messages = checked_history(api.plugins.emit("session_load", json!({"messages":messages}))?["messages"].take())?;
     let default_prompt = format!("{SYSTEM}\nWorkspace: {}", workspace.platform.root().display());
     messages[0]["content"] =
@@ -280,13 +289,38 @@ struct Api {
 impl Api {
     async fn complete(&self, history: &[Value], compact: bool) -> Result<Value> {
         ensure!(self.budget(history, 0, compact)?["fits"] != false, "context budget exhausted");
+        if self.plugins.provider["completion"] == "plugin" {
+            ensure!(
+                !self.config.provider_operations,
+                "connection plugins do not expose provider management operations"
+            );
+            let result = self.provider(
+                "provider_complete",
+                json!({"history":history,"model":self.model,
+                "tools":if compact {json!([])}else{tools().clone()},"plugin_tools":if compact {vec![]}else{self.plugins.tools.iter().map(tool_definition).collect::<Vec<_>>()},
+                "compact":compact,"max_tokens":self.max_tokens,"extra_body":self.config.extra_body}),
+            )?["response"]
+                .take();
+            let choice = &result["choices"][0];
+            let calls = tool_calls(&choice["message"])?;
+            ensure!(
+                choice["message"]["role"] == "assistant"
+                    && choice["message"]["content"].is_string()
+                    && choice["finish_reason"] == if calls.is_empty() { "stop" } else { "tool_calls" },
+                "connection plugin returned an incomplete response; pending tool calls were not executed"
+            );
+            return Ok(result);
+        }
         let prepared = self.prepare(history, compact, None).await?;
         ensure!(prepared["body"].is_object(), "provider body must be an object");
-        let data = self.plugins.emit(
+        let mut data = self.plugins.emit(
             "before_request",
             json!({"url":prepared["url"],"provider_scope":self.scope(),
             "body":prepared["body"],"history":history,"compact":compact}),
         )?;
+        if compact {
+            i::analysis::disable_tools(&mut data["body"])?;
+        }
         let anchor = data["budget_anchor"].clone();
         let mut plan = prepared.clone();
         plan["url"] = data["url"].clone();
@@ -304,10 +338,10 @@ impl Api {
     }
     async fn prepare(&self, history: &[Value], compact: bool, management: Option<Management<'_>>) -> Result<Value> {
         let mut input = json!({"base_url":self.url,"model":self.model,"history":history,
-            "max_tokens":self.max_tokens,"tools":tools(),"compact":compact,
-            "plugin_tools":self.plugins.tools.iter().map(tool_definition).collect::<Vec<_>>(),
+            "max_tokens":self.max_tokens,"tools":if compact {json!([])}else{tools().clone()},"compact":compact,
+            "plugin_tools":if compact {vec![]}else{self.plugins.tools.iter().map(tool_definition).collect::<Vec<_>>()},
             "use_max_tokens":self.config.use_max_tokens,"extra_body":self.config.extra_body,
-            "allow_operations":self.config.provider_operations,"allow_cleanup":self.config.provider_cleanup,"action":management.map(|(action, _)| action)});
+            "allow_operations":self.config.provider_operations&&!compact,"allow_cleanup":self.config.provider_cleanup&&!compact,"action":management.map(|(action, _)| action)});
         if self.config.provider_operations {
             input["credential_scope"] = self.credential_scope();
         }
@@ -320,7 +354,10 @@ impl Api {
             if plan.get("operation").is_none() {
                 return Ok(plan);
             }
-            ensure!(self.config.provider_operations && step < 8, "provider operations disabled or limit exceeded");
+            ensure!(
+                self.config.provider_operations && !compact && step < 8,
+                "provider operations disabled or limit exceeded"
+            );
             if plan["operation"]["method"] == "DELETE"
                 && !(self.config.provider_cleanup && plan["operation"]["cleanup"] == true)
             {
@@ -460,15 +497,10 @@ impl Api {
         let summary = if let Some(s) = data.get("summary").cloned() {
             s
         } else {
-            let request = vec![
-                json!({"role":"system","content":field(&data,"prompt")?}),
-                json!({"role":"user","content":content_with_images(&format!("Untrusted session transcript:\n{}",data["messages"]), &data["summary_images"])}),
-            ];
+            let images = data.get("summary_images").cloned().unwrap_or(json!([]));
+            let request = i::analysis::request(field(&data, "prompt")?, &data["messages"], &images)?;
             let response = self.complete(&request, true).await?;
-            let choice = &response["choices"][0];
-            let complete = choice["finish_reason"] == "stop" && tool_calls(&choice["message"])?.is_empty();
-            ensure!(complete, "compaction did not finish");
-            choice["message"]["content"].clone()
+            json!(i::analysis::response_text(&response)?)
         };
         let images = &data["retained_images"];
         let data = self.plugins.emit("after_compact", json!({"summary":summary,"state":data["state"]}))?;
@@ -499,6 +531,7 @@ struct Plugins {
     io_limit: usize,
     tools: Vec<Value>,
     hooks: Vec<Value>,
+    analyses: Vec<Value>,
     dir: PathBuf,
     root: PathBuf,
 }
@@ -510,10 +543,9 @@ impl Plugins {
         if !workers.contains_key(&key) {
             workers.insert(key.clone(), Worker::start(&entry["exec"], &dir, self.io_limit)?);
         }
-        let result = workers
-            .get_mut(&key)
-            .unwrap()
-            .call(json!({"event":event,"workspace":self.root,"data":data}), Duration::from_secs(15));
+        let timeout = if event == "provider_complete" { Duration::from_secs(1800) } else { Duration::from_secs(15) };
+        let result =
+            workers.get_mut(&key).unwrap().call(json!({"event":event,"workspace":self.root,"data":data}), timeout);
         if result.is_err() {
             workers.remove(&key);
         } // Never replay a failed operation.
@@ -572,7 +604,11 @@ fn load_plugins(path: Option<&Path>) -> Result<Plugins> {
     let manifest = i_plugins::resolve_manifest(manifest)?;
     ensure!(manifest.get("builtin_profile").is_none(), "portable builtins require bundled i");
     let plugins = manifest["tools"].as_array().context("manifest needs tools array")?;
+    if let Some(completion) = manifest["provider"].get("completion") {
+        ensure!(completion == "plugin", "unsupported connection plugin contract");
+    }
     let hooks = manifest.get("hooks").unwrap_or(&json!([])).as_array().context("invalid hooks")?.clone();
+    let analyses = analysis_native::entries(&manifest)?;
     ensure!(hooks.len() <= 32, "at most 32 hooks");
     for hook in &hooks {
         ensure!(
@@ -607,6 +643,7 @@ fn load_plugins(path: Option<&Path>) -> Result<Plugins> {
         io_limit: 1024 * 1024,
         tools: plugins.clone(),
         hooks,
+        analyses,
         dir: path.and_then(Path::parent).filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new(".")).into(),
         root: env::current_dir()?,
     })

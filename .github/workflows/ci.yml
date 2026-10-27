@@ -1,5 +1,6 @@
 name: CI
 on:
+  workflow_call:
   push:
     branches: [main]
   pull_request:
@@ -23,18 +24,16 @@ jobs:
         with:
           toolchain: '1.95.0'
           components: rustfmt, clippy
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: '3.12'
-      - name: Provide python3 executable for cross-platform test fixtures
-        if: runner.os == 'Windows'
-        shell: pwsh
+      - name: Build Rust development tools and protocol fixtures
+        shell: bash
         run: |
-          $python = (Get-Command python).Source
-          $alias = Join-Path (Split-Path $python) 'python3.exe'
-          if (-not (Test-Path $alias)) { Copy-Item $python $alias }
-      - run: python3 scripts/check_globset.py
-      - run: python3 scripts/build_translations.py --check
+          for manifest in tools/*/Cargo.toml; do
+            cargo fetch --locked --manifest-path "$manifest"
+            cargo build --locked --manifest-path "$manifest" --target-dir target
+          done
+      - run: cargo run --locked --manifest-path tools/repo-tool/Cargo.toml --target-dir target -- check-globset
+      - run: cargo run --locked --manifest-path tools/repo-tool/Cargo.toml --target-dir target -- check-no-python
+      - run: cargo run --locked --manifest-path tools/site-tool/Cargo.toml --target-dir target -- translations --check
       - run: cargo fmt --all --check
       - run: cargo fmt --manifest-path examples/rust-plugin/Cargo.toml --check
       - name: Install Linux native TLS build prerequisites
@@ -43,30 +42,53 @@ jobs:
       - run: cargo clippy --workspace --locked --all-targets --features bundled -- -D warnings
       - run: cargo build --workspace --locked --features bundled
       - run: cargo fetch --locked
-      - run: python3 scripts/build_license_notices.py --check
-      - run: python3 -m unittest discover -s scripts -p 'test_*.py'
+      - run: cargo run --locked --manifest-path tools/repo-tool/Cargo.toml --target-dir target -- licenses --check
+      - name: Test Rust development tooling
+        shell: bash
+        run: |
+          for manifest in tools/*/Cargo.toml; do
+            cargo fmt --manifest-path "$manifest" --check
+            cargo clippy --locked --manifest-path "$manifest" --target-dir target --all-targets -- -D warnings
+            cargo test --locked --manifest-path "$manifest" --target-dir target
+          done
+      - run: cargo run --locked --manifest-path tools/native-tool/Cargo.toml --target-dir target -- check-connections
       - name: Report the installable debug executable size
-        run: python3 -c "from pathlib import Path; p=Path('target/debug/i.exe' if __import__('os').name=='nt' else 'target/debug/i'); print('Debug executable bytes:', p.stat().st_size)"
+        shell: bash
+        run: cargo run --locked --manifest-path tools/native-tool/Cargo.toml --target-dir target -- binary-size "target/debug/i${{ runner.os == 'Windows' && '.exe' || '' }}"
       - run: cargo test --workspace --locked --features bundled
       - run: cargo test --locked -p i-wasm-package --features cli
       - run: cargo check --locked --no-default-features -p i
       - name: Verify interactive editor with a pseudo-terminal
         if: runner.os != 'Windows'
-        run: python3 scripts/check_console.py
+        run: cargo run --locked --manifest-path tools/native-tool/Cargo.toml --target-dir target -- check-console target/debug/i
       - name: Verify hidden setup input and terminal restoration
         if: runner.os != 'Windows'
-        run: python3 scripts/check_setup.py target/debug/i
+        run: cargo run --locked --manifest-path tools/native-tool/Cargo.toml --target-dir target -- check-setup target/debug/i
       - name: Verify native TLS rejection offline
         if: runner.os != 'Windows'
-        run: python3 scripts/check_tls.py --web
-      - run: python3 -m unittest discover -s examples -p 'test_*.py'
+        run: cargo run --locked --manifest-path tools/native-tool/Cargo.toml --target-dir target -- check-tls target/debug/i --web
+      - run: cargo test --locked --manifest-path examples/rust-plugin/Cargo.toml --target-dir target
       - name: Build complete min-size packages in both formats
-        run: python3 scripts/package.py --profile min-size
+        run: cargo run --locked --features bundled,packaging --bin i-package -- --profile min-size
       - name: Verify first-run installation without changing the runner user
         if: runner.os != 'Windows'
         shell: bash
         run: |
           host=$(rustc -vV | sed -n 's/^host: //p')
-          I_TEST_BINARY="$PWD/target/$host/min-size/i" python3 -m unittest discover -s scripts -p test_first_run.py -v
-      - name: Verify gzip and xz packages offline
-        run: python3 scripts/check_package.py "dist/*.tar.gz" "dist/*.tar.xz"
+          cargo run --locked --manifest-path tools/native-tool/Cargo.toml --target-dir target -- check-first-run "$PWD/target/$host/min-size/i"
+      - name: Verify native packages offline
+        shell: bash
+        run: |
+          for archive in dist/*.tar.gz dist/*.tar.xz dist/*.zip; do
+            if [ -f "$archive" ]; then cargo run --locked --manifest-path tools/native-tool/Cargo.toml --target-dir target -- check-package "$archive"; fi
+          done
+      - name: Retain verified Windows package for VM smoke testing
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: windows-smoke-package
+          path: |
+            dist/*.zip
+            dist/*.zip.sha256
+          if-no-files-found: error
+          retention-days: 3

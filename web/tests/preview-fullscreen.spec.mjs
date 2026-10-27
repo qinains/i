@@ -40,10 +40,11 @@ test.describe('touch fullscreen control',()=>{
         await expect(page.frameLocator('#preview-frame').locator('h1')).toHaveText('Touch preview');
         await page.locator('#preview-options>summary').click();await page.locator('#preview-fullscreen').click();
         const exit=page.locator('#preview-exit-fullscreen'),panel=page.locator('#preview-panel');
+        await exit.evaluate(button=>button.addEventListener('pointerdown',event=>{button.dataset.testPointerId=String(event.pointerId);},{once:true}));
         const initial=await exit.boundingBox();await page.mouse.move(initial.x+22,initial.y+22);await page.mouse.down();
         await exit.evaluate(button=>{
             for(const type of ['pointermove','pointercancel']){
-                button.dispatchEvent(new PointerEvent(type,{pointerId:1,pointerType:'mouse',isPrimary:true,button:0,clientX:90,clientY:400,bubbles:true}));
+                button.dispatchEvent(new PointerEvent(type,{pointerId:Number(button.dataset.testPointerId),pointerType:'mouse',isPrimary:true,button:0,clientX:90,clientY:400,bubbles:true}));
             }
         });
         await page.mouse.up();

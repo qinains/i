@@ -75,7 +75,7 @@ pub fn inspect_package(bytes: &[u8]) -> Result<VerifiedPackage> {
     let mut total = 0;
     for index in 0..archive.len() {
         let mut file = archive.by_index(index)?;
-        let name = file.name().to_owned();
+        let name = file.name()?.into_owned();
         ensure!(
             !file.encrypted()
                 && !file.is_symlink()

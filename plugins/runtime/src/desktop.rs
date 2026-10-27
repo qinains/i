@@ -41,6 +41,7 @@ pub(crate) fn manifest(paths: &AppPaths, profile: Option<&str>) -> Result<Value>
         "approval" => include_str!("../../approval.json"),
         "budget" => include_str!("../../budget.json"),
         "compact" => include_str!("../../compact.json"),
+        "reflection" => include_str!("../../reflection.json"),
         "cache" => include_str!("../../cache.json"),
         "responses" => include_str!("../../responses.json"),
         "responses-budget" => include_str!("../../responses-budget.json"),
@@ -56,7 +57,10 @@ pub(crate) fn manifest(paths: &AppPaths, profile: Option<&str>) -> Result<Value>
     let disabled = selection.get("disabled").cloned().unwrap_or(json!([]));
     let disabled = disabled.as_array().context("disabled must be an array")?;
     ensure!(disabled.iter().all(Value::is_string), "disabled entries must be module names");
-    for section in ["tools", "hooks"] {
+    if value.get("analyses").is_none() {
+        value["analyses"] = json!([]);
+    }
+    for section in ["tools", "hooks", "analyses"] {
         let entries = value[section].as_array_mut().context("invalid manifest")?;
         entries.retain(|entry| {
             !(disabled.contains(&entry["exec"][1]) || profile == "standard" && entry["exec"][1] == "responses")

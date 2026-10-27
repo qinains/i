@@ -1,0 +1,55 @@
+name: Browser verification
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
+        with:
+          toolchain: '1.95.0'
+          targets: wasm32-unknown-unknown
+      - run: cargo install wasm-pack --version 0.15.0 --locked
+      - run: cargo fetch --locked
+      - name: Fetch all locked Rust development tool dependencies
+        run: |
+          for manifest in tools/*/Cargo.toml; do cargo fetch --locked --manifest-path "$manifest"; done
+      - run: cargo run --locked --manifest-path tools/repo-tool/Cargo.toml --target-dir target -- licenses --check
+      - run: sh scripts/build_web.sh
+      - run: npm ci --prefix web
+      - run: npm test --prefix web
+      - name: Build offline browser plugin and relay fixtures
+        run: |
+          sh scripts/build_plugin_fixtures.sh
+          cargo test -p i-relay --lib --no-run --locked
+      - name: Install browser engines
+        working-directory: web
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: Browser regression tests (real WASM and OPFS)
+        working-directory: web
+        run: npm run test:browser
+      - name: Retain browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: browser-failures
+          path: web/test-results/
+          retention-days: 7
+      - run: cargo test --locked --manifest-path tools/site-tool/Cargo.toml --target-dir target
+      - run: cargo run --locked --manifest-path tools/site-tool/Cargo.toml --target-dir target -- site
+      - name: Scan built website and downloadable archives
+        run: |
+          go install github.com/zricethezav/gitleaks/v8@v8.30.0
+          "$(go env GOPATH)/bin/gitleaks" dir --redact --config .gitleaks.toml --max-archive-depth 3 dist/site
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: dist/site

@@ -1,3 +1,5 @@
+* text=auto eol=lf
+
 # Preserve third-party notice bytes on Windows checkouts as well.
 vendor/licenses/*.txt -text
 THIRD_PARTY_LICENSES.txt -text

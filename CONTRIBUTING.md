@@ -10,7 +10,8 @@ Source: https://github.com/qinains/i · Documentation: https://i.lninl.com/docs/
 - [Native worker contract](docs/plugins.md)
 - [Security reporting](SECURITY.md)
 
-Rust 1.91+, Node.js 22+ and Python 3.11+ are development prerequisites. Do not use a real
+Rust 1.91+ is the native development prerequisite; frontend builds/tests also use Node.js 22+.
+Repository automation and fixtures are Rust and do not require Python. Do not use a real
 API key for unit/browser tests. Keep model traffic mocked unless a maintainer
 explicitly authorizes a paid integration test.
 
@@ -18,6 +19,8 @@ explicitly authorizes a paid integration test.
 
 ```sh
 cargo build --workspace
+cargo test --locked --manifest-path tools/repo-tool/Cargo.toml
+cargo test --locked --manifest-path tools/site-tool/Cargo.toml
 sh scripts/build_web.sh
 cd web
 npm ci
@@ -38,6 +41,30 @@ npm run test:browser -- tests/plugin-agent.spec.mjs tests/plugin-broker.spec.mjs
 Run `npm run test:browser` for the complete Chromium/WebKit suite; see
 [browser verification notes](docs/wasm.md) for coverage and limitations. Report
 exact commands and failures; do not claim a targeted run is the full suite.
+
+Pull requests run the complete Chromium/WebKit suite before the website can deploy.
+Browser failures retain traces and screenshots for seven days. These artifacts use
+synthetic test accounts only; never reproduce a real key or conversation in CI.
+The Chromium crash test launches a separate persistent profile and kills only its
+own browser process before an OPFS write closes. It checks committed bytes and
+subsequent writes after restart, not OS power-loss durability or storage eviction.
+
+Security checks scan Git history and the checkout with Gitleaks, and check locked
+Rust/JavaScript dependencies against vulnerability databases on PRs and weekly.
+Website and native release builds also scan their output and nested download
+archives before uploading artifacts. Run locally:
+
+```sh
+cargo audit --file Cargo.lock
+npm audit --prefix web --audit-level=high
+gitleaks git --redact --config .gitleaks.toml --log-opts="--all" .
+gitleaks dir --redact --config .gitleaks.toml --max-archive-depth 3 dist/site
+```
+
+Install Gitleaks 8.30.0 and cargo-audit 0.22.2 for parity with CI. Scan only this
+repository and synthetic build outputs, not personal browser or credential stores.
+Do not add blanket exclusions to make security checks pass. The JWT exception in
+`.gitleaks.toml` is restricted to the public-key, synthetic signature fixture.
 
 ## Pull requests
 

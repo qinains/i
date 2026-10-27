@@ -2,6 +2,25 @@ use i::browser::provider::BrowserConfig;
 use serde_json::json;
 
 #[test]
+fn local_connection_plugins_require_loopback_streaming_and_supported_protocol() {
+    let value = json!({"base_url":"http://127.0.0.1:1456/v1/responses","model":"fixture","api_key":"a".repeat(64),"protocol":"responses","transport":"plugin","stream":true});
+    let cfg: BrowserConfig = serde_json::from_value(value.clone()).unwrap();
+    assert!(cfg.validate().is_ok());
+    for change in [
+        json!({"base_url":"https://api.example/v1/responses"}),
+        json!({"base_url":"http://localhost:1456/v1/responses"}),
+        json!({"stream":false}),
+        json!({"protocol":"openai"}),
+        json!({"custom_headers":"{\"X-Test\":\"value\"}"}),
+        json!({"api_key":"short"}),
+    ] {
+        let mut invalid = value.clone();
+        invalid.as_object_mut().unwrap().extend(change.as_object().unwrap().clone());
+        assert!(serde_json::from_value::<BrowserConfig>(invalid).unwrap().validate().is_err());
+    }
+}
+
+#[test]
 fn request_preserves_history_and_excludes_credentials() {
     let cfg: BrowserConfig =
         serde_json::from_value(json!({"base_url":"http://localhost:1234/v1/","model":"test","api_key":"SECRET"}))

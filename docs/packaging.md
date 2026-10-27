@@ -1,316 +1,113 @@
-# 打包工具使用指南
+# 原生打包与发布检查
 
-## 概述
+目前的安装渠道是仓库源码和已公开的 [GitHub Release 附件](https://github.com/qinains/i/releases)。不据此宣称已有 Homebrew、Winget 或 crates.io 安装包；不要把模板命令 `cargo install i` 当作已发布的安装方式。
 
-项目现在使用纯 Rust 实现的打包工具，不再依赖 Python。这样可以：
-- 跨平台支持（macOS、Linux、Windows）
-- 统一技术栈（只需要 Rust 工具链）
-- 更好的性能和可维护性
+主程序和可选连接插件分别打包。前者是 bundled `i`，后者是 ChatGPT/Claude Console 本地连接程序，不是工作区 WASM 插件。连接插件的下载、解压和配对步骤见 [连接插件安装](chatgpt-login.md)。
 
-## 快速开始
+## 主程序：构建与打包
 
-### 1. 编译打包工具
+从仓库根目录执行，需要 Rust 工具链及目标平台的构建依赖；原生工具不依赖解释器，前端构建与测试另需 Node.js。
 
-```bash
-cargo build --features packaging --bin i-package
+```sh
+cargo run --locked --features packaging --bin i-package -- --profile min-size
 ```
 
-### 2. 使用打包脚本
+也可先 `cargo build --locked --features packaging --bin i-package`，再运行 `target/debug/i-package`；Windows 使用 `.exe`。`scripts/package.sh` 是 Rust 工具的便捷包装，不包含另一套打包实现。
 
-```bash
-# 使用默认配置（min-size profile）
-./scripts/package.sh
+| 参数 | 含义 |
+| --- | --- |
+| `--profile release` | 标准 release 优化 |
+| `--profile min-size` | 默认配置，体积优化、LTO、去符号等，保留功能 |
+| `--skip-build` | 仅非 MSVC：使用仓库 `target/<profile>/i`，由调用者保证是正确的 bundled 构建；MSVC 必须重新构建以保证静态 CRT |
+| `--outline` | 仅 AArch64、`min-size` 且不使用 `--skip-build` 时，增加 LLVM machine outlining 参数 |
 
-# 或者直接使用 Rust 工具
-./target/debug/i-package
+普通打包会从 `rustc -vV` 获取本机 host，以 `--features bundled --bin i --profile PROFILE --target HOST` 构建到仓库 `target/HOST/PROFILE`。它不是任意目标的交叉编译器，也不会一次构建全部平台。`--outline` 不仅限于 macOS，但其可用性仍需对应工具链实际验证。
+
+使用已构建的主程序时：
+
+```sh
+cargo build --locked --features bundled --bin i --profile min-size
+cargo run --locked --features packaging --bin i-package -- --profile min-size --skip-build
 ```
 
-## 命令行参数
+`--skip-build` 查找 `target/min-size/i`，**不是** `target/<host>/min-size/i`。自定义 `CARGO_TARGET_DIR` 或显式 `--target` 的构建应注意这个差别，不要误打包旧文件。打包器自身也应从仓库内的 target 目录运行，以便定位源码和许可文件。
 
-```
-Options:
-      --profile <PROFILE>    构建配置 [default: min-size] 
-                             [possible values: release, min-size]
-      --skip-build           跳过 cargo build（使用现有二进制）
-      --outline              额外的 AArch64 LLVM 优化（需要构建）
-  -h, --help                 显示帮助信息
-```
+Windows MSVC 发行包通过显式 `--target <host>` 和 `-C target-feature=+crt-static` 构建，不要求用户额外安装 VC++ 运行库。目标编译参数不会污染 host 的过程宏和构建脚本；已有 encoded/RUSTFLAGS 按 Cargo 优先级保留，冲突的 CRT 参数会被拒绝。MSVC 不允许 `--skip-build`，以免把动态 CRT 的旧程序误当便携包发布。必须在没有开发工具链/VC++ 运行库的干净 Windows 环境中复测启动。
 
-## 自动平台检测
+## 主程序产物
 
-打包工具会根据目标平台自动选择压缩格式：
+归档名为 `i-<version>-<host>-<profile>`：macOS/Linux 同时生成 `.tar.gz` 和 `.tar.xz`，Windows 生成 `.zip`。两种 tar 使用相同内容，压缩均由 Rust 库完成；每个归档有相邻 `.sha256`。临时打包目录完成后清理，`dist/` 中不保证保留一份已解压目录。
 
-| 平台 | 压缩格式 | 文件扩展名 |
-|------|---------|-----------|
-| macOS | tar.gz | `.tar.gz` |
-| Linux | tar.gz | `.tar.gz` |
-| Windows | zip | `.zip` |
-
-## 使用示例
-
-### 示例 1：完整打包（构建 + 打包）
-
-```bash
-./scripts/package.sh --profile min-size
+```text
+i-<version>-<host>-<profile>/
+  bin/i                         # Windows: bin/i.exe；只有这一个主程序
+  config.example.json           # 不含个人凭据的示例，不是用户全局配置
+  README.txt
+  start.sh                      # Unix 便捷入口；Windows 直接运行 bin/i.exe
+  logo.svg
+  LICENSE.txt
+  THIRD_PARTY_LICENSES.txt
+  BUILD.json
+  SHA256SUMS
 ```
 
-这会：
-1. 使用 `cargo build --features bundled --bin i --profile min-size` 构建
-2. 创建包含所有必需文件的归档
-3. 生成 SHA256 校验和
+`BUILD.json` 记录版本、目标、profile、bundled 布局、rustc、额外编译参数、字节数和已知限制。`SHA256SUMS` 覆盖包内其他文件，包括 BUILD 元数据和许可。globset 使用官方 crates.io 依赖，其许可汇入 `THIRD_PARTY_LICENSES.txt`，没有单独的 globset 许可证产物。
 
-### 示例 2：使用现有二进制打包
+Bundled 把可选运行时与 worker 链接进同一个 `i`，通过 `i --runtime MODULE` 启动，不要求旁置 `i-plugins`。**独立连接插件不包含在该二进制或主程序归档内。** 分发程序不需要 Cargo、源码仓库或 Node.js，但仍需要目标平台的系统库；具体 TLS/凭据存储依赖见 [部署说明](deployment.md)。
 
-```bash
-# 先手动构建
-cargo build --features bundled --bin i --profile min-size
+## 可选 ChatGPT / Claude 连接包
 
-# 然后打包（跳过构建步骤）
-./scripts/package.sh --skip-build
+```sh
+cargo run --locked --manifest-path tools/native-tool/Cargo.toml --target-dir target -- package-connections --profile min-size --verify
 ```
 
-### 示例 3：AArch64 优化构建
+该命令独立构建 `i-chatgpt` 包的两个程序，输出 `dist/i-connections-<host>.zip` 和 `.zip.sha256`。连接包不在文件名中编码版本，应从同一个 Release 取得附件及摘要，升级时使用新的目录，不混用不同版本的程序和文档。
 
-```bash
-# 仅限 macOS arm64
-./scripts/package.sh --profile min-size --outline
+```text
+bin/i-chatgpt-plugin             # Windows: .exe
+bin/i-claude-plugin              # Windows: .exe
+BUILD.json
+README.txt
+LICENSE
+THIRD_PARTY_LICENSES.txt
 ```
 
-## 产物结构
+`--profile` 可取 `debug`、`release` 或 `min-size`。MSVC helper 也以静态 CRT 构建，程序位于 `target/<host>/PROFILE`，禁止 `--skip-build`；其他平台保留 `target/PROFILE` 及 `--skip-build`。BUILD.json 记录本次静态编译参数；跳过编译或非 MSVC 的 CRT 信息为 null，不凭构建主机猜测。已有同名 ZIP 或摘要时会拒绝覆盖；为新的构建先选择并核对新的发布工作目录，不把旧包当作本次产物。`--verify` 解压后以隔离的本地状态调用两个程序的 `manifest`，不登录真实账户，也不证明实际 OAuth/计费已验证。
 
-打包完成后，`dist/` 目录会包含：
+Claude 登录免填 API key，但通过官方 `ant` 使用 **Claude Console API 计费**，不是 Pro/Max 订阅额度；连接包不捆绑 `ant`。ChatGPT 套餐使用需要 OpenAI 的资格与授权，不能承诺免费或无限调用。
 
-```
-dist/
-├── i-0.1.0-aarch64-apple-darwin-min-size/
-│   ├── bin/i                    # 主二进制文件（bundled 模式）
-│   ├── config.example.json      # 配置示例
-│   ├── README.txt               # 使用说明
-│   ├── start.sh                 # 启动脚本
-│   ├── logo.svg                 # Logo
-│   ├── LICENSE-globset.txt      # 第三方许可证
-│   ├── BUILD.json               # 构建元数据
-│   └── SHA256SUMS               # 文件校验和
-├── i-0.1.0-aarch64-apple-darwin-min-size.tar.gz
-└── i-0.1.0-aarch64-apple-darwin-min-size.tar.gz.sha256
+## 离线验证与许可
+
+主程序归档检查命令：
+
+```sh
+cargo run --locked --manifest-path tools/native-tool/Cargo.toml --target-dir target -- check-package 'dist/*.tar.gz' 'dist/*.tar.xz'
+# Windows 使用实际 ZIP 文件名或相应模式，不匹配不存在的 tar 格式：
+cargo run --locked --manifest-path tools/native-tool/Cargo.toml --target-dir target -- check-package 'dist/i-*-min-size.zip'
 ```
 
-## 验证打包结果
+模式由工具展开，每个模式都必须匹配现有文件。不要把 `i-connections-*.zip` 传入主程序检查器：它要求单个 bundled 主程序的布局。检查器校验安全解压路径、项目和第三方许可、文件/归档摘要、BUILD 布局与大小，并实际检查初始化、安装后搬移、Unicode 搜索、控制台 mock 模型循环、memory 和 cache；不是只看压缩包里是否有一个文件。
 
-使用验证脚本检查归档文件：
+生成或更新许可后再打包，防止分发过期文本：
 
-```bash
-./scripts/check_package.sh dist/i-*.tar.gz
+```sh
+cargo run --locked --manifest-path tools/repo-tool/Cargo.toml --target-dir target -- licenses
+cargo run --locked --manifest-path tools/repo-tool/Cargo.toml --target-dir target -- licenses --check
+cargo test --locked --features bundled,packaging --bin i-package
 ```
 
-验证内容包括：
-- SHA256SUMS 文件校验
-- BUILD.json 格式检查（layout 必须是 "bundled"）
-- 二进制文件数量（应该只有 1 个）
-- 二进制文件可执行性
-- 归档文件校验和
+许可收集器覆盖主工作区和独立工具工作区的完整锁文件，需要已缓存相应依赖；缺失会失败，不通过删条目来缩小产物。详情见 [第三方声明维护](licenses.md)。摘要不匹配时应重新获取或重新构建产物并核查来源，不能仅为让检查通过而重写摘要。
 
-## 发布到包管理器
+## 发布与安装边界
 
-### Homebrew (macOS/Linux)
+仓库的 `v*` tag 发布工作流先执行安全、原生和浏览器检查，在各 runner 的**本机架构**打包并检查主程序与连接插件，再上传附件并创建 **draft Release**。工作流成功不等于附件已经公开；发布者仍需审核目标、摘要、许可、说明和已知限制，再显式公开 Release。使用已配置的工作流，不另抄一套未验证的发布 YAML。
 
-1. **创建 Homebrew Tap**：
-   ```bash
-   # 创建 tap 仓库
-   gh repo create homebrew-i --public --clone
-   cd homebrew-i
-   
-   # 创建 Formula
-   cat > i.rb <<'EOF'
-   class I < Formula
-     desc "Plugin-first coding agent"
-     homepage "https://github.com/qinains/i"
-     version "0.1.0"
-     
-     if OS.mac? && Hardware::CPU.arm?
-       url "https://github.com/qinains/i/releases/download/v0.1.0/i-0.1.0-aarch64-apple-darwin-min-size.tar.gz"
-       sha256 "YOUR_SHA256_HERE"
-     elsif OS.mac? && Hardware::CPU.intel?
-       url "https://github.com/qinains/i/releases/download/v0.1.0/i-0.1.0-x86_64-apple-darwin-min-size.tar.gz"
-       sha256 "YOUR_SHA256_HERE"
-     elsif OS.linux? && Hardware::CPU.arm? && Hardware::CPU.is_64_bit?
-       url "https://github.com/qinains/i/releases/download/v0.1.0/i-0.1.0-aarch64-unknown-linux-gnu-min-size.tar.gz"
-       sha256 "YOUR_SHA256_HERE"
-     else
-       url "https://github.com/qinains/i/releases/download/v0.1.0/i-0.1.0-x86_64-unknown-linux-gnu-min-size.tar.gz"
-       sha256 "YOUR_SHA256_HERE"
-     end
-     
-     def install
-       bin.install "bin/i"
-     end
-   end
-   EOF
-   
-   git add i.rb && git commit -m "Add i formula" && git push
-   ```
+源码安装主程序可用：
 
-2. **用户安装**：
-   ```bash
-   brew tap qinains/i
-   brew install i
-   ```
-
-### Cargo (跨平台)
-
-```bash
-# 发布到 crates.io
-cargo publish
-
-# 用户安装
-cargo install i
+```sh
+cargo install --path . --locked --features bundled --bin i
 ```
 
-### GitHub Releases
+Release 使用者核对平台和 CPU 后解压归档，从包内 `bin/i`（Windows 为 `bin/i.exe`）启动。macOS 包不是 Developer-ID 签名或公证版本，不能把 SHA-256 当作代码签名或绕过系统安全审批的理由。包内 BUILD 记录的是实际目标，不是通用二进制承诺。
 
-1. **创建 Release**：
-   ```bash
-   # 打包所有平台
-   ./scripts/package.sh --profile min-size
-   
-   # 上传到 GitHub Release
-   gh release create v0.1.0 \
-     dist/i-*.tar.gz \
-     dist/i-*.tar.gz.sha256 \
-     --title "v0.1.0" \
-     --notes "Release notes..."
-   ```
-
-2. **自动化发布**（GitHub Actions）：
-   ```yaml
-   # .github/workflows/release.yml
-   name: Release
-   
-   on:
-     push:
-       tags:
-         - 'v*'
-   
-   jobs:
-     release:
-       strategy:
-         matrix:
-           include:
-             - os: macos-latest
-               target: aarch64-apple-darwin
-             - os: macos-latest
-               target: x86_64-apple-darwin
-             - os: ubuntu-latest
-               target: x86_64-unknown-linux-gnu
-             - os: windows-latest
-               target: x86_64-pc-windows-msvc
-       
-       runs-on: ${{ matrix.os }}
-       steps:
-         - uses: actions/checkout@v4
-         
-         - name: Build
-           run: cargo build --features bundled,packaging --bin i --bin i-package --profile min-size --target ${{ matrix.target }}
-         
-         - name: Package
-           run: ./target/${{ matrix.target }}/min-size/i-package --skip-build
-         
-         - name: Upload to Release
-           uses: softprops/action-gh-release@v1
-           with:
-             files: dist/*
-   ```
-
-### Winget (Windows)
-
-1. **创建 manifest**：
-   ```yaml
-   # Manifests/q/qinains/i/0.1.0/qinains.i.yaml
-   PackageIdentifier: qinains.i
-   PackageVersion: 0.1.0
-   PackageName: i
-   Publisher: qinains
-   License: MIT
-   Installers:
-     - Architecture: x64
-       InstallerType: zip
-       InstallerUrl: https://github.com/qinains/i/releases/download/v0.1.0/i-0.1.0-x86_64-pc-windows-msvc-min-size.zip
-       InstallerSha256: YOUR_SHA256_HERE
-   ```
-
-2. **提交到 winget-pkgs**：
-   ```bash
-   # Fork winget-pkgs
-   # 提交 manifest
-   # 创建 PR
-   ```
-
-## 技术细节
-
-### Bundled 模式
-
-打包工具使用 `--features bundled` 构建，这意味着：
-- `i-plugins` 的所有功能都静态链接到 `i` 二进制中
-- 只需要一个可执行文件
-- `i` 通过 `i --runtime <module>` 调用内置的插件功能
-- 不需要独立的 `i-plugins` 文件
-
-### 压缩格式
-
-- **Unix 系统**：使用 `.tar.gz`（gzip 压缩的 tar 归档）
-- **Windows**：使用 `.zip`（更好的 Windows 兼容性）
-
-### 校验和
-
-每个归档文件都会生成对应的 `.sha256` 文件，用于验证完整性。
-
-## 与 Python 版本的对比
-
-| 特性 | Rust 版本 | Python 版本 |
-|------|----------|------------|
-| 依赖 | Rust 工具链 | Python 3 + 标准库 |
-| 跨平台 | ✅ 完整支持 | ✅ 支持 |
-| 性能 | 更快 | 较慢 |
-| 维护成本 | 统一技术栈 | 额外依赖 |
-| 功能 | 完整 | 完整 |
-
-Python 版本（`scripts/package.py`）仍然保留，可以作为备选方案。
-
-## 故障排除
-
-### 问题：找不到打包工具
-
-```bash
-# 重新编译
-cargo build --features packaging --bin i-package
-```
-
-### 问题：归档文件无法解压
-
-确保使用正确的方式解压：
-
-```bash
-# Unix (tar.gz)
-tar xzf archive.tar.gz
-
-# Windows (zip)
-# 使用 Windows 资源管理器或 7-Zip
-```
-
-### 问题：校验和不匹配
-
-重新生成校验和：
-
-```bash
-# 删除旧的校验和文件
-rm dist/*.sha256
-
-# 重新打包
-./scripts/package.sh --skip-build
-```
-
-## 更多信息
-
-- 项目 README: `../README.md`
-- 构建配置: `../Cargo.toml`
-- 打包工具源码: `../src/bin/package.rs`
+本文描述当前实现与发布流程，不声称真实账户登录、所有平台本机运行或某个版本的附件已公开可用。构建和发布验收应记录当次实际输出，不能用历史体积、mock 测试或单平台成功代替其他平台的验证。

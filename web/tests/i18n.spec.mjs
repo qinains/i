@@ -17,7 +17,9 @@ test('all seventeen UI languages translate settings without sending requests or 
         await expect(page.locator('[role=tab][aria-selected=true]')).toHaveText(copy[code]['New conversation']);await expect(page.locator('.tab-close').first()).toHaveAttribute('aria-label',t('Close {name}',code,{name:copy[code]['New conversation']}));
         await expect(page.locator('#base-url')).toHaveValue('https://fixture.invalid/v1');await expect(page.locator('#model')).toHaveValue('fixture-model');await expect(page.locator('#api-key')).toHaveValue('FIXTURE_LANGUAGE_TEST_ONLY');
     }
-    await page.locator('#lang-select').selectOption('es');await page.locator('[data-settings-tab=connection]').click();await page.locator('#profile-select').selectOption('default');await expect(page.locator('html')).toHaveAttribute('lang','es');
+    await page.locator('#lang-select').selectOption('es');await page.locator('[data-settings-tab=connection]').click();
+    const savedConnection=await page.locator('#profile-select').inputValue();expect(savedConnection).not.toBe('');
+    await page.locator('#profile-select').selectOption('');await page.locator('#profile-select').selectOption(savedConnection);await expect(page.locator('html')).toHaveAttribute('lang','es');
     await page.reload();await expect(page.locator('html')).toHaveAttribute('lang','es');await expect(page.locator('#status')).toHaveText(copy.es.Ready);
     await page.locator('#settings-btn').click();await expect(page.locator('#api-key')).toHaveValue('FIXTURE_LANGUAGE_TEST_ONLY');expect(requests).toEqual([]);
 });

@@ -95,10 +95,7 @@ fn deletion_failure_has_no_network_retry_or_model_fallback() {
 fn custom_provider_cannot_delete_from_a_model_turn_or_escape_origin() {
     for model in [None, Some("optional-model-hint")] {
         let root = tempfile::tempdir().unwrap();
-        let path = binding(
-            root.path(),
-            "import json,sys\np=json.load(sys.stdin)\nprint(json.dumps({'version':1,'result':p['data']['model']}))",
-        );
+        let path = binding(root.path(), json!({"kind":"model"}));
         let mut config: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
         if let Some(model) = model {
             config["model"] = json!(model);
@@ -112,18 +109,7 @@ fn custom_provider_cannot_delete_from_a_model_turn_or_escape_origin() {
     }
     for mode in ["model", "cleanup", "origin", "method", "body"] {
         let root = tempfile::tempdir().unwrap();
-        let code = format!(
-            r#"import json,sys
-p=json.load(sys.stdin); d=p['data']; mode={mode:?}
-url=d['base_url']+'/danger'
-if mode=='origin':url='http://other.invalid/danger'
-r={{'version':1,'state':{{}},'operation':{{'url':url,'method':'DELETE','body_base64':'','headers':{{}},'auth':None}}}}
-if mode=='cleanup':r['operation']['cleanup']=True
-if mode=='method':r['operation']['method']='PATCH'
-if mode=='body':r['operation']['body_base64']='e30='
-print(json.dumps(r))"#
-        );
-        let config = binding(root.path(), &code);
+        let config = binding(root.path(), json!({"kind":"delete","mode":mode}));
         let mut value: Value = serde_json::from_slice(&fs::read(&config).unwrap()).unwrap();
         value["provider_operations"] = json!(true);
         fs::write(&config, value.to_string()).unwrap();

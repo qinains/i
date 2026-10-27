@@ -62,6 +62,9 @@ mod provider;
 mod provider_files;
 #[cfg(test)]
 mod provider_tests;
+mod reflection;
+#[cfg(test)]
+mod reflection_tests;
 mod responses;
 mod search;
 mod skills;
@@ -77,6 +80,7 @@ const MODULES: &[&str] = &[
     "approval",
     "budget",
     "compact",
+    "reflection",
     "cache",
     "responses",
     "memory",
@@ -136,6 +140,7 @@ fn handle(command: &str, event: Value, args: &[String]) -> Result<Value> {
         "approval" => approval::handle(kind, data, args),
         "budget" => budget::handle(kind, data),
         "compact" => compact::handle(kind, data, workspace, args),
+        "reflection" => reflection::handle(kind, data, args),
         "smoke" => smoke::handle(kind, data, args),
         "cache" => cache::handle(kind, data, &store, args),
         "brand" => Ok(json!({"output":brand::render(false,false)})),
@@ -161,7 +166,7 @@ pub(crate) fn executable() -> Result<Vec<String>> {
 fn run(args: Vec<String>) -> Result<i32> {
     let command = args
         .first()
-        .context("usage: i-plugins console|init|setup|install|start|paths|logo|manifest|cache-report|provider-files; worker modules: provider|approval|budget|compact|cache|responses|memory|prompts|search|web|skills|steering|brand|smoke")?;
+        .context("usage: i-plugins console|init|setup|install|start|paths|logo|manifest|cache-report|provider-files; worker modules: provider|approval|budget|compact|reflection|cache|responses|memory|prompts|search|web|skills|steering|brand|smoke")?;
     if matches!(command.as_str(), "install" | "setup" | "start") {
         return deployment::run(command, &args[1..]);
     }

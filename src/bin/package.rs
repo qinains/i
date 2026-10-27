@@ -18,7 +18,7 @@ struct Args {
     #[arg(long, default_value = "min-size", value_parser = ["release", "min-size"])]
     profile: String,
 
-    /// Skip cargo build (use existing binaries)
+    /// Skip cargo build (not supported for portable MSVC packages)
     #[arg(long)]
     skip_build: bool,
 
@@ -183,6 +183,16 @@ fn main() -> Result<()> {
     // Detect host target
     let host = detect_host()?;
     println!("==> Detected host: {}", host);
+    if args.skip_build && host.ends_with("-windows-msvc") {
+        bail!("MSVC packages must rebuild with static CRT; omit --skip-build");
+    }
+    let static_flags = if host.ends_with("-windows-msvc") {
+        let encoded = optional_env("CARGO_ENCODED_RUSTFLAGS")?;
+        let plain = optional_env("RUSTFLAGS")?;
+        static_crt_flags(encoded.as_deref(), plain.as_deref())?
+    } else {
+        Vec::new()
+    };
 
     // Validate outline for AArch64
     if args.outline && !host.starts_with("aarch64-") {
@@ -200,7 +210,7 @@ fn main() -> Result<()> {
     // Build if needed
     if !args.skip_build {
         println!("==> Building with cargo...");
-        cargo_build(&root, &args)?;
+        cargo_build(&root, &args, &static_flags)?;
     }
 
     // Locate binaries
@@ -246,11 +256,7 @@ fn main() -> Result<()> {
 
     // Verify binary works
     println!("==> Verifying binary...");
-    let verify_result = Command::new(&binary_dest).args(["--runtime", "logo", "--plain"]).output();
-
-    if verify_result.is_err() {
-        bail!("Binary failed to execute");
-    }
+    verify_binary(&binary_dest)?;
 
     // Generate config.example.json
     println!("==> Generating config.example.json...");
@@ -277,7 +283,15 @@ fn main() -> Result<()> {
 
     // Generate BUILD.json
     println!("==> Generating BUILD.json...");
-    generate_build_json(&package_dir, &version, &host, &args.profile, args.outline && !args.skip_build, binary_size)?;
+    generate_build_json(
+        &package_dir,
+        &version,
+        &host,
+        &args.profile,
+        args.outline && !args.skip_build,
+        binary_size,
+        &static_flags,
+    )?;
 
     // Generate SHA256SUMS
     println!("==> Generating SHA256SUMS...");
@@ -337,7 +351,42 @@ fn read_version() -> Result<String> {
     bail!("Failed to extract version from Cargo.toml")
 }
 
-fn cargo_build(root: &Path, args: &Args) -> Result<()> {
+fn optional_env(name: &str) -> Result<Option<String>> {
+    match std::env::var(name) {
+        Ok(value) => Ok(Some(value)),
+        Err(std::env::VarError::NotPresent) => Ok(None),
+        Err(_) => bail!("Build flags must be valid Unicode"),
+    }
+}
+
+fn static_crt_flags(encoded: Option<&str>, plain: Option<&str>) -> Result<Vec<String>> {
+    if encoded.is_none() && plain.is_some_and(|value| value.contains('\x1f')) {
+        bail!("RUSTFLAGS must not contain encoded argument separators");
+    }
+    let mut flags: Vec<String> = match encoded {
+        Some(value) => value.split('\x1f').filter(|v| !v.is_empty()).map(str::to_owned).collect(),
+        None => plain.unwrap_or("").split_whitespace().map(str::to_owned).collect(),
+    };
+    if flags.iter().any(|flag| {
+        let flag = flag.to_ascii_lowercase();
+        ["crt-static", "defaultlib", "msvcrt", "vcruntime", "/md"].iter().any(|part| flag.contains(part))
+    }) {
+        bail!("Remove explicit CRT overrides before building a portable MSVC package");
+    }
+    flags.extend(["-C".into(), "target-feature=+crt-static".into()]);
+    Ok(flags)
+}
+
+fn verify_binary(binary: &Path) -> Result<()> {
+    let output =
+        Command::new(binary).args(["--runtime", "logo", "--plain"]).output().context("Binary failed to start")?;
+    if !output.status.success() {
+        bail!("Binary verification failed: {}", output.status);
+    }
+    Ok(())
+}
+
+fn cargo_build(root: &Path, args: &Args, static_flags: &[String]) -> Result<()> {
     let host = detect_host()?;
 
     let mut cmd = Command::new("cargo");
@@ -361,6 +410,10 @@ fn cargo_build(root: &Path, args: &Args) -> Result<()> {
         "--target-dir",
     ]);
     cmd.arg(root.join("target"));
+    if !static_flags.is_empty() {
+        // Explicit --target keeps these flags off host build scripts/proc macros.
+        cmd.env("CARGO_ENCODED_RUSTFLAGS", static_flags.join("\x1f"));
+    }
 
     if args.outline {
         cmd.args([
@@ -400,6 +453,24 @@ fn generate_config_example(root: &Path, package_dir: &Path) -> Result<()> {
     Ok(())
 }
 
+fn recorded_rustc_flags(outline: bool, static_flags: &[String]) -> serde_json::Value {
+    let mut flags = static_flags.to_vec();
+    if outline {
+        flags.extend(
+            [
+                "-C",
+                "llvm-args=-enable-machine-outliner=always",
+                "-C",
+                "llvm-args=-machine-outliner-reruns=2",
+                "-C",
+                "llvm-args=-enable-linkonceodr-outlining",
+            ]
+            .map(str::to_owned),
+        );
+    }
+    if flags.is_empty() { serde_json::Value::Null } else { serde_json::json!(flags) }
+}
+
 fn generate_build_json(
     package_dir: &Path,
     version: &str,
@@ -407,23 +478,13 @@ fn generate_build_json(
     profile: &str,
     outline: bool,
     binary_size: u64,
+    static_flags: &[String],
 ) -> Result<()> {
     let rustc_version = Command::new("rustc").arg("-vV").output().context("Failed to run rustc")?;
 
     let rustc_full = String::from_utf8_lossy(&rustc_version.stdout).lines().next().unwrap_or("unknown").to_string();
 
-    let rustc_flags = if outline {
-        serde_json::json!([
-            "-C",
-            "llvm-args=-enable-machine-outliner=always",
-            "-C",
-            "llvm-args=-machine-outliner-reruns=2",
-            "-C",
-            "llvm-args=-enable-linkonceodr-outlining"
-        ])
-    } else {
-        serde_json::Value::Null
-    };
+    let rustc_flags = recorded_rustc_flags(outline, static_flags);
 
     let build_info = serde_json::json!({
         "version": version,
@@ -433,6 +494,7 @@ fn generate_build_json(
         "tls": "model-rustls-mozilla/web-platform-native",
         "rustc": rustc_full,
         "rustc_flags": rustc_flags,
+        "crt_linkage": if static_flags.is_empty() { serde_json::Value::Null } else { serde_json::json!("static") },
         "binary_bytes": {
             "i": binary_size
         },
@@ -498,6 +560,13 @@ fn calculate_dir_size(dir: &Path) -> Result<u64> {
     Ok(total)
 }
 
+fn write_tar<W: Write>(encoder: W, package_name: &str, package_path: &Path) -> Result<W> {
+    let mut tar = tar::Builder::new(encoder);
+    tar.follow_symlinks(false);
+    tar.append_dir_all(package_name, package_path)?;
+    Ok(tar.into_inner()?)
+}
+
 fn create_tar_archive(
     temp_dir: &Path,
     dist_dir: &Path,
@@ -505,48 +574,50 @@ fn create_tar_archive(
     binary_size: u64,
     unpacked_size: u64,
 ) -> Result<()> {
-    let archive_name = format!("{}.tar.gz", package_name);
-    let archive_path = dist_dir.join(&archive_name);
-    let temp_archive = temp_dir.join(&archive_name);
+    for extension in ["gz", "xz"] {
+        let archive_name = format!("{}.tar.{}", package_name, extension);
+        let archive_path = dist_dir.join(&archive_name);
+        let temp_archive = temp_dir.join(&archive_name);
 
-    println!("  Creating {}...", archive_name);
+        println!("  Creating {}...", archive_name);
 
-    let file = fs::File::create(&temp_archive)?;
-    let package_path = temp_dir.join(package_name);
+        let file = fs::File::create(&temp_archive)?;
+        let package_path = temp_dir.join(package_name);
 
-    let encoder = flate2::write::GzEncoder::new(file, flate2::Compression::new(9));
-    let mut tar = tar::Builder::new(encoder);
-    tar.follow_symlinks(false);
-    tar.append_dir_all(package_name, &package_path)?;
-    let encoder = tar.into_inner()?;
-    encoder.finish()?;
+        if extension == "gz" {
+            let encoder = flate2::write::GzEncoder::new(file, flate2::Compression::new(9));
+            write_tar(encoder, package_name, &package_path)?.finish()?;
+        } else {
+            let encoder = lzma_rust2::XzWriter::new(file, lzma_rust2::XzOptions::with_preset(9))?;
+            write_tar(encoder, package_name, &package_path)?.finish()?;
+        }
 
-    fs::rename(&temp_archive, &archive_path)?;
+        fs::rename(&temp_archive, &archive_path)?;
 
-    // Generate checksum
-    let archive_content = fs::read(&archive_path)?;
-    let mut hasher = Sha256::new();
-    hasher.update(&archive_content);
-    let hash = hasher.finalize();
-    let hex = hex::encode(hash);
+        // Generate checksum
+        let archive_content = fs::read(&archive_path)?;
+        let mut hasher = Sha256::new();
+        hasher.update(&archive_content);
+        let hash = hasher.finalize();
+        let hex = hex::encode(hash);
 
-    let sha_path = dist_dir.join(format!("{}.sha256", archive_name));
-    fs::write(&sha_path, format!("{}  {}\n", hex, archive_name))?;
+        let sha_path = dist_dir.join(format!("{}.sha256", archive_name));
+        fs::write(&sha_path, format!("{}  {}\n", hex, archive_name))?;
 
-    let archive_size = fs::metadata(&archive_path)?.len();
+        let archive_size = fs::metadata(&archive_path)?.len();
 
-    // Print summary
-    let summary = serde_json::json!({
-        "archive": archive_path.to_string_lossy(),
-        "binary_bytes": { "i": binary_size },
-        "binary_total_bytes": binary_size,
-        "unpacked_file_bytes": unpacked_size,
-        "archive_bytes": archive_size,
-        "sha256": hex
-    });
+        // Print summary
+        let summary = serde_json::json!({
+            "archive": archive_path.to_string_lossy(),
+            "binary_bytes": { "i": binary_size },
+            "binary_total_bytes": binary_size,
+            "unpacked_file_bytes": unpacked_size,
+            "archive_bytes": archive_size,
+            "sha256": hex
+        });
 
-    println!("{}", serde_json::to_string_pretty(&summary)?);
-
+        println!("{}", serde_json::to_string_pretty(&summary)?);
+    }
     Ok(())
 }
 
@@ -568,7 +639,9 @@ fn create_zip_archive(
     let package_path = temp_dir.join(package_name);
 
     // Add all files to zip
-    let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    let options = zip::write::SimpleFileOptions::default()
+        .system(zip::System::Unix)
+        .compression_method(zip::CompressionMethod::Deflated);
 
     let exec_options = options.unix_permissions(0o755);
     let file_options = options.unix_permissions(0o644);
@@ -634,5 +707,115 @@ fn add_dir_to_zip<W: Write + io::Seek>(
 mod hex {
     pub fn encode(bytes: impl AsRef<[u8]>) -> String {
         bytes.as_ref().iter().map(|b| format!("{:02x}", b)).collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn portable_msvc_flags_preserve_cargo_precedence_and_reject_crt_overrides() {
+        assert_eq!(static_crt_flags(None, None).unwrap(), ["-C", "target-feature=+crt-static"]);
+        assert_eq!(
+            static_crt_flags(Some("-C\x1fopt-level=z"), Some("ignored")).unwrap(),
+            ["-C", "opt-level=z", "-C", "target-feature=+crt-static"]
+        );
+        assert_eq!(
+            static_crt_flags(None, Some("-C debuginfo=0")).unwrap(),
+            ["-C", "debuginfo=0", "-C", "target-feature=+crt-static"]
+        );
+        assert!(static_crt_flags(None, Some("-C\x1fdebuginfo=0")).is_err());
+        assert_eq!(
+            static_crt_flags(Some(""), Some("-C target-feature=-crt-static")).unwrap(),
+            ["-C", "target-feature=+crt-static"]
+        );
+        for flags in [
+            "-C target-feature=-crt-static",
+            "-Ctarget-feature=+crt-static",
+            "-C link-arg=/DEFAULTLIB:MSVCRT",
+            "-C link-arg=/MD",
+        ] {
+            assert!(static_crt_flags(None, Some(flags)).is_err());
+        }
+    }
+
+    #[test]
+    fn binary_verification_rejects_a_started_but_failed_process() {
+        // The test harness starts, but rejects i's --runtime arguments.
+        assert!(verify_binary(&std::env::current_exe().unwrap()).is_err());
+    }
+
+    #[test]
+    fn metadata_combines_static_crt_and_outline_flags() {
+        let flags = static_crt_flags(None, None).unwrap();
+        assert_eq!(recorded_rustc_flags(false, &[]), serde_json::Value::Null);
+        assert_eq!(recorded_rustc_flags(false, &flags), serde_json::json!(flags));
+        assert_eq!(
+            recorded_rustc_flags(true, &flags),
+            serde_json::json!([
+                "-C",
+                "target-feature=+crt-static",
+                "-C",
+                "llvm-args=-enable-machine-outliner=always",
+                "-C",
+                "llvm-args=-machine-outliner-reruns=2",
+                "-C",
+                "llvm-args=-enable-linkonceodr-outlining"
+            ])
+        );
+    }
+
+    #[test]
+    fn unix_tar_packaging_preserves_both_formats_and_archive_checksums() {
+        let root = tempfile::tempdir().unwrap();
+        let staging = root.path().join("staging");
+        let dist = root.path().join("dist");
+        let name = "i-fixture-test-release";
+        fs::create_dir_all(staging.join(name).join("bin")).unwrap();
+        fs::create_dir_all(&dist).unwrap();
+        fs::write(staging.join(name).join("bin/i"), b"fixture executable\n").unwrap();
+        fs::write(staging.join(name).join("LICENSE.txt"), b"fixture MIT notice\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(staging.join(name).join("bin/i"), fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        create_tar_archive(&staging, &dist, name, 19, 38).unwrap();
+        let mut payloads = Vec::new();
+        for extension in ["gz", "xz"] {
+            let archive_name = format!("{name}.tar.{extension}");
+            let archive = dist.join(&archive_name);
+            assert!(archive.is_file(), "missing {extension} distribution format");
+            let expected = format!("{}  {archive_name}\n", hex::encode(Sha256::digest(fs::read(&archive).unwrap())));
+            assert_eq!(fs::read_to_string(dist.join(format!("{archive_name}.sha256"))).unwrap(), expected);
+            let file = fs::File::open(&archive).unwrap();
+            let mut reader: Box<dyn io::Read> = if extension == "gz" {
+                Box::new(flate2::read::GzDecoder::new(file))
+            } else {
+                Box::new(lzma_rust2::XzReader::new(file, true))
+            };
+            let mut payload = Vec::new();
+            reader.read_to_end(&mut payload).unwrap();
+            let mut tar = tar::Archive::new(payload.as_slice());
+            let mut files = std::collections::BTreeMap::new();
+            for entry in tar.entries().unwrap() {
+                let mut entry = entry.unwrap();
+                if entry.header().entry_type().is_file() {
+                    let path = entry.path().unwrap().to_string_lossy().into_owned();
+                    #[cfg(unix)]
+                    if path == format!("{name}/bin/i") {
+                        assert_eq!(entry.header().mode().unwrap() & 0o777, 0o755);
+                    }
+                    let mut content = Vec::new();
+                    io::Read::read_to_end(&mut entry, &mut content).unwrap();
+                    files.insert(path, content);
+                }
+            }
+            assert_eq!(files[&format!("{name}/bin/i")], b"fixture executable\n");
+            assert_eq!(files[&format!("{name}/LICENSE.txt")], b"fixture MIT notice\n");
+            payloads.push(payload);
+        }
+        assert_eq!(payloads[0], payloads[1], "both formats must carry identical tar contents");
     }
 }

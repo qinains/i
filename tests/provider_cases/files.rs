@@ -174,15 +174,7 @@ fn failed_uploads_are_not_retried_even_across_restart() {
 fn generic_operations_enforce_origin_permission_payload_and_count_limits() {
     for fault in ["disabled", "origin", "oversized", "count"] {
         let root = tempfile::tempdir().unwrap();
-        let code = format!(
-            r#"import json,sys,base64
-p=json.load(sys.stdin); d=p['data']; fault={fault:?}
-url=d['base_url']+'/aux'
-if fault=='origin': url='http://other.invalid/aux'
-body=base64.b64encode(b'x'*(17*1024*1024)).decode() if fault=='oversized' else 'e30='
-print(json.dumps({{'version':1,'state':{{}},'operation':{{'url':url,'body_base64':body,'headers':{{}},'auth':None}}}}))"#
-        );
-        let config = binding(root.path(), &code);
+        let config = binding(root.path(), json!({"kind":"operation","fault":fault}));
         let mut api: Value = serde_json::from_slice(&fs::read(&config).unwrap()).unwrap();
         api["provider_operations"] = json!(fault != "disabled");
         fs::write(&config, api.to_string()).unwrap();

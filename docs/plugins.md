@@ -38,11 +38,11 @@ bundled 的 `i --runtime init` 创建 `config/plugins.json`（可移植选择）
 {"profile":"standard","disabled":["web"]}
 ```
 
-`standard` 来自 `full` 但去掉 Responses 转换；还支持 `approval`、`budget`、`compact`、`cache`、`responses`、`responses-budget`、`responses-compact`、`memory`、`search`、`skills`、`web`。`budget` / `responses-budget` 只计量预算，`compact` / `responses-compact` 另外启用压缩。
+`standard` 来自 `full` 但去掉 Responses 转换；还支持 `approval`、`budget`、`compact`、`reflection`、`cache`、`responses`、`responses-budget`、`responses-compact`、`memory`、`search`、`skills`、`web`。`budget` / `responses-budget` 只计量预算，`compact` / `responses-compact` 另外启用压缩。`reflection` 是显式对话分析入口；`standard/full` 注册该入口但不自动调用模型，见 [对话分析](conversation-analysis.md)。
 
 `glob/search` 已改为跨平台内置工具；`full/standard` 不再重复注册外部 `search/find_files`，`search` profile 不额外注册工具。旧静态清单需重新生成，自定义同名条目需移除；新的 `search` 用 `pattern`，批量读写接口见[文件工具](file-tools.md)。
 
-`i --runtime manifest PROFILE` 使用当前程序绝对路径生成清单，并应用 `bindings.json` 中的模块替换，例如 `{"compact":{"exec":["/absolute/custom-worker"],"cwd":"/absolute/config"}}`。替换会覆盖该模块全部已选 hook/工具入口，不改变工具公开 schema；失败不会回退内置实现。生成项的 `module` 仅用于标识，不发送给模型。该机制不替换核心原生工具或安全校验。
+`i --runtime manifest PROFILE` 使用当前程序绝对路径生成清单，并应用 `bindings.json` 中的模块替换，例如 `{"compact":{"exec":["/absolute/custom-worker"],"cwd":"/absolute/config"}}`。替换会覆盖该模块全部已选 hook/工具/analysis 入口，不改变工具公开 schema；失败不会回退内置实现。`disabled` 同样作用于 analyses。生成项的 `module` 仅用于标识，不发送给模型。该机制不替换核心原生工具或安全校验。
 
 新 `builtin.json` 使用 `{"builtin_profile":"configured","tools":[]}`，每次启动根据当前程序路径和选择/替换配置动态解析，无需保存开发目录路径。只有旧式/静态清单在程序路径或选择改变后需重新生成；初始化不覆盖已有文件。发布包启动器使用全局配置，开发启动器仍生成临时清单。模型/服务地址/预算位于 `config.json`，凭据只存引用，不存 secret；首次配置与旧清单迁移见 [deployment.md](deployment.md)。完整替换契约与 Rust 示例见 [compaction.md](compaction.md)。
 
@@ -84,7 +84,7 @@ bundled 的 `i --runtime init` 创建 `config/plugins.json`（可移植选择）
 
 环境默认清空，只保留 PATH、固定 `PYTHONUTF8=1`、存在的 SystemRoot/TEMP/TMP/HOME/USERPROFILE，以及四个 `I_*_DIR`。不会自动把 API_KEY、自定义模型凭据变量或 `I_APPROVAL_TOKEN` 传给插件。**这不是恶意插件隔离**：可信程序仍有当前用户的文件/系统权限。Shell 是独立内置工具，继承普通环境，但去掉审批 token。
 
-示例实现：`examples/rust-plugin/src/main.rs`、`examples/word_count.py`。测试中的简写 handler 适配器只用于 fixture，不是生产兼容层。
+示例实现：`examples/rust-plugin/src/main.rs`。离线协议 fixture 位于 `tools/test-fixtures/`，不是生产兼容层。
 
 ## 3. 路径上下文与工作区身份
 
