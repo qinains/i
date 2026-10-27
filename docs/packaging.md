@@ -18,7 +18,7 @@ cargo run --locked --features packaging --bin i-package -- --profile min-size
 | --- | --- |
 | `--profile release` | 标准 release 优化 |
 | `--profile min-size` | 默认配置，体积优化、LTO、去符号等，保留功能 |
-| `--skip-build` | 使用仓库 `target/<profile>/i`，Windows 为 `i.exe`；由调用者保证是正确的 bundled 构建 |
+| `--skip-build` | 仅非 MSVC：使用仓库 `target/<profile>/i`，由调用者保证是正确的 bundled 构建；MSVC 必须重新构建以保证静态 CRT |
 | `--outline` | 仅 AArch64、`min-size` 且不使用 `--skip-build` 时，增加 LLVM machine outlining 参数 |
 
 普通打包会从 `rustc -vV` 获取本机 host，以 `--features bundled --bin i --profile PROFILE --target HOST` 构建到仓库 `target/HOST/PROFILE`。它不是任意目标的交叉编译器，也不会一次构建全部平台。`--outline` 不仅限于 macOS，但其可用性仍需对应工具链实际验证。
@@ -31,6 +31,8 @@ cargo run --locked --features packaging --bin i-package -- --profile min-size --
 ```
 
 `--skip-build` 查找 `target/min-size/i`，**不是** `target/<host>/min-size/i`。自定义 `CARGO_TARGET_DIR` 或显式 `--target` 的构建应注意这个差别，不要误打包旧文件。打包器自身也应从仓库内的 target 目录运行，以便定位源码和许可文件。
+
+Windows MSVC 发行包通过显式 `--target <host>` 和 `-C target-feature=+crt-static` 构建，不要求用户额外安装 VC++ 运行库。目标编译参数不会污染 host 的过程宏和构建脚本；已有 encoded/RUSTFLAGS 按 Cargo 优先级保留，冲突的 CRT 参数会被拒绝。MSVC 不允许 `--skip-build`，以免把动态 CRT 的旧程序误当便携包发布。必须在没有开发工具链/VC++ 运行库的干净 Windows 环境中复测启动。
 
 ## 主程序产物
 
@@ -70,7 +72,7 @@ LICENSE
 THIRD_PARTY_LICENSES.txt
 ```
 
-`--profile` 可取 `debug`、`release` 或 `min-size`；`--skip-build` 使用仓库 `target/PROFILE` 中的现有两个程序。已有同名 ZIP 或摘要时会拒绝覆盖；为新的构建先选择并核对新的发布工作目录，不把旧包当作本次产物。`--verify` 解压后以隔离的本地状态调用两个程序的 `manifest`，不登录真实账户，也不证明实际 OAuth/计费已验证。
+`--profile` 可取 `debug`、`release` 或 `min-size`。MSVC helper 也以静态 CRT 构建，程序位于 `target/<host>/PROFILE`，禁止 `--skip-build`；其他平台保留 `target/PROFILE` 及 `--skip-build`。BUILD.json 记录本次静态编译参数；跳过编译或非 MSVC 的 CRT 信息为 null，不凭构建主机猜测。已有同名 ZIP 或摘要时会拒绝覆盖；为新的构建先选择并核对新的发布工作目录，不把旧包当作本次产物。`--verify` 解压后以隔离的本地状态调用两个程序的 `manifest`，不登录真实账户，也不证明实际 OAuth/计费已验证。
 
 Claude 登录免填 API key，但通过官方 `ant` 使用 **Claude Console API 计费**，不是 Pro/Max 订阅额度；连接包不捆绑 `ant`。ChatGPT 套餐使用需要 OpenAI 的资格与授权，不能承诺免费或无限调用。
 

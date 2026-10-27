@@ -3,6 +3,7 @@ use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
+    ffi::OsStr,
     fs,
     io::{BufRead, BufReader, Write},
     net::{Shutdown, TcpStream},
@@ -280,23 +281,27 @@ pub fn check() -> Result<()> {
 pub fn package(args: &[String]) -> Result<()> {
     let profile = args.windows(2).find(|v| v[0] == "--profile").map(|v| v[1].as_str()).unwrap_or("min-size");
     ensure!(["debug", "release", "min-size"].contains(&profile), "Invalid profile");
-    if !args.iter().any(|arg| arg == "--skip-build") {
-        let mut command = Command::new("cargo");
-        command.current_dir(crate::root()).args(["build", "--locked", "-p", "i-chatgpt", "--bins"]);
-        if profile != "debug" {
-            command.args(["--profile", profile]);
-        }
-        ensure!(command.status()?.success(), "Connection helper build failed");
-    }
     let host = Command::new("rustc").arg("-vV").output()?;
+    ensure!(host.status.success(), "Cannot detect helper target");
     let host = String::from_utf8(host.stdout)?;
     let host =
         host.lines().find_map(|l| l.strip_prefix("host: ")).ok_or_else(|| anyhow::anyhow!("Missing host triple"))?;
-    let helpers: Vec<_> = HELPERS
-        .iter()
-        .map(|(name, _)| (*name, crate::root().join("target").join(profile).join(format!("{name}{}", suffix()))))
-        .collect();
-    let archive = package_into(&crate::root().join("dist"), host, &helpers)?;
+    let encoded = std::env::var_os("CARGO_ENCODED_RUSTFLAGS");
+    let flags = std::env::var_os("RUSTFLAGS");
+    let mut plan = helper_build_plan(
+        &crate::root(),
+        host,
+        profile,
+        args.iter().any(|arg| arg == "--skip-build"),
+        encoded.as_deref(),
+        flags.as_deref(),
+    )?;
+    if let Some(command) = plan.command.as_mut() {
+        ensure!(command.status()?.success(), "Connection helper build failed");
+    }
+    let helpers: Vec<_> =
+        HELPERS.iter().map(|(name, _)| (*name, plan.binaries_dir.join(format!("{name}{}", suffix())))).collect();
+    let archive = package_into(&crate::root().join("dist"), host, &helpers, plan.rustc_flags.as_deref())?;
     if args.iter().any(|arg| arg == "--verify") {
         verify(&archive)?;
     }
@@ -304,7 +309,110 @@ pub fn package(args: &[String]) -> Result<()> {
     Ok(())
 }
 
-fn package_into(out: &Path, target: &str, helpers: &[(&str, PathBuf)]) -> Result<PathBuf> {
+struct HelperBuildPlan {
+    command: Option<Command>,
+    binaries_dir: PathBuf,
+    rustc_flags: Option<Vec<String>>,
+}
+
+fn dynamic_crt_library(argument: &str) -> bool {
+    let lower = argument.to_ascii_lowercase();
+    let name = lower.trim_matches('"').trim_start_matches(['-', '/']);
+    if name.starts_with("nodefaultlib:") {
+        return false;
+    }
+    let name = name.strip_prefix("defaultlib:").unwrap_or(name);
+    let name = name.rsplit(['\\', '/']).next().unwrap_or(name).trim_matches('"');
+    name.starts_with("msvcr")
+        || name.starts_with("vcruntime")
+        || name.starts_with("msvcp")
+        || name.starts_with("concrt")
+        || matches!(name, "ucrt" | "ucrt.lib" | "ucrtbase" | "ucrtbase.dll" | "ucrtd" | "ucrtd.lib")
+}
+
+fn helper_build_plan(
+    root: &Path,
+    host: &str,
+    profile: &str,
+    skip: bool,
+    encoded: Option<&OsStr>,
+    plain: Option<&OsStr>,
+) -> Result<HelperBuildPlan> {
+    let msvc = host.ends_with("-windows-msvc");
+    ensure!(!msvc || !skip, "MSVC connection packages require a fresh static CRT build; --skip-build is unsupported");
+    let binaries_dir =
+        if msvc { root.join("target").join(host).join(profile) } else { root.join("target").join(profile) };
+    if skip {
+        return Ok(HelperBuildPlan { command: None, binaries_dir, rustc_flags: None });
+    }
+    let mut command = Command::new("cargo");
+    command.current_dir(root).args(["build", "--locked", "-p", "i-chatgpt", "--bins"]);
+    if profile != "debug" {
+        command.args(["--profile", profile]);
+    }
+    let rustc_flags = if msvc {
+        let mut flags = if let Some(encoded) = encoded {
+            let encoded = encoded.to_str().ok_or_else(|| anyhow::anyhow!("CARGO_ENCODED_RUSTFLAGS must be Unicode"))?;
+            if encoded.is_empty() { vec![] } else { encoded.split('\u{1f}').map(str::to_owned).collect() }
+        } else if let Some(plain) = plain {
+            // Cargo splits RUSTFLAGS on whitespace, without interpreting shell quotes.
+            let plain = plain.to_str().ok_or_else(|| anyhow::anyhow!("RUSTFLAGS must be Unicode"))?;
+            ensure!(
+                !plain.contains('\u{1f}'),
+                "RUSTFLAGS cannot contain the encoded separator; use CARGO_ENCODED_RUSTFLAGS"
+            );
+            plain.split_whitespace().map(str::to_owned).collect()
+        } else {
+            vec![]
+        };
+        for (index, flag) in flags.iter().enumerate() {
+            let codegen = if flag == "-C" || flag == "--codegen" {
+                flags.get(index + 1).map(String::as_str)
+            } else {
+                flag.strip_prefix("-C")
+                    .map(|flag| flag.trim_start_matches('='))
+                    .or_else(|| flag.strip_prefix("--codegen="))
+            };
+            if let Some(codegen) = codegen {
+                if let Some(features) = codegen.strip_prefix("target-feature=") {
+                    ensure!(
+                        !features.split(',').any(|feature| feature == "-crt-static"),
+                        "Dynamic CRT flags conflict with portable MSVC helpers"
+                    );
+                }
+                if let Some(arguments) =
+                    codegen.strip_prefix("link-arg=").or_else(|| codegen.strip_prefix("link-args="))
+                {
+                    ensure!(
+                        !arguments.split_whitespace().any(dynamic_crt_library),
+                        "Dynamic CRT linker flags conflict with portable MSVC helpers"
+                    );
+                }
+            }
+            let library = if flag == "-l" { flags.get(index + 1).map(String::as_str) } else { flag.strip_prefix("-l") };
+            if let Some(library) = library {
+                ensure!(
+                    !dynamic_crt_library(library.rsplit('=').next().unwrap_or(library)),
+                    "Dynamic CRT libraries conflict with portable MSVC helpers"
+                );
+            }
+        }
+        flags.extend(["-C".into(), "target-feature=+crt-static".into()]);
+        command.args(["--target", host, "--target-dir"]).arg(root.join("target"));
+        command.env("CARGO_ENCODED_RUSTFLAGS", flags.join("\u{1f}")).env_remove("RUSTFLAGS");
+        Some(flags)
+    } else {
+        None
+    };
+    Ok(HelperBuildPlan { command: Some(command), binaries_dir, rustc_flags })
+}
+
+fn package_into(
+    out: &Path,
+    target: &str,
+    helpers: &[(&str, PathBuf)],
+    rustc_flags: Option<&[String]>,
+) -> Result<PathBuf> {
     ensure!(
         !target.is_empty() && target.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_')),
         "Invalid target triple"
@@ -340,7 +448,7 @@ fn package_into(out: &Path, target: &str, helpers: &[(&str, PathBuf)]) -> Result
     for (name, bytes) in [
         ("LICENSE", fs::read(crate::root().join("LICENSE"))?),
         ("README.txt", b"Optional trusted local connection helpers.\n\nCLAUDE BILLING: OAuth avoids manual API-key entry, but uses Claude Console API billing. It does NOT use Claude Pro/Max plan allowances.\n\nChatGPT: bin/i-chatgpt-plugin login (account eligibility and granted permissions apply).\nClaude Console: install official ant, then bin/i-claude-plugin login.\nBrowser: serve --origin https://i.lninl.com and open the private pairing link; do not share it. Credentials are not included.\nGuide: https://i.lninl.com/docs/chatgpt-login/\n".to_vec()),
-        ("BUILD.json", json!({"format_version":1,"kind":"optional-connections","target":target}).to_string().into_bytes()),
+        ("BUILD.json", json!({"format_version":1,"kind":"optional-connections","target":target,"crt_linkage":rustc_flags.map(|_|"static"),"rustc_flags":rustc_flags}).to_string().into_bytes()),
     ] {
         zip.start_file(name, option.unix_permissions(0o644))?;
         zip.write_all(&bytes)?;
@@ -407,6 +515,139 @@ fn verify(archive: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn command_args(command: &Command) -> Vec<String> {
+        command.get_args().map(|arg| arg.to_str().unwrap().to_owned()).collect()
+    }
+    #[test]
+    fn msvc_build_preserves_encoded_flags_and_separates_host_dependencies() {
+        let root = Path::new("fixture-root");
+        let original = "-C\u{1f}debuginfo=1\u{1f}--cfg\u{1f}fixture=\"value with spaces\"";
+        for host in ["x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"] {
+            let plan = helper_build_plan(
+                root,
+                host,
+                "min-size",
+                false,
+                Some(original.as_ref()),
+                Some("-C target-feature=-crt-static".as_ref()),
+            )
+            .unwrap();
+            let command = plan.command.as_ref().unwrap();
+            let args = command_args(command);
+            assert!(args.windows(2).any(|pair| pair == ["--target", host]));
+            let target_dir = root.join("target");
+            assert!(args.windows(2).any(|pair| pair[0] == "--target-dir" && pair[1] == target_dir.to_str().unwrap()));
+            assert!(args.windows(2).any(|pair| pair == ["--profile", "min-size"]));
+            assert_eq!(plan.binaries_dir, root.join("target").join(host).join("min-size"));
+            let expected = format!("{original}\u{1f}-C\u{1f}target-feature=+crt-static");
+            assert!(
+                command
+                    .get_envs()
+                    .any(|(key, value)| key == "CARGO_ENCODED_RUSTFLAGS" && value == Some(expected.as_ref()))
+            );
+            assert!(command.get_envs().any(|(key, value)| key == "RUSTFLAGS" && value.is_none()));
+            assert_eq!(
+                plan.rustc_flags.unwrap(),
+                vec!["-C", "debuginfo=1", "--cfg", "fixture=\"value with spaces\"", "-C", "target-feature=+crt-static"]
+            );
+        }
+    }
+    #[test]
+    fn msvc_build_converts_plain_flags_using_cargos_whitespace_contract() {
+        let plain = "-C\tdebuginfo=1\n--cfg fixture=\"one\"";
+        let plan =
+            helper_build_plan(Path::new("root"), "x86_64-pc-windows-msvc", "debug", false, None, Some(plain.as_ref()))
+                .unwrap();
+        assert_eq!(
+            plan.rustc_flags.unwrap(),
+            vec!["-C", "debuginfo=1", "--cfg", "fixture=\"one\"", "-C", "target-feature=+crt-static"]
+        );
+        let args = command_args(plan.command.as_ref().unwrap());
+        assert!(!args.iter().any(|arg| arg == "--profile"));
+        assert!(args.windows(2).any(|pair| pair == ["--target", "x86_64-pc-windows-msvc"]));
+    }
+    #[test]
+    fn msvc_build_rejects_dynamic_crt_flags_and_unverifiable_skip_build() {
+        for encoded in [
+            "-C\u{1f}target-feature=-crt-static",
+            "-Ctarget-feature=+sse2,-crt-static",
+            "-C=target-feature=-crt-static",
+            "--codegen=target-feature=-crt-static",
+            "-C\u{1f}link-arg=/DEFAULTLIB:MSVCRT.lib",
+            "-C\u{1f}link-arg=VCRUNTIME.lib",
+            "-l\u{1f}dylib=ucrt",
+        ] {
+            assert!(
+                helper_build_plan(
+                    Path::new("root"),
+                    "x86_64-pc-windows-msvc",
+                    "release",
+                    false,
+                    Some(encoded.as_ref()),
+                    None
+                )
+                .is_err(),
+                "{encoded:?}"
+            );
+        }
+        assert!(helper_build_plan(Path::new("root"), "x86_64-pc-windows-msvc", "release", true, None, None).is_err());
+    }
+    #[test]
+    fn msvc_flags_handle_empty_encoded_precedence_and_safe_static_link_directives() {
+        let empty = helper_build_plan(
+            Path::new("root"),
+            "x86_64-pc-windows-msvc",
+            "release",
+            false,
+            Some("".as_ref()),
+            Some("-C target-feature=-crt-static".as_ref()),
+        )
+        .unwrap();
+        assert_eq!(empty.rustc_flags.unwrap(), ["-C", "target-feature=+crt-static"]);
+        let allowed = "-C\u{1f}link-arg=/NODEFAULTLIB:MSVCRT.lib\u{1f}-l\u{1f}static=libcmt";
+        assert!(
+            helper_build_plan(
+                Path::new("root"),
+                "x86_64-pc-windows-msvc",
+                "release",
+                false,
+                Some(allowed.as_ref()),
+                None
+            )
+            .is_ok()
+        );
+        assert!(
+            helper_build_plan(
+                Path::new("root"),
+                "x86_64-pc-windows-msvc",
+                "release",
+                false,
+                None,
+                Some("--cfg\u{1f}injected".as_ref())
+            )
+            .is_err()
+        );
+    }
+    #[test]
+    fn non_msvc_preserves_existing_build_and_skip_paths_without_claiming_static_crt() {
+        for skip in [false, true] {
+            let plan = helper_build_plan(
+                Path::new("root"),
+                "aarch64-apple-darwin",
+                "release",
+                skip,
+                Some("-C\u{1f}target-feature=-crt-static".as_ref()),
+                None,
+            )
+            .unwrap();
+            assert_eq!(plan.binaries_dir, Path::new("root/target/release"));
+            assert!(plan.rustc_flags.is_none());
+            assert_eq!(plan.command.is_none(), skip);
+            if let Some(command) = plan.command {
+                assert!(!command_args(&command).iter().any(|arg| arg == "--target"));
+            }
+        }
+    }
     #[test]
     fn connection_manifest_must_match_the_exact_public_contract() {
         let valid = json!({"format_version":1,"kind":"connection","id":"openai.chatgpt","name":"ChatGPT","protocol":"responses"});
@@ -439,12 +680,35 @@ mod tests {
             .collect()
     }
     #[test]
+    fn fresh_msvc_metadata_records_requested_static_crt_and_all_effective_flags() {
+        let temp = tempfile::tempdir().unwrap();
+        let host = "x86_64-pc-windows-msvc";
+        let plan = helper_build_plan(
+            temp.path(),
+            host,
+            "min-size",
+            false,
+            Some("--cfg\u{1f}fixture=\"build flags\"".as_ref()),
+            None,
+        )
+        .unwrap();
+        let archive =
+            package_into(&temp.path().join("out"), host, &fixtures(temp.path()), plan.rustc_flags.as_deref()).unwrap();
+        let mut zip = zip::ZipArchive::new(fs::File::open(archive).unwrap()).unwrap();
+        let metadata: Value = serde_json::from_reader(zip.by_name("BUILD.json").unwrap()).unwrap();
+        assert_eq!(metadata["crt_linkage"], "static");
+        assert_eq!(
+            metadata["rustc_flags"],
+            json!(["--cfg", "fixture=\"build flags\"", "-C", "target-feature=+crt-static"])
+        );
+    }
+    #[test]
     fn connection_archives_are_fixed_deterministic_and_never_include_credentials() {
         let temp = tempfile::tempdir().unwrap();
         let helpers = fixtures(temp.path());
         fs::write(temp.path().join("accounts.json"), "DO_NOT_PACKAGE_CREDENTIAL_FIXTURE").unwrap();
         for target in ["aarch64-apple-darwin", "x86_64-pc-windows-msvc"] {
-            let archive = package_into(&temp.path().join(target), target, &helpers).unwrap();
+            let archive = package_into(&temp.path().join(target), target, &helpers, None).unwrap();
             let before = fs::read(&archive).unwrap();
             let mut zip = zip::ZipArchive::new(std::io::Cursor::new(&before)).unwrap();
             let suffix = if target.contains("windows") { ".exe" } else { "" };
@@ -475,17 +739,20 @@ mod tests {
             std::io::Read::read_to_string(&mut zip.by_name("THIRD_PARTY_LICENSES.txt").unwrap(), &mut notices).unwrap();
             assert_eq!(notices, fs::read_to_string(crate::root().join("THIRD_PARTY_LICENSES.txt")).unwrap());
             let metadata: Value = serde_json::from_reader(zip.by_name("BUILD.json").unwrap()).unwrap();
-            assert_eq!(metadata, json!({"format_version":1,"kind":"optional-connections","target":target}));
+            assert_eq!(
+                metadata,
+                json!({"format_version":1,"kind":"optional-connections","target":target,"crt_linkage":null,"rustc_flags":null})
+            );
             let checksum = archive.with_extension("zip.sha256");
             let original_checksum = fs::read(&checksum).unwrap();
             assert_eq!(
                 String::from_utf8(original_checksum.clone()).unwrap().split_whitespace().next().unwrap(),
                 format!("{:x}", Sha256::digest(&before))
             );
-            assert!(package_into(archive.parent().unwrap(), target, &helpers).is_err());
+            assert!(package_into(archive.parent().unwrap(), target, &helpers, None).is_err());
             assert_eq!(fs::read(&archive).unwrap(), before);
             assert_eq!(fs::read(&checksum).unwrap(), original_checksum);
-            let other = package_into(&temp.path().join(format!("other-{target}")), target, &helpers).unwrap();
+            let other = package_into(&temp.path().join(format!("other-{target}")), target, &helpers, None).unwrap();
             assert_eq!(fs::read(other).unwrap(), before);
         }
     }
@@ -494,19 +761,19 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let helpers = fixtures(temp.path());
         for target in ["", "../escape", "/escape", "target:stream", "a\\b"] {
-            assert!(package_into(&temp.path().join("out"), target, &helpers).is_err());
+            assert!(package_into(&temp.path().join("out"), target, &helpers, None).is_err());
         }
-        assert!(package_into(&temp.path().join("out"), "fixture", &[]).is_err());
+        assert!(package_into(&temp.path().join("out"), "fixture", &[], None).is_err());
         let duplicate = vec![helpers[0].clone(), helpers[0].clone()];
-        assert!(package_into(&temp.path().join("out"), "fixture", &duplicate).is_err());
+        assert!(package_into(&temp.path().join("out"), "fixture", &duplicate, None).is_err());
         let mut missing = helpers.clone();
         missing[0].1 = temp.path().join("missing");
-        assert!(package_into(&temp.path().join("out"), "fixture", &missing).is_err());
+        assert!(package_into(&temp.path().join("out"), "fixture", &missing, None).is_err());
         let out = temp.path().join("out");
         fs::create_dir(&out).unwrap();
         let checksum = out.join("i-connections-fixture.zip.sha256");
         fs::write(&checksum, b"existing audited checksum").unwrap();
-        assert!(package_into(&out, "fixture", &helpers).is_err());
+        assert!(package_into(&out, "fixture", &helpers, None).is_err());
         assert_eq!(fs::read(checksum).unwrap(), b"existing audited checksum");
         assert!(!out.join("i-connections-fixture.zip").exists());
     }
@@ -519,13 +786,13 @@ mod tests {
         std::os::unix::fs::symlink(&helpers[0].1, &link).unwrap();
         let mut linked = helpers.clone();
         linked[0].1 = link;
-        assert!(package_into(&temp.path().join("out"), "fixture", &linked).is_err());
+        assert!(package_into(&temp.path().join("out"), "fixture", &linked, None).is_err());
         let out = temp.path().join("checksum");
         fs::create_dir(&out).unwrap();
         let sentinel = temp.path().join("sentinel");
         fs::write(&sentinel, b"must stay").unwrap();
         std::os::unix::fs::symlink(&sentinel, out.join("i-connections-fixture.zip.sha256")).unwrap();
-        assert!(package_into(&out, "fixture", &helpers).is_err());
+        assert!(package_into(&out, "fixture", &helpers, None).is_err());
         assert_eq!(fs::read(sentinel).unwrap(), b"must stay");
     }
     #[test]
@@ -591,7 +858,7 @@ fn main(){
         assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
         let helpers: Vec<_> = HELPERS.iter().map(|(name, _)| (*name, executable.clone())).collect();
         let target = if cfg!(windows) { "fixture-windows" } else { "fixture-unix" };
-        let archive = package_into(&temp.path().join("out"), target, &helpers).unwrap();
+        let archive = package_into(&temp.path().join("out"), target, &helpers, None).unwrap();
         verify(&archive).unwrap();
     }
 }

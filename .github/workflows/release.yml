@@ -28,15 +28,8 @@ jobs:
       - name: Install native TLS build prerequisites
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev ca-certificates
-      - run: cargo build --locked --features bundled,packaging --bin i --bin i-package --profile min-size
       - name: Package the runner's native architecture
-        shell: bash
-        run: |
-          if [ "$RUNNER_OS" = Windows ]; then
-            target/min-size/i-package.exe --skip-build --profile min-size
-          else
-            target/min-size/i-package --skip-build --profile min-size
-          fi
+        run: cargo run --locked --features bundled,packaging --bin i-package -- --profile min-size
       - name: Verify packaged clients offline
         shell: bash
         run: |

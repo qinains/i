@@ -18,6 +18,8 @@
 - Preserve restored draft and queued image bytes when WebKit replaces saved
   snapshots. Bound image recovery memory and isolate unreadable sessions without
   overwriting their stored records or blocking healthy conversations.
+- Build portable Windows MSVC packages with static CRT, and reject executable
+  verification failures even when the process starts successfully.
 - Separate plugin source links from accessible download-and-inspect buttons;
   preserve installation and permission confirmation. Fix active-tab renaming
   and make browser test fixtures handle Firefox clipboard and pointer behavior.
