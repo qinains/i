@@ -82,3 +82,13 @@ jobs:
           for archive in dist/*.tar.gz dist/*.tar.xz dist/*.zip; do
             if [ -f "$archive" ]; then cargo run --locked --manifest-path tools/native-tool/Cargo.toml --target-dir target -- check-package "$archive"; fi
           done
+      - name: Retain verified Windows package for VM smoke testing
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: windows-smoke-package
+          path: |
+            dist/*.zip
+            dist/*.zip.sha256
+          if-no-files-found: error
+          retention-days: 3
