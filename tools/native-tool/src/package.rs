@@ -140,6 +140,7 @@ pub fn check(archive: &Path) -> Result<()> {
     exec(&binary, &["install".into(), "--bin-dir".into(), installed.to_string_lossy().into()], b"")?;
     fs::rename(&bundle, root.join("source-moved-away"))?;
     binary = installed.join(executable);
+    let installed_binary = binary.canonicalize()?;
     let manifest: Value = serde_json::from_slice(&exec(&binary, &args(&["--runtime", "manifest"]), b"")?.stdout)?;
     for entry in manifest["tools"]
         .as_array()
@@ -148,8 +149,11 @@ pub fn check(archive: &Path) -> Result<()> {
         .chain(manifest["hooks"].as_array().unwrap())
         .chain(std::iter::once(&manifest["provider"]))
     {
+        let binding = entry["exec"][0].as_str().ok_or_else(|| anyhow::anyhow!("Invalid executable binding"))?;
         ensure!(
-            entry["exec"][0] == binary.to_string_lossy().as_ref() && entry["exec"][1] == "--runtime",
+            Path::new(binding).is_absolute()
+                && fs::canonicalize(binding)? == installed_binary
+                && entry["exec"][1] == "--runtime",
             "Nonportable binding"
         );
     }
