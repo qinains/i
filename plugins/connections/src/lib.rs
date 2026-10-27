@@ -193,7 +193,8 @@ impl Auth {
             match file.try_lock_exclusive() {
                 Ok(()) => return Ok(file),
                 Err(e)
-                    if e.kind() == std::io::ErrorKind::WouldBlock && started.elapsed() < Duration::from_secs(660) =>
+                    if e.raw_os_error() == fs2::lock_contended_error().raw_os_error()
+                        && started.elapsed() < Duration::from_secs(660) =>
                 {
                     tokio::time::sleep(Duration::from_millis(50)).await
                 }

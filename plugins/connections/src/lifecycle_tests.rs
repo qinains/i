@@ -7,7 +7,9 @@ use jsonwebtoken::{encode, EncodingKey, Header};
 use serde_json::{json, Value};
 use std::{
     convert::Infallible,
-    process::Command,
+    io::Write,
+    path::Path,
+    process::{Command, Stdio},
     sync::{Arc, Mutex},
 };
 use tokio_rustls::{rustls, TlsAcceptor};
@@ -32,29 +34,92 @@ impl Drop for Fixture {
         self.task.abort();
     }
 }
-fn openssl(args: &[&str]) -> Vec<u8> {
-    let mut command = if cfg!(windows) {
-        let mut command = Command::new("bash");
-        command.args(["-c", "exec openssl \"$@\"", "openssl"]);
-        command
-    } else {
-        Command::new("openssl")
-    };
-    let output = command.args(args).output().expect("OpenSSL is required for ephemeral OAuth test keys");
-    assert!(output.status.success(), "ephemeral test key command failed");
+fn openssl_program() -> PathBuf {
+    // Do not resolve `bash` on Windows: it may be WSL rather than Git Bash.
+    #[cfg(windows)]
+    for root in ["ProgramFiles", "ProgramFiles(x86)"] {
+        if let Some(root) = std::env::var_os(root) {
+            for relative in ["Git/usr/bin/openssl.exe", "Git/mingw64/bin/openssl.exe"] {
+                let candidate = PathBuf::from(&root).join(relative);
+                if candidate.is_file() {
+                    return candidate;
+                }
+            }
+        }
+    }
+    PathBuf::from("openssl")
+}
+
+fn openssl_command(directory: &Path) -> Command {
+    let mut command = Command::new(openssl_program());
+    command
+        .current_dir(directory)
+        .env("HOME", directory)
+        .env("USERPROFILE", directory)
+        // OpenSSL documents the empty string as disabling configuration loading.
+        .env("OPENSSL_CONF", "")
+        .env_remove("OPENSSL_CONF_INCLUDE")
+        .env_remove("OPENSSL_MODULES")
+        .env_remove("OPENSSL_ENGINES")
+        .env_remove("RANDFILE");
+    command
+}
+
+fn openssl(directory: &Path, args: &[&str], input: &[u8]) -> Vec<u8> {
+    let mut child = openssl_command(directory)
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("Native OpenSSL is required for ephemeral OAuth test keys");
+    child.stdin.take().unwrap().write_all(input).unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "ephemeral OpenSSL {} failed ({}): {}",
+        args[0],
+        output.status,
+        String::from_utf8_lossy(&output.stderr)
+    );
     output.stdout
+}
+
+fn ephemeral_signing_keys(directory: &Path) -> (EncodingKey, Value) {
+    let pem = openssl(directory, &["genrsa", "2048"], b"");
+    let signing = EncodingKey::from_rsa_pem(&pem).unwrap();
+    let modulus = String::from_utf8(openssl(directory, &["rsa", "-noout", "-modulus"], &pem)).unwrap();
+    let hex = modulus.trim().strip_prefix("Modulus=").unwrap();
+    let modulus: Vec<u8> = (0..hex.len()).step_by(2).map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap()).collect();
+    let jwks = json!({"keys":[{"kty":"RSA","kid":"ephemeral","alg":"RS256","use":"sig","n":URL_SAFE_NO_PAD.encode(modulus),"e":"AQAB"}]});
+    (signing, jwks)
+}
+
+#[test]
+fn ephemeral_key_generation_is_native_path_safe_and_verifiable() {
+    let directory = tempfile::Builder::new().prefix("oauth key \u{6d4b}\u{8bd5} ").tempdir().unwrap();
+    let command = openssl_command(directory.path());
+    let program = Path::new(command.get_program()).file_stem().unwrap();
+    assert_eq!(program, "openssl", "ephemeral key generation must not launch a shell");
+    assert!(command.get_envs().any(|(key, value)| key == "OPENSSL_CONF" && value == Some(std::ffi::OsStr::new(""))));
+    let (first, jwks) = ephemeral_signing_keys(directory.path());
+    let (_, second_jwks) = ephemeral_signing_keys(directory.path());
+    assert_ne!(jwks["keys"][0]["n"], second_jwks["keys"][0]["n"], "each fixture needs fresh RSA entropy");
+    assert_eq!(jwks["keys"][0]["e"], "AQAB");
+    let modulus = URL_SAFE_NO_PAD.decode(jwks["keys"][0]["n"].as_str().unwrap()).unwrap();
+    assert_eq!(modulus.len(), 256, "lifecycle tests require RSA-2048");
+    let jwks: JwkSet = serde_json::from_value(jwks).unwrap();
+    let token = encode(&Header::new(Algorithm::RS256), &json!({"exp":now()+60,"fixture":true}), &first).unwrap();
+    let mut validation = Validation::new(Algorithm::RS256);
+    validation.validate_aud = false;
+    let claims = decode::<Value>(&token, &DecodingKey::from_jwk(&jwks.keys[0]).unwrap(), &validation).unwrap();
+    assert_eq!(claims.claims["fixture"], true);
+    assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 0, "key generation must not need any file paths");
 }
 impl Fixture {
     async fn start() -> Self {
         let keys = tempfile::tempdir().unwrap();
-        let pem = keys.path().join("ephemeral.pem");
-        openssl(&["genrsa", "-out", pem.to_str().unwrap(), "2048"]);
-        let signing = EncodingKey::from_rsa_pem(&fs::read(&pem).unwrap()).unwrap();
-        let modulus = String::from_utf8(openssl(&["rsa", "-in", pem.to_str().unwrap(), "-noout", "-modulus"])).unwrap();
-        let hex = modulus.trim().strip_prefix("Modulus=").unwrap();
-        let modulus: Vec<u8> =
-            (0..hex.len()).step_by(2).map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap()).collect();
-        let jwks = json!({"keys":[{"kty":"RSA","kid":"ephemeral","alg":"RS256","use":"sig","n":URL_SAFE_NO_PAD.encode(modulus),"e":"AQAB"}]});
+        let (signing, jwks) = ephemeral_signing_keys(keys.path());
         let cert = rcgen::generate_simple_self_signed(vec!["auth.openai.com".into(), "api.openai.com".into()]).unwrap();
         let tls = rustls::ServerConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
             .with_safe_default_protocol_versions()

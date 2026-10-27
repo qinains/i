@@ -76,7 +76,10 @@ impl ClaudeAuth {
         loop {
             match lock.try_lock_exclusive() {
                 Ok(()) => return Ok(lock),
-                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock && start.elapsed() < Duration::from_secs(660) => {
+                Err(e)
+                    if e.raw_os_error() == fs2::lock_contended_error().raw_os_error()
+                        && start.elapsed() < Duration::from_secs(660) =>
+                {
                     tokio::time::sleep(Duration::from_millis(50)).await
                 }
                 Err(_) => bail!("Claude Console authentication is busy"),
@@ -593,6 +596,17 @@ fn parse_sse(bytes: &[u8], request: &Value) -> Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn concurrent_instances_wait_for_the_profile_lock() {
+        let dir = tempfile::tempdir_in(std::env::temp_dir().canonicalize().unwrap()).unwrap();
+        let auth = ClaudeAuth::at(dir.path().join("claude")).unwrap();
+        let other = ClaudeAuth::at(auth.root.clone()).unwrap();
+        let held = auth.lock().await.unwrap();
+        assert!(tokio::time::timeout(Duration::from_millis(120), other.lock()).await.is_err());
+        drop(held);
+        assert!(tokio::time::timeout(Duration::from_secs(1), other.lock()).await.unwrap().is_ok());
+    }
 
     #[tokio::test]
     async fn logout_clears_local_credentials_before_slow_cli_and_survives_cancellation() {
