@@ -15,6 +15,9 @@
   Unix archive formats, and include third-party notices in connection packages.
 - Update ZIP handling and add release gates for secret scanning, dependency
   audits, browser storage/crash regression tests and offline native verification.
+- Preserve restored draft and queued image bytes when WebKit replaces saved
+  snapshots. Bound image recovery memory and isolate unreadable sessions without
+  overwriting their stored records or blocking healthy conversations.
 - Separate plugin source links from accessible download-and-inspect buttons;
   preserve installation and permission confirmation. Fix active-tab renaming
   and make browser test fixtures handle Firefox clipboard and pointer behavior.
