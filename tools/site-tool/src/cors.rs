@@ -50,6 +50,7 @@ pub fn icon(size: u32) -> Result<Vec<u8>> {
 fn zip_files(source: &Path, names: &[String], destination: &Path) -> Result<()> {
     let mut archive = zip::ZipWriter::new(fs::File::create(destination)?);
     let options = zip::write::SimpleFileOptions::default()
+        .system(zip::System::Unix)
         .compression_method(zip::CompressionMethod::Deflated)
         .compression_level(Some(9))
         .last_modified_time(zip::DateTime::from_date_and_time(2026, 1, 1, 0, 0, 0).unwrap())

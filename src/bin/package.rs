@@ -577,7 +577,9 @@ fn create_zip_archive(
     let package_path = temp_dir.join(package_name);
 
     // Add all files to zip
-    let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    let options = zip::write::SimpleFileOptions::default()
+        .system(zip::System::Unix)
+        .compression_method(zip::CompressionMethod::Deflated);
 
     let exec_options = options.unix_permissions(0o755);
     let file_options = options.unix_permissions(0o644);
