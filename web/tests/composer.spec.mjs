@@ -40,6 +40,30 @@ test('long paste is folded, removable and safe',async({page})=>{
     expect(draft?.composerBlocks[0].text).toBe(text);
     await page.locator('#composer-attachments button').click();await expect(page.locator('#input')).toHaveValue(' explain');await expect(page.locator('#composer-attachments')).toBeHidden();
 });
+test('loaded draft and queued image bytes stay owned after replacing their saved snapshot',async({page})=>{
+    await page.goto('/');await expect(page.locator('#status')).toHaveText('Ready');
+    await paste(page,{image:true});await expect(page.locator('#input')).toHaveValue('[Image #1]');
+    await expect(page.locator('#save-status')).toHaveText('Saved');await page.reload();await expect(page.locator('#status')).toHaveText('Ready');
+    await page.evaluate(async()=>{
+        const {openStateStore}=await import('/state/store.js'),{SessionController}=await import('/sessions.js'),store=await openStateStore();
+        try{
+            const restore=async()=>{
+                const errors=[],controller=new SessionController({validate_history(){}},store,{error:error=>errors.push(error.message)});
+                await controller.restore((await store.load()).sessions);if(errors.length)throw new Error(errors.join('; '));return controller;
+            };
+            const first=await restore(),initial=[...first.records.values()].find(record=>record.composerBlocks?.some(block=>block.kind==='image'));
+            initial.pendingMessages=[{id:crypto.randomUUID(),visible:'[Image #1]',blocks:structuredClone(initial.composerBlocks),connectionId:initial.connectionId,connectionIdentity:initial.connectionIdentity}];
+            initial.revision=await store.commitSession(initial,initial.revision);
+            const controller=await restore();
+            const record=controller.records.get(initial.id);
+            window.savedImages=[record.composerBlocks[0].blob,record.pendingMessages[0].blocks[0].blob];
+            record.revision=await store.commitSession(record,record.revision);
+        }finally{store.close();}
+    });
+    await page.requestGC();
+    const actual=await page.evaluate(()=>Promise.all(window.savedImages.map(async blob=>{const bytes=new Uint8Array(await blob.arrayBuffer());return btoa(String.fromCharCode(...bytes));})));
+    expect(actual).toEqual([png,png]);
+});
 test('folded pasted content is sent in full with its added instruction',async({page})=>{
     await page.goto('/');await expect(page.locator('#status')).toHaveText('Ready');
     await page.locator('#settings-btn').click();await page.locator('#base-url').fill('http://127.0.0.1:4173/mock/v1');await page.locator('#model').fill('fixture');await page.locator('#save-config').click();await page.locator('#close-settings').click();

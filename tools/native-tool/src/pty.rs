@@ -153,8 +153,9 @@ impl Pty {
         let mut slave = 0;
         let mut size = libc::winsize { ws_row: 10, ws_col: 32, ws_xpixel: 0, ws_ypixel: 0 };
         ensure!(
-            unsafe { libc::openpty(&mut master, &mut slave, std::ptr::null_mut(), std::ptr::null_mut(), &mut size) }
-                == 0,
+            unsafe {
+                libc::openpty(&mut master, &mut slave, std::ptr::null_mut(), std::ptr::null_mut(), &raw mut size)
+            } == 0,
             "Cannot open PTY"
         );
         let master = unsafe { File::from_raw_fd(master) };

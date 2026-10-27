@@ -31,10 +31,15 @@ export class SessionController {
         await this.save(record);this.records.set(record.id,record);return record;
     }
     async restore(records,sanitize=value=>value){
-        for(const record of records){
+        // Limit retained attachment bytes across all opened saved sessions.
+        let imageBudget=128*1024*1024;
+        for(let record of records){
             let stage='metadata';
             try{
                 validateSession(record);
+                stage='attachments';
+                const prepared=await this.store.prepareSession?.(record,imageBudget);
+                if(prepared){record=prepared.record;imageBudget-=prepared.bytes;}
                 if(record.pendingMessages?.length)record.queuePaused=true;
                 stage='recovery';const recovered=recoverHistory(record.history,record.journal);
                 stage='history';
