@@ -329,6 +329,7 @@ fn package_into(out: &Path, target: &str, helpers: &[(&str, PathBuf)]) -> Result
     let mut checksum_file = fs::OpenOptions::new().write(true).create_new(true).open(&checksum)?;
     let mut zip = zip::ZipWriter::new(file);
     let option = zip::write::SimpleFileOptions::default()
+        .system(zip::System::Unix)
         .compression_method(zip::CompressionMethod::Deflated)
         .last_modified_time(zip::DateTime::default());
     let suffix = if target.contains("windows") { ".exe" } else { "" };
@@ -568,7 +569,7 @@ mod tests {
         fs::write(&source,r#"use std::{env,path::PathBuf};
 fn main(){
  let home=PathBuf::from(env::var_os("HOME").unwrap());
- assert_eq!(env::current_dir().unwrap(),home);
+ assert_eq!(env::current_dir().unwrap().canonicalize().unwrap(),home.canonicalize().unwrap());
  assert_eq!(PathBuf::from(env::var_os("USERPROFILE").unwrap()),home);
  for key in ["OPENAI_API_KEY","ANTHROPIC_API_KEY","ANTHROPIC_AUTH_TOKEN"]{assert!(env::var_os(key).is_none());}
  let args:Vec<String>=env::args().skip(1).collect();assert_eq!(args.len(),3);assert_eq!(args[0],"--data-dir");assert_eq!(args[2],"manifest");

@@ -52,7 +52,7 @@ pub fn run(binary: &str) {
     let mut size = libc::winsize { ws_row: 30, ws_col: 110, ws_xpixel: 0, ws_ypixel: 0 };
     // openpty initializes two new owned descriptors on success.
     assert_eq!(
-        unsafe { libc::openpty(&mut master, &mut slave, std::ptr::null_mut(), std::ptr::null_mut(), &mut size) },
+        unsafe { libc::openpty(&mut master, &mut slave, std::ptr::null_mut(), std::ptr::null_mut(), &raw mut size) },
         0
     );
     let master = unsafe { File::from_raw_fd(master) };
