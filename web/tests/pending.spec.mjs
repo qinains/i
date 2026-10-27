@@ -39,7 +39,11 @@ test('failed request pauses queued images; reload never sends them without confi
     await page.route(endpoint,async route=>{bodies.push(route.request().postDataJSON());if(bodies.length===1)await gate;await route.fulfill({contentType:'text/event-stream',body:reply('Done',bodies.length===1?'length':'stop')});});
     await send(page,'first');await expect(page.locator('#input')).toBeEnabled();
     const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN1cAAAAASUVORK5CYII=';
-    await page.locator('#input').evaluate((input,png)=>{const data=new DataTransfer();data.items.add(new File([Uint8Array.from(atob(png),c=>c.charCodeAt(0))],'image.png',{type:'image/png'}));input.dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));},png);
+    await page.locator('#input').evaluate((input,png)=>{
+        const data=new DataTransfer();data.items.add(new File([Uint8Array.from(atob(png),c=>c.charCodeAt(0))],'image.png',{type:'image/png'}));
+        // Firefox ignores clipboardData in the synthetic ClipboardEvent constructor.
+        const event=new ClipboardEvent('paste',{bubbles:true,cancelable:true});Object.defineProperty(event,'clipboardData',{value:data});input.dispatchEvent(event);
+    },png);
     await expect(page.locator('#input')).toHaveValue('[Image #1]');await page.locator('#input').fill('[Image #1] queued caption');await page.locator('#btn-send').click();
     release();await expect(page.locator('#status')).toHaveText('Ready');await expect(page.locator('#queue-resume')).toBeVisible();
     await expect(page.locator('#save-status')).toHaveText('Saved');await page.reload();await expect(page.locator('#status')).toHaveText('Ready');

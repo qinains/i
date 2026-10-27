@@ -1,3 +1,4 @@
+import {validateConnectionPlugin} from './connection-plugin.js';
 function invalidApiUrl(){return Object.assign(new Error('The API URL is missing or invalid. Open Settings to enter a valid API URL and check your API key and model.'),{code:'invalid_api_url'});}
 export function normalizeEndpoint(value,protocol='openai') {
     if(!['openai','anthropic','responses'].includes(protocol)) throw new Error('Unsupported model protocol.');
@@ -21,12 +22,13 @@ export function validateCustomHeaders(raw='') {
         const key=name.toLowerCase();
         if(typeof text!=='string' || !/^[a-z0-9-]+$/u.test(key) || /[\r\n]/u.test(text)
             || ['authorization','proxy-authorization','host','cookie','origin','content-type','accept','content-length','connection','x-api-key','anthropic-version','anthropic-dangerous-direct-browser-access'].includes(key)
-            || key.startsWith('x-harness-') || key.startsWith('sec-') || key.startsWith('proxy-')) throw new Error('Invalid or reserved custom header.');
+            || key==='x-i-local-token' || key.startsWith('x-harness-') || key.startsWith('sec-') || key.startsWith('proxy-')) throw new Error('Invalid or reserved custom header.');
         result[key]=text;
     }
     return result;
 }
 export async function requestCompletion({endpoint,body,apiKey='',protocol='openai',transport='direct',relayToken='',customHeaders='',controller,onEvent}) {
+    if(transport==='plugin')validateConnectionPlugin({base_url:endpoint,api_key:apiKey,protocol,stream:body.stream,custom_headers:customHeaders});
     const {fetchModel}=await import('./platform.js');
     return fetchModel(normalizeEndpoint(endpoint,protocol),JSON.stringify(body),apiKey,controller ?? new AbortController(),{protocol,transport,relayToken,customHeaders},onEvent);
 }

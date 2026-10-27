@@ -57,6 +57,18 @@ impl Drop for Busy {
         self.0.set(false);
     }
 }
+struct AnalysisController<'a> {
+    slot: &'a RefCell<Option<JsValue>>,
+    cancelled: &'a Cell<bool>,
+}
+impl Drop for AnalysisController<'_> {
+    fn drop(&mut self) {
+        if let Some(controller) = self.slot.borrow_mut().take() {
+            abort(&controller);
+        }
+        self.cancelled.set(false);
+    }
+}
 fn acquire(busy: &Rc<Cell<bool>>) -> Result<Busy> {
     ensure!(!busy.replace(true), "busy: another operation is running");
     Ok(Busy(busy.clone()))
@@ -211,6 +223,21 @@ impl BrowserAgent {
     pub async fn run(&self, task: &str) -> std::result::Result<JsValue, JsValue> {
         self.run_message(task, "[]").await
     }
+    pub async fn analyze(&self, spec_json: &str) -> std::result::Result<String, JsValue> {
+        let _busy = acquire(&self.busy).map_err(failure)?;
+        self.cancelled.set(false);
+        let _controller = AnalysisController { slot: &self.controller, cancelled: &self.cancelled };
+        self.analyze_inner(spec_json).await.map_err(|error| {
+            let state = self.state.borrow();
+            let mut text = format!("{error:#}");
+            for secret in [&state.config.api_key, &state.config.relay_token] {
+                if !secret.is_empty() {
+                    text = text.replace(secret, "[redacted]");
+                }
+            }
+            JsValue::from_str(&text)
+        })
+    }
     pub async fn run_message(&self, task: &str, images_json: &str) -> std::result::Result<JsValue, JsValue> {
         let _busy = acquire(&self.busy).map_err(failure)?;
         let images: Vec<String> = serde_json::from_str(images_json).map_err(|e| failure(e.into()))?;
@@ -269,6 +296,38 @@ impl BrowserAgent {
     }
 }
 impl BrowserAgent {
+    async fn analyze_inner(&self, spec_json: &str) -> Result<String> {
+        ensure!(spec_json.len() <= 1024 * 1024, "analysis specification exceeds 1 MiB");
+        let spec: crate::analysis::AnalysisSpec =
+            serde_json::from_str(spec_json).context("invalid analysis specification")?;
+        let (config, transcript) = {
+            let state = self.state.borrow();
+            state.config.validate()?;
+            (state.config.clone(), crate::analysis::project(&state.history, &spec.selection)?)
+        };
+        let history = crate::analysis::request(&spec.prompt, &transcript, &json!([]))?;
+        let body = config.analysis_body(&history)?.to_string();
+        let options = to_js(
+            &json!({"protocol":config.protocol,"transport":config.transport,"relayToken":config.relay_token,"customHeaders":config.custom_headers}),
+        )?;
+        let controller = controller();
+        self.controller.replace(Some(controller.clone()));
+        // Analysis is a separate read-only operation; streamed text and reasoning never enter the session transcript.
+        let no_events = Closure::<dyn FnMut(JsValue)>::new(|_| {});
+        let response = fetch(
+            &config.endpoint()?,
+            &body,
+            &config.api_key,
+            &controller,
+            &options,
+            no_events.as_ref().unchecked_ref(),
+        )
+        .await
+        .map_err(js_error)?;
+        ensure!(!self.cancelled.get(), "cancelled");
+        let response = serde_json::from_str(&response.as_string().context("expected analysis model JSON")?)?;
+        config.analysis_response_text(response)
+    }
     async fn run_inner(&self, task: &str, images: &[String]) -> Result<JsValue> {
         let content = super::input::user_content(task, images)?;
         ensure!(!task.trim_start().starts_with('!'), "shell is disabled in browser");

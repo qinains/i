@@ -3,6 +3,7 @@ import {DEFAULT_CONFIGURATION,saveConfiguration,clearConfiguration,deleteProfile
 import {loadConnections,saveConnection} from './connections.js';
 import {registerPwa} from './pwa.js';
 import {requestCompletion,normalizeEndpoint,validateCustomHeaders} from './transport.js';
+import {consumePairingFragment,connectionPluginDraft,configurationForManifest,validateConnectionPlugin,validateConnectionManifest,localHelperRequest,visiblePluginModels,loginAccount} from './connection-plugin.js';
 import {openStateStore,withWorkspaceLock} from './state/store.js';
 import {displayName,listWorkspaceDirectories,isTemporaryWorkspace} from './workspaces.js';
 import {opfsOpenWorkspace,opfsClearTmp,opfsFileVersion} from './platform.js';
@@ -12,6 +13,7 @@ import {mountPreview} from './preview.js';
 import {bindResponsiveDisclosure} from './responsive-ui.js';
 import {renderFileTree,viewState,persistentView} from './file-browser.js';
 import {mountCommands} from './commands.js';
+import {runAnalysis,narrowAnalysisSpec} from './analysis.js';
 import {updateTitle,compactTitleFromHistory} from './titles.js';
 import {SessionController,connectionIdentity} from './sessions.js';
 import {node,renderMessage} from './render.js';
@@ -28,16 +30,20 @@ import {mountComposer,composeDraft,imageDataUrls} from './composer.js';
 import {enqueueMessage,editMessage,removeMessage} from './pending.js';
 import {theme} from './theme.js';
 
+let pairing=null,pairingError=null;
+try{pairing=consumePairingFragment(location,history);}catch(error){pairingError=error;}
 const $=id=>document.getElementById(id);
 function setText(id,key){const element=$(id);element.dataset.i18n=key;element.textContent=uiText(key);}
 let store,controller,workspaces=new Map(),ui={key:'main',openedSessionIds:[],panels:{},scrollPositions:{}},activeId,runningId,updateLocked=false,ready=false;
 let pendingApproval,testController,selectedConnection='',uiQueue=Promise.resolve();
+let localPluginController=null,newPluginDraft=false,pendingPluginConnection='',localPluginActive='';
 let preparingId=null,drainingId=null,queueSending=null,messageTaskId=null;
 const stoppedTasks=new Set();
 let preview,composerUi;
 let pluginStore,pluginManager,pluginUi,pluginBusy=false;
 const pluginControllers=new Map();
 const operationControllers=new Map();
+const analysisSessions=new Set();
 const fileRefresh=new FileRefresh();
 async function ensurePluginManager(){
     pluginStore??=await openPluginStore();pluginManager??=new PluginManager({store:pluginStore,inspectPackage:inspectPluginPackage});
@@ -107,7 +113,7 @@ function renderTabs(){
         tab.append(node('span',`${item.status==='approval'?'● ':runningId===id?'◌ ':''}${label}`,'tab-label'));
         tab.type='button';tab.role='tab';tab.dataset.sessionId=id;tab.setAttribute('aria-selected',String(id===activeId));
         tab.title=`${workspaces.get(item.workspaceId)?.name} · ${item.titleText??label}. ${uiText('Double-click to rename.')}`;
-        tab.addEventListener('click',safe(()=>selectSession(id)));
+        tab.addEventListener('click',safe(()=>id===activeId?undefined:selectSession(id)));
         tab.addEventListener('dblclick',safe(async()=>{if(runningId===id)return;const name=prompt(uiText('Conversation name:'),item.name);if(name){item.name=displayName(name);item.titleText=item.name;item.titleSource='manual';await controller.save(item);renderTabs();}}));
         const close=node('button','','tab-close');close.type='button';close.setAttribute('aria-label',uiText('Close {name}',{name:label}));close.title=close.getAttribute('aria-label');close.disabled=runningId===id;
         const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');
@@ -133,14 +139,14 @@ function updateComposerAction(){
 }
 function updateControls(){
     renderStreamStatus();
-    const record=active(),blocked=!!runningId||!!testController||pluginBusy||updateLocked||!ready;
+    const record=active(),blocked=!!runningId||!!testController||!!localPluginController||pluginBusy||updateLocked||!ready;
     const preparing=preparingId===activeId||runningId===activeId&&messageTaskId!==activeId;
-    $('input').disabled=!record||updateLocked||pluginBusy||!!testController||!ready||preparing;
+    $('input').disabled=!record||updateLocked||pluginBusy||!!testController||!!localPluginController||!ready||preparing;
     for(const id of ['btn-download','btn-upload','file-input','btn-new-session','btn-reset','btn-clear-tmp','btn-download-tmp','upload-target','btn-preview','refresh-preview','preview-scripts','preview-entry','preview-mode']){const el=$(id);if(el)el.disabled=blocked;}
     $('execution-mode').value=record?.mode??'ask';$('execution-mode').disabled=!record||updateLocked||pluginBusy||!!testController||!ready;
     $('mode-control').dataset.mode=record?.mode??'ask';setText('mode-hint',record?.mode==='auto'?'File changes without asking · Shift+Tab':'Shift+Tab to switch');
     $('btn-clear').disabled=!record||updateLocked||runningId===activeId;
-    $('btn-send').disabled=!record||updateLocked||pluginBusy||!!testController||!ready||preparing||!!runningId&&runningId!==activeId;
+    $('btn-send').disabled=!record||updateLocked||pluginBusy||!!testController||!!localPluginController||!ready||preparing||!!runningId&&runningId!==activeId;
     updateComposerAction();
     setText('status',!ready?'Unavailable':runningId?'Processing...':'Ready');
     setText('save-status',saveStates.get(activeId) ?? (ready?'Saved':'Opening storage…'));
@@ -151,8 +157,9 @@ function updateControls(){
     $('approval-panel').hidden=!owned;
     if(owned){$('approval-owner').textContent=`${workspaces.get(record.workspaceId)?.name} · ${record.name}`;$('approval-description').textContent=redact(pendingApproval.description);}
     for(const el of $('settings-modal').querySelectorAll('input,select,textarea,button')){
-        if(!['close-settings','cancel-test','theme-select'].includes(el.id) && !el.dataset.settingsTab)el.disabled=blocked;
+        if(!['close-settings','cancel-test','local-plugin-cancel','theme-select'].includes(el.id) && !el.dataset.settingsTab)el.disabled=blocked;
     }
+    $('delete-profile').disabled=blocked||!!pendingPluginConnection;
     pluginUi?.updateControls();
     composerUi?.refresh();
     renderPending();
@@ -164,7 +171,7 @@ function renderPending(){
     $('queue-title').textContent=uiText('Pending messages ({count})',{count:entries.length});
     const failed=controller.failed.has(record.id);
     setText('queue-state',failed?'Queue not saved — copy messages before reloading.':record.queuePaused?'Queue paused':'Sends after the current task');
-    const blocked=updateLocked||pluginBusy||!!testController||!ready;
+    const blocked=updateLocked||pluginBusy||!!testController||!!localPluginController||!ready;
     $('queue-resume').hidden=!record.queuePaused;$('queue-pause').hidden=!!record.queuePaused;
     $('queue-resume').disabled=failed||blocked||!!runningId&&runningId!==record.id||entries.some(entry=>entry.editDraft!=null);
     $('queue-pause').disabled=blocked;
@@ -247,6 +254,7 @@ function publish(id,archive){
 }
 function onEvent(id,event){
     const record=controller.records.get(id);if(!record)return;
+    if(analysisSessions.has(id))return;
     if(event.type==='stream_start'){streams.set(id,{requestId:event.request_id,text:'',line:null});if(id===activeId)renderStreamStatus();return;}
     if(event.type==='stream_progress'){
         const stream=streams.get(id);if(stream?.requestId!==event.request_id)return;
@@ -278,18 +286,18 @@ function onEvent(id,event){
     }
     append(record,event.text ?? '',event.type==='assistant'?'assistant':'tool');
 }
-async function operation(record,fn,{readOnly=false,runQueue=false}={}){
-    if(runningId||updateLocked||testController||pluginBusy)throw new Error('Finish or stop the current task first.');
+async function operation(record,fn,{readOnly=false,runQueue=false,historyOnly=false}={}){
+    if(runningId||updateLocked||testController||localPluginController||pluginBusy)throw new Error('Finish or stop the current task first.');
     if(controller.failed.has(record.id)&&!readOnly)throw new Error('Saving failed. Download a ZIP backup, then reload before running more tools.');
     runningId=record.id;stoppedTasks.delete(record.id);record.status='running';updateControls();renderTabs();let succeeded=false;
     const cancellation=new AbortController();operationControllers.set(record.id,cancellation);
-    try{if(!readOnly)await controller.save(record);await withWorkspaceLock(record.workspaceId,async()=>{if(!readOnly)await controller.flush(record.id);await fn(await controller.agent(record),cancellation.signal);});succeeded=!stoppedTasks.has(record.id);}
-    catch(error){record.queuePaused=true;cancellation.abort();append(record,`Error: ${error.message ?? error}`,'error');}
+    try{if(!readOnly)await controller.save(record);const execute=async()=>{if(!readOnly)await controller.flush(record.id);await fn(await controller.agent(record),cancellation.signal);};if(historyOnly)await execute();else await withWorkspaceLock(record.workspaceId,execute);succeeded=!stoppedTasks.has(record.id);}
+    catch(error){record.queuePaused=true;cancellation.abort();append(record,`Error: ${uiText(String(error.message ?? error))}`,'error');}
     finally{
         if(pendingApproval?.id===record.id)settleApproval(false);record.status='idle';
         if(!readOnly)try{await controller.save(record);}catch(error){succeeded=false;record.queuePaused=true;report(error);}
-        if(!cancellation.signal.aborted)try{await refresh(cancellation.signal);}catch(error){report(error);}
-        const backgroundRefresh=cancellation.signal.aborted;
+        if(!historyOnly&&!cancellation.signal.aborted)try{await refresh(cancellation.signal);}catch(error){report(error);}
+        const backgroundRefresh=!historyOnly&&cancellation.signal.aborted;
         cancellation.abort();operationControllers.delete(record.id);
         runningId=null;renderTabs();updateControls();if(record.id===activeId)$('input').focus();
         if(backgroundRefresh)refresh().catch(report);
@@ -298,10 +306,10 @@ async function operation(record,fn,{readOnly=false,runQueue=false}={}){
     return succeeded;
 }
 async function drainQueue(record){
-    if(drainingId||runningId||updateLocked||testController||pluginBusy||!ready)return;
+    if(drainingId||runningId||updateLocked||testController||localPluginController||pluginBusy||!ready)return;
     drainingId=record.id;
     try{
-        while(!record.queuePaused&&record.pendingMessages?.length&&!runningId){
+        while(!record.queuePaused&&record.pendingMessages?.length&&!runningId&&!localPluginController){
             const entry=record.pendingMessages[0];
             if(entry.editDraft!=null){record.queuePaused=true;await controller.save(record);break;}
             queueSending={id:record.id,messageId:entry.id};if(record.id===activeId)renderPending();
@@ -343,6 +351,7 @@ async function sendMessage(record,visible,blocks,entry=null){
 }
 async function submit(text){
     const record=active();if(!record||!text.trim())return;
+    if(/^\/reflect(?:\s|$)/u.test(text.trim()))return reflectConversation(record,text.trim());
     if(updateLocked||pluginBusy||testController||preparingId===record.id)throw new Error('Wait for the active operation.');
     if(runningId&&runningId!==record.id)throw new Error('Another conversation is running.');
     if(runningId||record.pendingMessages?.length){
@@ -368,6 +377,25 @@ async function submit(text){
     if(text==='/config'){openSettings();return;}
     if(text.startsWith('/')){append(record,'Unknown command. Use /help.','error');return;}
 }
+async function reflectConversation(record,text){
+    if(runningId||record.pendingMessages?.length||updateLocked||testController||localPluginController||pluginBusy||preparingId)throw new Error('Finish or stop the current task first.');
+    const args=text.split(/\s+/u),scope=args[1]??'all';
+    if(args.length>2||!['all','user','assistant'].includes(scope))throw new Error('Usage: /reflect [all|user|assistant]');
+    validateConfig(applied);
+    if(!confirm(uiText('Reflection sends selected conversation text to the current model in one extra request. It does not change history, instructions or files. Continue?')))return;
+    record.draft='';$('input').value='';composerUi.refresh();commandMenu?.hide();
+    await operation(record,async(_agent,signal)=>{
+        const response=await fetch(new URL('./reflection.json',import.meta.url),{signal,credentials:'omit',redirect:'error'});
+        if(!response.ok)throw new Error('Bundled reflection plugin unavailable.');
+        const spec=narrowAnalysisSpec(await response.json(),scope);
+        signal.throwIfAborted();
+        const agent=await controller.configure(record,agentConfiguration(),selectedConnection);
+        analysisSessions.add(record.id);
+        try{const report=await runAnalysis({agent,spec,signal});signal.throwIfAborted();append(record,report,'analysis');}
+        catch(error){if(signal.aborted){append(record,'Reflection cancelled.');return;}throw error;}
+        finally{analysisSessions.delete(record.id);}
+    },{historyOnly:true});
+}
 async function changeMode(mode){
     if(!['ask','auto'].includes(mode)||updateLocked||testController)throw new Error('Cannot change execution mode now.');
     const record=active();if(!record)return;record.mode=mode;await controller.save(record);updateControls();append(record,uiText('Mode: {mode}',{mode}));
@@ -392,13 +420,79 @@ function currentConfiguration(){
 }
 function agentConfiguration(){const {language,...config}=applied;return config;}
 function restoreConfiguration(config){
+    if(localPluginController)throw new Error('Finish the active request first.');
+    newPluginDraft=false;pendingPluginConnection='';localPluginActive='';
+    $('local-plugin-identity').textContent='';$('local-plugin-status').textContent='';
     for(const [id,key]of [['base-url','base_url'],['model','model'],['api-key','api_key'],['protocol','protocol'],['relay-token','relay_token'],['custom-headers','custom_headers'],['reasoning-effort','reasoning_effort'],['max-tokens','max_tokens'],['transport','transport'],['lang-select','language']])$(id).value=config[key] ?? DEFAULT_CONFIGURATION[key];
     $('stream').checked=config.stream;$('use-max-tokens').checked=config.use_max_tokens;updateTransport();applyWorkspaceTranslations(config.language);updateEndpoint();
 }
+function openPluginPairingDraft(pair){
+    restoreConfiguration(connectionPluginDraft({...DEFAULT_CONFIGURATION,language:applied.language},pair));
+    newPluginDraft=true;pendingPluginConnection=crypto.randomUUID();$('profile-select').value='';$('remember-config').checked=false;
+    openSettings();document.querySelector('[data-settings-tab=connection]').click();setText('config-status','New plugin connection (unsaved).');
+}
 function updateTransport(){
-    const relay=$('transport').value==='relay';
+    const relay=$('transport').value==='relay',local=$('transport').value==='plugin';
     $('relay-options').hidden=!relay;
-    $('connection-extra').hidden=relay;$('cors-help').hidden=relay;
+    $('local-plugin-options').hidden=!local;
+    $('local-plugin-command').textContent=`i-chatgpt-plugin serve --origin ${location.origin}`;
+    for(const id of ['base-url','api-key','protocol','model'])$(id).closest('.form-field').hidden=local;
+    $('stream').closest('label').hidden=local;
+    $('connection-guide').hidden=local;$('credential-privacy').hidden=local;
+    $('connection-extra').hidden=relay||local;$('cors-help').hidden=relay||local;
+    if(local){if(!['responses','anthropic'].includes($('protocol').value))$('protocol').value='responses';$('stream').checked=true;}
+    updateEndpoint();
+}
+function populatePluginAccounts(status){
+    const accounts=(Array.isArray(status.accounts)?status.accounts:[]).filter(account=>typeof account?.id==='string'&&account.id.length<=256&&typeof account.label==='string'&&account.label.length<=256);
+    const add=node('option',uiText('Add provider account'));add.value='__new__';
+    $('local-plugin-account').replaceChildren(...accounts.map(account=>{const option=node('option',account.label+(typeof account.email==='string'&&account.email?` (${account.email})`:''));option.value=account.id;option.dataset.signedIn=String(account.signed_in===true);return option;}),add);
+    localPluginActive=typeof status.active==='string'?status.active:'';
+    $('local-plugin-account').value=loginAccount(status)??'__new__';
+}
+async function refreshLocalPlugin(config,signal){
+    const status=await localHelperRequest(config,'status',{signal});
+    if(signal.aborted)return;
+    populatePluginAccounts(status);
+    const catalog=status.active?await localHelperRequest(config,'models',{signal}):{models:[]};
+    if(signal.aborted)return;
+    const models=visiblePluginModels(catalog);
+    const placeholder=node('option',uiText('Select a model returned by your local plugin.'));placeholder.value='';
+    $('local-plugin-model').replaceChildren(placeholder,...models.map(model=>{const option=node('option',model.display_name);option.value=model.slug;return option;}));
+    if(newPluginDraft&&!$('model').value&&models.length){$('model').value=models[0].slug;newPluginDraft=false;setText('config-status','Unsaved changes');}
+    $('local-plugin-model').value=$('model').value;
+    setText('local-plugin-status',status.active?'Plugin accounts and models refreshed.':'No signed-in plugin account.');
+}
+async function localPluginAction(action){
+    if(localPluginController||runningId||testController||pluginBusy||updateLocked||!ready)return;
+    let config=currentConfiguration();
+    try{validateConnectionPlugin(config);}catch{setText('local-plugin-status','Pair this browser using the link printed by the local plugin.');return;}
+    localPluginController=new AbortController();const {signal}=localPluginController;
+    updateControls();
+    for(const id of ['local-plugin-check','local-plugin-login','local-plugin-logout','local-plugin-account','local-plugin-model'])$(id).disabled=true;
+    $('local-plugin-cancel').hidden=action!=='login';
+    try{
+        const manifest=validateConnectionManifest(await localHelperRequest(config,'manifest',{signal}));
+        config=configurationForManifest(config,manifest,{draft:!!pendingPluginConnection});
+        $('protocol').value=config.protocol;$('base-url').value=config.base_url;updateEndpoint();
+        $('local-plugin-identity').textContent=`${manifest.name} (${manifest.id})`;
+        let logoutResult;
+        if(action==='login'){
+            const status=await localHelperRequest(config,'status',{signal});
+            const selected=$('local-plugin-account').options.length?$('local-plugin-account').value:undefined;
+            const account=loginAccount(status,selected);
+            // Console login may change the workspace behind the same profile ID.
+            const changesAccount=config.protocol==='anthropic'&&status.accounts?.length||account===undefined&&status.accounts?.length||status.active&&account!==status.active;
+            if(changesAccount&&!confirm(uiText('Changing this account or tenant may send existing conversation history to a different recipient. Apply this credential change?'))){populatePluginAccounts(status);return;}
+            setText('local-plugin-status','Waiting for provider login…');await localHelperRequest(config,'login',{body:account?{account}:{},signal});
+        }
+        if(action==='logout'){const account=$('local-plugin-account').value;logoutResult=await localHelperRequest(config,'logout',{body:account&&account!=='__new__'?{account}:{},signal});}
+        if(action==='select')await localHelperRequest(config,'select',{body:{account:$('local-plugin-account').value},signal});
+        await refreshLocalPlugin(config,signal);
+        if(action==='logout')setText('local-plugin-status',logoutResult.remote_revocation_confirmed===false?'Signed out locally; remote revocation was not confirmed. Review access in your provider settings.':'Plugin account signed out.');
+        if(action==='select')setText('local-plugin-status','Plugin account selected.');
+    }catch(error){setText('local-plugin-status',signal.aborted?'Provider login cancelled.':'Local helper request failed.');}
+    finally{localPluginController=null;$('local-plugin-cancel').hidden=true;updateControls();}
 }
 function updateEndpoint(){
     const root=document.documentElement;root.dataset.modelTransport=applied.transport;
@@ -418,7 +512,7 @@ function updateEndpoint(){
     $('token-parameter-option').hidden=anthropic||responses||!!maximum;$('anthropic-tokens-note').hidden=!anthropic;$('responses-note').hidden=!responses;
     try{$('resolved-endpoint').textContent=uiText('Request URL: {url}',{url:normalizeEndpoint($('base-url').value.trim(),$('protocol').value)});}catch{$('resolved-endpoint').textContent=uiText('The request URL appears after a valid API URL is entered.');}
 }
-function validateConfig(config){normalizeEndpoint(config.base_url,config.protocol);validateCustomHeaders(config.custom_headers);if(!config.model.trim()||!Number.isSafeInteger(config.max_tokens)||config.max_tokens<1)throw new Error('Model and a positive output token limit are required.');const maximum=modelMaximum(config);if(maximum&&config.max_tokens>maximum)throw new Error('DeepSeek maximum output tokens: 393216.');if(config.transport==='relay'&&!config.relay_token)throw new Error('Relay access token is required.');}
+function validateConfig(config){if(config.transport==='plugin')validateConnectionPlugin(config);normalizeEndpoint(config.base_url,config.protocol);validateCustomHeaders(config.custom_headers);if(!config.model.trim()||!Number.isSafeInteger(config.max_tokens)||config.max_tokens<1)throw new Error('Model and a positive output token limit are required.');const maximum=modelMaximum(config);if(maximum&&config.max_tokens>maximum)throw new Error('DeepSeek maximum output tokens: 393216.');if(config.transport==='relay'&&!config.relay_token)throw new Error('Relay access token is required.');}
 function updateProfiles(){
     const connections=loadConnections(localStorage);let names={};try{names=JSON.parse(localStorage.getItem('i_harness_connection_names')??'{}');}catch{}
     const memory=node('option',uiText('This session only'));memory.dataset.i18n='This session only';$('profile-select').replaceChildren(memory);
@@ -427,11 +521,12 @@ function updateProfiles(){
     $('profile-select').value=selectedConnection;
 }
 function saveConfig(){
-    if(runningId||testController||updateLocked)throw new Error('Finish the active request first.');
+    if(runningId||testController||localPluginController||updateLocked)throw new Error('Finish the active request first.');
     const config=currentConfiguration();validateConfig(config);
-    if((config.api_key!==applied.api_key||config.custom_headers!==applied.custom_headers) && [...controller.records.values()].some(record=>record.connectionId===selectedConnection&&record.history.some(message=>message.role==='user')) && !confirm(uiText('Changing this account or tenant may send existing conversation history to a different recipient. Apply this credential change?')))return;
+    if(!pendingPluginConnection&&(config.api_key!==applied.api_key||config.custom_headers!==applied.custom_headers) && [...controller.records.values()].some(record=>record.connectionId===selectedConnection&&record.history.some(message=>message.role==='user')) && !confirm(uiText('Changing this account or tenant may send existing conversation history to a different recipient. Apply this credential change?')))return;
+    if(pendingPluginConnection){selectedConnection=pendingPluginConnection;pendingPluginConnection='';}
     if($('remember-config').checked){
-        if(!selectedConnection)selectedConnection='default';
+        if(!selectedConnection)selectedConnection=crypto.randomUUID();
         saveConnection(localStorage,selectedConnection,config);updateProfiles();
         setText('config-status','Configuration saved in this browser.');
     }else setText('config-status','Applied for this session only.');
@@ -497,6 +592,12 @@ function bind(){
     $('btn-history').addEventListener('click',showHistory);$('close-history').addEventListener('click',()=>$('history-modal').close());
     $('settings-btn').addEventListener('click',openSettings);$('close-settings').addEventListener('click',()=>{dismissWelcome();$('settings-modal').close();});
     $('plugins-btn').addEventListener('click',openPlugins);$('close-plugins').addEventListener('click',closePlugins);
+    $('connection-plugin-open').addEventListener('click',()=>{openSettings();document.querySelector('[data-settings-tab=connection]').click();$('transport').value='plugin';updateTransport();});
+    for(const action of ['check','login','logout'])$('local-plugin-'+action).addEventListener('click',safe(()=>localPluginAction(action)));
+    $('local-plugin-cancel').addEventListener('click',safe(async()=>{const current=localPluginController;if(!current)return;try{await localHelperRequest(currentConfiguration(),'cancel',{body:{}});}finally{current.abort();}}));
+    $('local-plugin-account').addEventListener('change',safe(async()=>{const select=$('local-plugin-account');if(select.value==='__new__'||select.selectedOptions[0]?.dataset.signedIn!=='true')return;if(!confirm(uiText('Changing this account or tenant may send existing conversation history to a different recipient. Apply this credential change?'))){select.value=localPluginActive;return;}await localPluginAction('select');}));
+    $('local-plugin-model').addEventListener('change',()=>{$('model').value=$('local-plugin-model').value;setText('config-status','Unsaved changes');});
+    window.addEventListener('hashchange',()=>{try{const pair=consumePairingFragment(location,history);if(pair){if(ready)openPluginPairingDraft(pair);else pairing=pair;}}catch(error){if(ready)report(error);else pairingError=error;}});
     $('plugins-modal').addEventListener('cancel',event=>{event.preventDefault();closePlugins();});
     $('plugins-modal').addEventListener('close',()=>{const focused=document.activeElement;if(!$('settings-modal').open&&(focused===document.body||$('plugins-modal').contains(focused)))$('plugins-btn').focus();});
     $('settings-modal').addEventListener('cancel',dismissWelcome);
@@ -513,22 +614,23 @@ function bind(){
         applied.language=$('lang-select').value;applyWorkspaceTranslations(applied.language);try{localStorage.setItem('i_lang',applied.language);}catch{}renderWorkspaces();renderTabs();updateControls();updateEndpoint();await refresh();setText('config-status','Language updated; connection changes still require Save.');
     }));
     $('save-config').addEventListener('click',safe(saveConfig));
-    $('remember-config').addEventListener('change',safe(()=>{if($('remember-config').checked)setText('config-status','Click Save changes to remember this connection.');else{clearConfiguration(localStorage);selectedConnection='';updateProfiles();setText('config-status','Saved credentials removed; current values are memory-only.');}}));
-    $('save-as-profile').addEventListener('click',safe(()=>{const name=prompt(uiText('Connection name:'));if(!name)return;const config=currentConfiguration();validateConfig(config);selectedConnection=crypto.randomUUID();let names={};try{names=JSON.parse(localStorage.getItem('i_harness_connection_names')??'{}');}catch{}names[selectedConnection]=displayName(name);localStorage.setItem('i_harness_connection_names',JSON.stringify(names));$('remember-config').checked=true;saveConfig();updateProfiles();}));
+    $('remember-config').addEventListener('change',safe(()=>{if($('remember-config').checked)setText('config-status','Click Save changes to remember this connection.');else if(pendingPluginConnection)setText('config-status','Unsaved changes');else{clearConfiguration(localStorage);selectedConnection='';updateProfiles();setText('config-status','Saved credentials removed; current values are memory-only.');}}));
+    $('save-as-profile').addEventListener('click',safe(()=>{const name=prompt(uiText('Connection name:'));if(!name)return;const config=currentConfiguration();validateConfig(config);selectedConnection=pendingPluginConnection||crypto.randomUUID();let names={};try{names=JSON.parse(localStorage.getItem('i_harness_connection_names')??'{}');}catch{}names[selectedConnection]=displayName(name);localStorage.setItem('i_harness_connection_names',JSON.stringify(names));$('remember-config').checked=true;saveConfig();updateProfiles();}));
     $('profile-select').addEventListener('change',safe(()=>{const found=loadConnections(localStorage).records.find(item=>item.id===$('profile-select').value);selectedConnection=found?.id??'';if(found){const settings={...found.settings,language:applied.language};restoreConfiguration(settings);applied=settings;$('remember-config').checked=true;$('model-name').textContent=applied.model;setText('config-status','Saved connection selected. Existing conversations keep their context.');updateControls();}}));
-    $('delete-profile').addEventListener('click',safe(()=>{if(!selectedConnection||!confirm(uiText('Delete this saved connection? Files and conversation history are retained.')))return;deleteProfile(localStorage,selectedConnection);selectedConnection='';updateProfiles();setText('config-status','Connection deleted; current values remain in memory.');}));
+    $('delete-profile').addEventListener('click',safe(()=>{if(!selectedConnection||!confirm(uiText('Delete this saved connection? Files and conversation history are retained.')))return;const local=applied.transport==='plugin',deleted=selectedConnection;deleteProfile(localStorage,deleted);selectedConnection='';if(local){for(const record of controller.records.values())if(record.connectionId===deleted)controller.agents.get(record.id)?.forget_credentials();applied={...DEFAULT_CONFIGURATION,language:applied.language};restoreConfiguration(applied);$('remember-config').checked=false;$('model-name').textContent=uiText('No model');}updateProfiles();setText('config-status',local?'Saved and active credentials cleared; files and conversations retained.':'Connection deleted; current values remain in memory.');}));
     $('clear-config').addEventListener('click',safe(()=>{if(runningId||!confirm(uiText('Clear ALL saved model and relay credentials? Files and conversations will remain.')))return;clearConfiguration(localStorage);for(const agent of controller.agents.values())agent.forget_credentials();applied={...DEFAULT_CONFIGURATION,language:applied.language};restoreConfiguration(applied);selectedConnection='';$('remember-config').checked=false;updateProfiles();$('model-name').textContent=uiText('No model');setText('config-status','Saved and active credentials cleared; files and conversations retained.');}));
     $('btn-clear-history').addEventListener('click',safe(async()=>{if(runningId||!confirm(uiText('Delete ALL saved conversations on this device? Workspace files and credentials are retained.')))return;await controller.flush();for(const id of controller.records.keys())await store.deleteSession(id);controller.cancelAll();controller.records.clear();for(const agent of controller.agents.values())agent.free();controller.agents.clear();ui.openedSessionIds=[];activeId=null;await newSession(ui.activeWorkspaceId??'default');}));
     $('test-connection').addEventListener('click',safe(async()=>{
         if(runningId||testController)return;const config=currentConfiguration();validateConfig(config);testController=new AbortController();$('cancel-test').hidden=false;updateControls();setText('test-result','Testing…');
         const body={model:config.model,messages:[{role:'user',content:'Hi'}],stream:false,[config.protocol==='anthropic'||config.use_max_tokens?'max_tokens':'max_completion_tokens']:5};
         if(config.protocol==='anthropic'){body.system=[];body.messages[0].content=[{type:'text',text:'Hi'}];}
-        if(config.protocol==='responses'){delete body.messages;delete body.max_tokens;delete body.max_completion_tokens;Object.assign(body,{input:[{role:'user',content:'Hi'}],max_output_tokens:64,store:false});}
+        if(config.transport==='plugin')body.stream=true;
+        if(config.protocol==='responses'){delete body.messages;delete body.max_tokens;delete body.max_completion_tokens;Object.assign(body,{input:[{role:'user',content:'Hi'}],max_output_tokens:64,store:false});if(config.transport==='plugin')body.stream=true;}
         try{const result=JSON.parse(await requestCompletion({endpoint:config.base_url,protocol:config.protocol,body,apiKey:config.api_key,transport:config.transport,relayToken:config.relay_token,customHeaders:config.custom_headers,controller:testController}));const valid=config.protocol==='anthropic'?result.type==='message'&&result.role==='assistant'&&Array.isArray(result.content):config.protocol==='responses'?result.object==='response'&&result.status==='completed'&&Array.isArray(result.output):!!result.choices?.[0]?.message;if(!valid)throw new Error(uiText('Unexpected response; model connection not verified.'));setText('test-result','Connection verified.');}
         catch(error){delete $('test-result').dataset.i18n;$('test-result').textContent=redact(error.message??error);}finally{testController=null;$('cancel-test').hidden=true;updateControls();}
     }));
     $('cancel-test').addEventListener('click',()=>testController?.abort());
-    window.addEventListener('pagehide',()=>{controller?.cancelAll();for(const abort of pluginControllers.values())abort.abort();testController?.abort();for(const map of downloads.values())for(const artifact of map.values())artifact.dispose();});
+    window.addEventListener('pagehide',()=>{controller?.cancelAll();localPluginController?.abort();for(const abort of pluginControllers.values())abort.abort();testController?.abort();for(const map of downloads.values())for(const artifact of map.values())artifact.dispose();});
 }
 function renderWorkspaces(){
     const selected=$('workspace-select').value;
@@ -572,8 +674,10 @@ async function main(){
         $('file-panel').hidden=!ui.panels.files;$('btn-files').setAttribute('aria-expanded',String(!!ui.panels.files));updateControls();
         let welcomed=false;try{welcomed=localStorage.getItem('i_harness_welcome_seen')==='1';}catch{}
         if(!connections.records.length&&!welcomed){$('welcome-connection').hidden=false;$('remember-config').checked=true;openSettings();$('base-url').focus();}
+        if(pairing){openPluginPairingDraft(pairing);pairing=null;}
+        if(pairingError){report(pairingError);pairingError=null;}
         if(new URL(location.href).searchParams.get('settings')==='plugins')openPlugins();
-        registerPwa({isBusy:()=>!!runningId||!!testController||pluginBusy,onLock:value=>{updateLocked=value;updateControls();},onStatus:key=>{setText('pwa-status',key);$('pwa-status').dataset.i18nTitle=key;$('pwa-status').title=uiText(key);$('pwa-status').dataset.updateNotice=String(/^(Update postponed|Saving state|Checking open|Finish or stop)/u.test(key));},beforeUpdate:async()=>{await controller.flush();await uiQueue;await viewQueue;}}).catch(error=>report(new Error(`PWA unavailable: ${error.message}`)));
+        registerPwa({isBusy:()=>!!runningId||!!testController||!!localPluginController||pluginBusy,onLock:value=>{updateLocked=value;updateControls();},onStatus:key=>{setText('pwa-status',key);$('pwa-status').dataset.i18nTitle=key;$('pwa-status').title=uiText(key);$('pwa-status').dataset.updateNotice=String(/^(Update postponed|Saving state|Checking open|Finish or stop)/u.test(key));},beforeUpdate:async()=>{await controller.flush();await uiQueue;await viewQueue;}}).catch(error=>report(new Error(`PWA unavailable: ${error.message}`)));
     }catch(error){ready=false;updateControls();report(error);$('status').textContent='Unavailable';$('output').append(node('div',`Initialization failed: ${redact(error.message)}. Build with scripts/build_web.sh and serve over localhost/HTTPS.`,'line error'));}
 }
 main();

@@ -3,6 +3,7 @@ import {readAnthropicMessage} from './anthropic-sse.js';
 import {readResponses} from './responses-sse.js';
 import {modelDeadline} from './model-deadline.js';
 import {validateCustomHeaders} from './transport.js';
+import {validateConnectionPlugin} from './connection-plugin.js';
 import {validateWorkspaceId,isTemporaryWorkspace,browserPath} from './workspaces.js';
 import {MemoryDirectory} from './memory-fs.js';
 import {beginFileTransaction,releaseFileTransaction,withFileTransaction,withFileRoot} from './opfs-locks.js';
@@ -155,7 +156,12 @@ export async function fetchModel(url, body, key, controller, options = {}, onEve
     const headers = {'content-type': 'application/json'};
     const protocol=options.protocol ?? 'openai';
     if(!['openai','anthropic','responses'].includes(protocol)) throw new Error('Unsupported model protocol.');
-    if(protocol==='anthropic') {
+    if(options.transport==='plugin'){
+        validateConnectionPlugin({base_url:url,api_key:key,protocol,stream,custom_headers:options.customHeaders??''});
+        headers['X-I-Local-Token']=key;
+        delete request.apiKey;delete request.api_key;
+        body=JSON.stringify(request);
+    }else if(protocol==='anthropic') {
         if(key) headers['x-api-key']=key;
         headers['anthropic-version']='2023-06-01';
         if(options.transport!=='relay') headers['anthropic-dangerous-direct-browser-access']='true';

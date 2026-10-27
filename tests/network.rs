@@ -141,17 +141,12 @@ fn run_observed(root: &Path, base: &str, mut config: Value, retry: Option<std::s
 #[test]
 fn disconnect_after_tool_retries_identical_request_without_replaying_tool_or_hiding_usage() {
     let root = tempfile::tempdir().unwrap();
-    let worker = support::python(
-        "import json,sys\nfrom pathlib import Path\ne=json.load(sys.stdin); p=Path(e['workspace'])/'calls.txt'\nwith p.open('a', newline='') as f: f.write('once\\n')\njson.dump({'output':'done'},sys.stdout)",
-    );
-    fs::write(root.path().join("worker.py"), worker).unwrap();
     let mut manifest: Value = serde_json::from_str(include_str!("../plugins/cache.json")).unwrap();
     for hook in manifest["hooks"].as_array_mut().unwrap() {
         hook["exec"][0] =
             json!(format!("{}/target/debug/i-plugins{}", env!("CARGO_MANIFEST_DIR"), std::env::consts::EXE_SUFFIX));
     }
-    manifest["tools"] =
-        json!([{"name":"once","description":"test","parameters":{"type":"object"},"exec":["python3","worker.py"]}]);
+    manifest["tools"] = json!([{"name":"once","description":"test","parameters":{"type":"object"},"exec":support::fixture("append-tool",json!({}))}]);
     let path = root.path().join("plugins.json");
     fs::write(&path, manifest.to_string()).unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();

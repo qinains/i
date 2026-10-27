@@ -32,7 +32,9 @@ In direct browser mode, requests go to your chosen model service. Local file sto
 - Append-only reference snapshots/deltas, stable public tool schemas, and accounting from **actual provider usage**, not guessed cache hits.
 - Desktop configuration under `~/.i/config`, with platform-supplied paths for persistent data, disposable cache, and temporary runtime files.
 
-There is no core provider/model capacity table. Official runtime plugins and the console are Rust; Python is only used by development fixtures and optional examples.
+There is no core provider/model capacity table. Official runtime plugins, the console, development fixtures and repository tools are Rust. Frontend tests and PWA assets use Node.js; no Python installation is required.
+
+Independent tools under `tools/` have their own lockfiles. From the repository root, add `--target-dir target` to Cargo commands or set `CARGO_TARGET_DIR` to the absolute repository `target/` path to share compatible build artifacts instead of creating a target directory per tool. Cargo may serialize concurrent builds and still rebuild incompatible feature/profile combinations.
 
 ## Install
 
@@ -300,11 +302,11 @@ Standard and min-size packages are generated under `dist/`. Size depends on the 
 
 ```sh
 # AArch64 size optimization; omit --outline on other architectures.
-python3 scripts/package.py --profile min-size --outline
-python3 scripts/check_package.py 'dist/*.tar.gz' 'dist/*.tar.xz'
+cargo run --features packaging --bin i-package -- --profile min-size --outline
+cargo run --locked --manifest-path tools/native-tool/Cargo.toml -- check-package 'dist/*.tar.gz' 'dist/*.tar.xz'
 ```
 
-Packaging/checking scripts are development utilities; distributed Rust executables do not require Python. For a short source-tree startup command after setting `DEEPSEEK_API_KEY`, use `./scripts/start.sh [workspace]`; it builds the Rust binaries and avoids clipboard line-break errors in long commands.
+Packaging and verification use Rust tools; distributed executables need no development toolchain. For a short source-tree startup command after setting `DEEPSEEK_API_KEY`, use `./scripts/start.sh [workspace]`; it builds the Rust binaries and avoids clipboard line-break errors in long commands.
 
 ## Size and verification (historical native snapshot)
 
@@ -327,9 +329,10 @@ cargo fmt --all -- --check
 cargo build --workspace --locked --features bundled
 cargo test --workspace --locked --features bundled
 cargo clippy --workspace --locked --all-targets --features bundled -- -D warnings
-python3 scripts/check_tls.py --web
-python3 scripts/check_console.py
-python3 -m unittest discover -s examples -p 'test_plugins.py'
+cargo run --locked --manifest-path tools/native-tool/Cargo.toml -- check-tls target/debug/i --web
+cargo run --locked --manifest-path tools/native-tool/Cargo.toml -- check-console target/debug/i
+cargo test --locked --manifest-path examples/rust-plugin/Cargo.toml
+cargo test --locked --manifest-path tools/repo-tool/Cargo.toml
 ```
 
 Current local validation: **188 bundled workspace Rust tests (182 without bundled)**, **295 upstream globset tests plus 5 doc tests**, **1 Rust replacement-example test** and **3 protocol-example tests**, plus pseudo-terminal editor and offline native-TLS rejection checks, on macOS with mocked APIs. Before the transport replacement, an earlier live DeepSeek `deepseek-flash` smoke request returned `OK` with exit 0 in 1.98 seconds end-to-end: 113 input tokens, 0 cache-read tokens, no tools, and a 32-token output cap. A separate thinking + PNG request (`reasoning_effort: low`, 1,024-token cap) correctly identified a red square on the left and a blue circle on the right in 2.13 seconds: 349 input tokens, 44 completion tokens including 33 reasoning tokens, 0 cache-read tokens and no tool calls. Reasoning content was present but not displayed. These individual requests verify connectivity/basic vision, not a warmed-workload cache target or worker speedup. CI is configured for Ubuntu/macOS/Windows, but Windows execution, a mobile implementation, and throughput benchmarks are not claimed. API success/error bodies are bounded to 48 MiB. Filesystem races, hard links, detached children, concurrent session writers, and approved code with user privileges remain outside any sandbox guarantee.

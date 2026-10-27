@@ -13,6 +13,7 @@ __pycache__/
 /web/test-results/
 /web/playwright-report/
 /web/assets.json
+/web/reflection.json
 /web/service-worker.js
 /web/icons/icon-192.png
 /web/icons/icon-512.png

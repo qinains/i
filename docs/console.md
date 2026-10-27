@@ -74,7 +74,7 @@ configured in CI. No paid model requests are needed:
 
 ```sh
 cargo build --workspace --features bundled --locked
-python3 scripts/check_console.py
+cargo run --locked --manifest-path tools/native-tool/Cargo.toml -- check-console target/debug/i
 ```
 
 The PTY check covers Chinese deletion/cursor positions, insertion, history,

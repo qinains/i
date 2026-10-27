@@ -38,7 +38,21 @@ impl Default for BrowserConfig {
 impl BrowserConfig {
     pub fn validate(&self) -> Result<()> {
         ensure!(matches!(self.protocol.as_str(), "openai" | "anthropic" | "responses"), "unsupported browser protocol");
-        ensure!(matches!(self.transport.as_str(), "direct" | "relay"), "invalid transport");
+        ensure!(matches!(self.transport.as_str(), "direct" | "relay" | "plugin"), "invalid transport");
+        if self.transport == "plugin" {
+            let url = url::Url::parse(&self.base_url)?;
+            ensure!(
+                matches!(self.protocol.as_str(), "responses" | "anthropic")
+                    && self.stream
+                    && self.custom_headers.trim().is_empty()
+                    && self.api_key.len() >= 32
+                    && url.scheme() == "http"
+                    && url.host_str() == Some("127.0.0.1")
+                    && url.port().is_some()
+                    && url.path() == if self.protocol == "responses" { "/v1/responses" } else { "/v1/messages" },
+                "invalid local connection plugin"
+            );
+        }
         ensure!(self.transport != "relay" || !self.relay_token.is_empty(), "relay token is required");
         ensure!(!self.model.trim().is_empty(), "model is required");
         ensure!(self.max_tokens > 0, "max_tokens must be positive");
@@ -94,6 +108,14 @@ impl BrowserConfig {
     }
     pub fn body(&self, history: &[Value]) -> Result<Value> {
         self.body_with_tools(history, &[])
+    }
+    pub fn analysis_body(&self, history: &[Value]) -> Result<Value> {
+        let mut body = self.body_with_tools(history, &[])?;
+        crate::analysis::disable_tools(&mut body)?;
+        Ok(body)
+    }
+    pub fn analysis_response_text(&self, response: Value) -> Result<String> {
+        crate::analysis::response_text(&self.normalize_response(response)?)
     }
     pub fn body_with_tools(&self, history: &[Value], extra: &[Value]) -> Result<Value> {
         self.validate()?;

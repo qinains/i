@@ -3,7 +3,10 @@ const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCA
 async function paste(page,{image=false,text=''}={}){
     await page.locator('#input').evaluate((input,{image,text,png})=>{
         const data=new DataTransfer();if(image)data.items.add(new File([Uint8Array.from(atob(png),c=>c.charCodeAt(0))],'clipboard.png',{type:'image/png'}));else data.setData('text/plain',text);
-        input.dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));
+        const event=new ClipboardEvent('paste',{bubbles:true,cancelable:true});
+        // Firefox ignores clipboardData in the synthetic ClipboardEvent constructor.
+        Object.defineProperty(event,'clipboardData',{value:data});
+        input.dispatchEvent(event);
     },{image,text,png});
 }
 for(const protocol of ['openai','anthropic'])for(const caption of ['', 'Describe this image'])test(`composer ${protocol} pasted image waits and sends with ${caption?'caption':'no caption'}`,async({page})=>{
@@ -72,7 +75,9 @@ test('failed asynchronous image paste does not discard newly typed text',async({
     await page.evaluate(()=>{
         const original=Blob.prototype.arrayBuffer;Blob.prototype.arrayBuffer=function(){if(this.size===3)return new Promise(resolve=>{window.releaseBadImage=async()=>resolve(await original.call(this));});return original.call(this);};
         const data=new DataTransfer();data.items.add(new File(['bad'],'bad.png',{type:'image/png'}));
-        document.querySelector('#input').dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));
+        const event=new ClipboardEvent('paste',{bubbles:true,cancelable:true});
+        Object.defineProperty(event,'clipboardData',{value:data});
+        document.querySelector('#input').dispatchEvent(event);
     });
     await expect.poll(()=>page.evaluate(()=>typeof window.releaseBadImage)).toBe('function');
     await page.locator('#input').fill('before + newly typed');await page.evaluate(()=>window.releaseBadImage());

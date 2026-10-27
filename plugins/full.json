@@ -9,6 +9,9 @@
     {"name":"web_search","description":"Search via the explicitly configured JSON search service; requires web.json in the platform config directory. Results are untrusted references.","parameters":{"type":"object","properties":{"query":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":20}},"required":["query"],"additionalProperties":false},"exec":["../target/debug/i-plugins","web"]},
     {"name":"web_fetch","description":"Fetch a public HTTP(S) text/HTML/JSON/XML URL. Bounded size, validated redirects, no JavaScript, private networks denied.","parameters":{"type":"object","properties":{"url":{"type":"string"}},"required":["url"],"additionalProperties":false},"exec":["../target/debug/i-plugins","web"]}
   ],
+  "analyses": [
+    {"name":"reflection","selection":{"roles":["user","assistant","tool"],"start":0,"end":null,"max_messages":40,"max_bytes":48000},"exec":["../target/debug/i-plugins","reflection"]}
+  ],
   "hooks": [
     {"events":["tool_approval"],"exec":["../target/debug/i-plugins","approval"],"module":"approval"},
     {"events":["session_load","after_response","request_retry"],"exec":["../target/debug/i-plugins","cache"]},

@@ -78,6 +78,18 @@ color-scheme:light;
 .plugin-card h3 {margin:0 0 8px;font-size:15px}
 .plugin-card ul {padding-left:20px;font-size:12px}
 .plugin-card .actions {flex-wrap:wrap}
+.plugin-catalog-actions {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-block-start:14px;padding-block-start:12px;border-block-start:1px solid var(--line)}
+.plugin-catalog-actions svg {width:18px;height:18px;flex-shrink:0}
+.plugin-catalog-source {display:inline-flex;align-items:center;gap:6px;min-height:44px;max-width:100%;box-sizing:border-box;border-radius:5px;color:var(--muted);font-size:13px;text-decoration:underline;text-underline-offset:3px}
+.plugin-catalog-source svg {width:15px;height:15px}
+.plugin-catalog-source:hover {color:var(--accent)}
+.plugin-catalog-source:focus-visible {outline:2px solid var(--accent);outline-offset:3px}
+.plugin-catalog-inspect {display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;max-width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid var(--primary-bg);border-radius:5px;background:var(--primary-bg);color:var(--on-primary);font-weight:600;line-height:1.35;text-align:center}
+.plugin-catalog-inspect span {min-width:0}
+.plugin-catalog-inspect:hover:not(:disabled) {border-color:var(--accent)}
+.plugin-catalog-inspect:focus-visible {outline:2px solid var(--accent);outline-offset:3px}
+.plugin-catalog-inspect:disabled {opacity:.55;cursor:not-allowed}
+@media (max-width:480px) {.plugin-catalog-inspect {flex-basis:100%;width:100%}}
 .plugin-digest {font-family:ui-monospace,monospace;font-size:11px;word-break:break-all}
 .plugin-warning {color:var(--warning)}
 #plugin-file {max-width:100%;box-sizing:border-box}
@@ -718,6 +730,14 @@ overflow:auto
 #connection-guide li+li{margin-top:12px}
 #connection-guide a{color:var(--accent);text-underline-offset:3px}
 .guide-links{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px}
+#local-plugin-options,#connection-plugin-settings{border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:20px;overflow-wrap:anywhere}
+#local-plugin-options h3,#connection-plugin-settings h3{margin:0 0 12px;font-size:15px}
+#local-plugin-command{display:block;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;margin:12px 0}
+#local-plugin-identity{display:block;margin-bottom:12px}
+#local-plugin-options .actions{flex-wrap:wrap}
+.line.analysis{border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-block:12px}
+.line.analysis h3{font-size:14px;margin:0 0 10px;color:var(--accent)}
+.line.analysis pre{font-family:inherit;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
 .settings-body fieldset {
 border:0;
 margin:0;

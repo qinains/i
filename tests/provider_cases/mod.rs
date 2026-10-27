@@ -1,11 +1,11 @@
 use super::*;
 mod files;
-fn binding(root: &Path, body: &str) -> std::path::PathBuf {
+fn binding(root: &Path, config: Value) -> std::path::PathBuf {
     let path = root.join("api.json");
     fs::write(
         &path,
         json!({"protocol":"independent-vendor","api_key_env":"PROVIDER_TEST_TOKEN",
-        "provider":{"exec":["python3","-c",support::python(body)],"cwd":root}})
+        "provider":{"exec":support::fixture("provider",config),"cwd":root}})
         .to_string(),
     )
     .unwrap();
@@ -26,19 +26,7 @@ fn bounded(command: &mut Command) -> Output {
 #[test]
 fn independent_provider_owns_wire_format_but_never_receives_credentials() {
     let dir = tempfile::tempdir().unwrap();
-    let config = binding(
-        dir.path(),
-        r#"import json,sys,os
-p=json.load(sys.stdin); d=p['data']
-assert os.getenv('PROVIDER_TEST_TOKEN') is None
-assert 'api_key' not in d and 'key' not in d
-assert d['protocol']=='independent-vendor' and d['version']==1
-if p['event']=='provider_prepare':
-    result={'version':1,'url':d['base_url']+'/custom','body':{'question':d['history'][-1]['content'],'cap':d['max_tokens']},'headers':{'x-adapter':'custom'},'auth':{'header':'x-provider-key','prefix':'Key '}}
-else:
-    result={'version':1,'response':{'choices':[{'finish_reason':'stop','message':{'role':'assistant','content':d['response']['answer']}}]}}
-print(json.dumps(result))"#,
-    );
+    let config = binding(dir.path(), json!({"kind":"independent"}));
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     listener.set_nonblocking(true).unwrap();
     let base = format!("http://{}/v1", listener.local_addr().unwrap());
@@ -107,21 +95,7 @@ fn provider_failures_cross_origin_and_reserved_headers_never_send_http_or_fall_b
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         listener.set_nonblocking(true).unwrap();
         let base = format!("http://{}/v1", listener.local_addr().unwrap());
-        let code = format!(
-            r#"import json,sys
-p=json.load(sys.stdin); d=p['data']; fault={fault:?}
-if fault=='failure': raise RuntimeError('provider unavailable')
-r={{'version':1,'url':d['base_url']+'/custom','body':{{}},'headers':{{}},'auth':None}}
-if fault=='origin': r['url']='http://different.invalid/custom'
-if fault=='header': r['headers']={{'Host':'different.invalid'}}
-if fault=='auth_name': r['auth']={{'header':'invalid header','prefix':''}}
-if fault=='auth_prefix': r['auth']={{'header':'x-key','prefix':'bad\nvalue'}}
-if fault=='auth_collision':
-    r['headers']={{'X-Key':'shadow'}}; r['auth']={{'header':'x-key','prefix':''}}
-if fault=='version': r['version']=2
-print(json.dumps(r))"#
-        );
-        let config = binding(dir.path(), &code);
+        let config = binding(dir.path(), json!({"kind":"fault","fault":fault}));
         if fault == "missing" {
             fs::write(&config, json!({"provider":{"exec":[dir.path().join("missing-worker")]}}).to_string()).unwrap();
         }

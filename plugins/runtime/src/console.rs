@@ -87,7 +87,7 @@ fn manifest(args: &[String], inbox: &Path, mode: &Path, paths: &AppPaths) -> Res
             ensure!(provider.is_object(), "provider must be a binding");
             provider["cwd"] = json!(path.parent().unwrap().join(provider["cwd"].as_str().unwrap_or("")));
         }
-        for section in ["tools", "hooks"] {
+        for section in ["tools", "hooks", "analyses"] {
             if manifest.get(section).is_none() {
                 manifest[section] = json!([]);
             }
@@ -255,16 +255,46 @@ fn image_task(text: String, images: Vec<Vec<u8>>, args: &[String]) -> Result<Tas
     }
     Ok(Task { text, images: files })
 }
-fn start(binary: &str, args: &[String], task: Task, eof: bool, approval: Arc<AtomicBool>, ui: &Ui) -> Result<Running> {
-    let token = uuid::Uuid::new_v4().simple().to_string();
+fn reflection_args(text: &str) -> Result<Option<Vec<String>>> {
+    let words: Vec<_> = text.split_whitespace().collect();
+    if words.first().copied() != Some("/reflect") {
+        return Ok(None);
+    }
+    ensure!(!text.contains(['\n', '\r']), "usage: /reflect [all|user|assistant]");
+    let role = match words.as_slice() {
+        ["/reflect"] | ["/reflect", "all"] => None,
+        ["/reflect", role @ ("user" | "assistant")] => Some(*role),
+        _ => anyhow::bail!("usage: /reflect [all|user|assistant]"),
+    };
+    let mut args = vec!["--analyze".into(), "reflection".into()];
+    if let Some(role) = role {
+        args.extend(["--analysis-role".into(), role.into()]);
+    }
+    Ok(Some(args))
+}
+fn reflection_when_idle(text: &str, busy: bool) -> Result<Option<Vec<String>>> {
+    let args = reflection_args(text)?;
+    ensure!(args.is_none() || !busy, "reflection requires an idle console with no pending approvals or queued work");
+    Ok(args)
+}
+fn task_command(binary: &str, args: &[String], task: &Task) -> Result<Command> {
     let mut command = Command::new(binary);
     command.args(args);
-    for (_, path) in &task.images {
-        command.arg("--image").arg(path);
+    if let Some(flags) = reflection_args(&task.text)? {
+        ensure!(task.images.is_empty(), "Attachments cannot be sent with reflection commands");
+        command.args(flags);
+    } else {
+        for (_, path) in &task.images {
+            command.arg("--image").arg(path);
+        }
+        command.arg("--").arg(&task.text);
     }
+    Ok(command)
+}
+fn start(binary: &str, args: &[String], task: Task, eof: bool, approval: Arc<AtomicBool>, ui: &Ui) -> Result<Running> {
+    let token = uuid::Uuid::new_v4().simple().to_string();
+    let mut command = task_command(binary, args, &task)?;
     let mut child = command
-        .arg("--")
-        .arg(&task.text)
         .env("I_APPROVAL_TOKEN", &token)
         .stdin(if eof { Stdio::null() } else { Stdio::piped() })
         .stdout(Stdio::piped())
@@ -377,6 +407,9 @@ pub(crate) fn run(args: &[String]) -> Result<i32> {
                     task.text.clone()
                 };
                 ui.note(&format!("[task: {label}; {} image(s)]", task.images.len()))?;
+                if reflection_args(&task.text)?.is_some() {
+                    ui.note("[reflection makes an additional model request; report only, conversation history is unchanged]")?;
+                }
                 running = Some(start(&binary, &backend, task, eof, approval.clone(), &ui)?);
             }
         }
@@ -416,6 +449,22 @@ pub(crate) fn run(args: &[String]) -> Result<i32> {
             None => continue,
         };
         if line.trim().is_empty() {
+            continue;
+        }
+        if line.split_whitespace().next() == Some("/reflect") {
+            let busy = running.is_some()
+                || !followups.is_empty()
+                || approval.load(Ordering::Acquire)
+                || exiting
+                || !steering::pending(&inbox)?.is_empty();
+            match reflection_when_idle(&line, busy) {
+                Ok(Some(_)) => {
+                    ui.note("[reflection makes an additional model request; report only, conversation history is unchanged]")?;
+                    running = Some(start(&binary, &backend, line.into(), eof, approval.clone(), &ui)?);
+                }
+                Err(error) => ui.note(&format!("[reflection rejected: {error:#}]"))?,
+                Ok(None) => unreachable!(),
+            }
             continue;
         }
         if ["/queue", "/steer"].contains(&line.trim()) {
@@ -508,6 +557,81 @@ pub(crate) fn run(args: &[String]) -> Result<i32> {
 #[cfg(test)]
 mod composer_tests {
     use super::*;
+    #[test]
+    fn reflection_slash_valid_scopes_are_explicit_analysis_flags() {
+        for (text, expected) in [
+            ("/reflect", vec!["--analyze", "reflection"]),
+            ("/reflect all", vec!["--analyze", "reflection"]),
+            ("/reflect user", vec!["--analyze", "reflection", "--analysis-role", "user"]),
+            ("/reflect assistant", vec!["--analyze", "reflection", "--analysis-role", "assistant"]),
+        ] {
+            assert_eq!(reflection_args(text).unwrap().unwrap(), expected);
+        }
+        assert!(reflection_args("ordinary task").unwrap().is_none());
+        assert!(reflection_args("/reflection").unwrap().is_none());
+        for text in ["/reflect tool", "/reflect unknown", "/reflect user extra", "/reflect\nuser"] {
+            assert!(reflection_args(text).is_err(), "{text}");
+        }
+    }
+
+    #[test]
+    fn reflection_slash_does_not_turn_into_a_task_or_override_session_configuration() {
+        let args = vec![
+            "--session".into(),
+            "session.json".into(),
+            "--plugins".into(),
+            "plugins.json".into(),
+            "--config".into(),
+            "config.json".into(),
+        ];
+        let command = task_command("i", &args, &Task::from("/reflect user")).unwrap();
+        let argv: Vec<_> = command.get_args().map(|arg| arg.to_str().unwrap()).collect();
+        assert_eq!(
+            argv,
+            [
+                "--session",
+                "session.json",
+                "--plugins",
+                "plugins.json",
+                "--config",
+                "config.json",
+                "--analyze",
+                "reflection",
+                "--analysis-role",
+                "user"
+            ]
+        );
+        assert!(!argv.contains(&"--") && !argv.contains(&"--task") && !argv.contains(&"/reflect user"));
+        let ordinary = task_command("i", &[], &Task::from("normal request")).unwrap();
+        assert_eq!(ordinary.get_args().collect::<Vec<_>>(), ["--", "normal request"]);
+    }
+
+    #[test]
+    fn reflection_slash_busy_or_queued_is_rejected_before_steering_or_followups() {
+        for text in ["/reflect", "/reflect all", "/reflect user", "/reflect assistant"] {
+            assert!(reflection_when_idle(text, true).is_err());
+            assert!(reflection_when_idle(text, false).unwrap().is_some());
+        }
+        assert!(reflection_when_idle("ordinary steering", true).unwrap().is_none());
+    }
+
+    #[test]
+    fn reflection_console_manifest_keeps_analysis_cwd_relative_to_original_manifest() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = AppPaths {
+            config_dir: dir.path().join("config"),
+            data_dir: dir.path().join("data"),
+            cache_dir: dir.path().join("cache"),
+            runtime_dir: dir.path().join("runtime"),
+        };
+        fs::create_dir_all(&paths.config_dir).unwrap();
+        let source = dir.path().join("plugins.json");
+        fs::write(&source, json!({"tools":[],"hooks":[],"analyses":[{"name":"reflection","selection":{},"exec":["worker","reflection"],"cwd":"policy"}]}).to_string()).unwrap();
+        let args = vec!["--plugins".into(), source.to_str().unwrap().into()];
+        let value = manifest(&args, &dir.path().join("inbox.json"), &dir.path().join("mode.json"), &paths).unwrap();
+        assert_eq!(value["analyses"][0]["cwd"], json!(dunce::canonicalize(dir.path()).unwrap().join("policy")));
+    }
+
     #[test]
     fn image_task_owns_private_temporary_files_until_finished_or_discarded() {
         let root = tempfile::tempdir().unwrap();

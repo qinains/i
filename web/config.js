@@ -1,4 +1,5 @@
 import {languageCodes} from './languages.js';
+import {validateConnectionPlugin} from './connection-plugin.js';
 export const CONFIG_KEY = 'i_harness_config';
 export const PROFILES_KEY = 'i_harness_profiles';
 export const DEFAULT_CONFIGURATION = Object.freeze({base_url:'',model:'',api_key:'',protocol:'openai',
@@ -26,8 +27,9 @@ function validated(settings) {
     if (!['openai','anthropic','responses'].includes(settings.protocol) || !languageCodes.includes(settings.language)
         || !['default','none','low','medium','high','max','xhigh'].includes(settings.reasoning_effort)
         || !Number.isSafeInteger(settings.max_tokens) || settings.max_tokens < 1
-        || !['direct','relay'].includes(settings.transport) || typeof settings.stream !== 'boolean'
+        || !['direct','relay','plugin'].includes(settings.transport) || typeof settings.stream !== 'boolean'
         || typeof settings.use_max_tokens !== 'boolean') throw new Error('Invalid harness configuration.');
+    if(settings.transport==='plugin')validateConnectionPlugin(settings);
     return {...result,max_tokens:settings.max_tokens,use_max_tokens:settings.use_max_tokens,reasoning_effort:settings.reasoning_effort,stream:settings.stream};
 }
 export function saveConfiguration(storage, settings) {

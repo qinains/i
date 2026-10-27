@@ -1,6 +1,25 @@
 # Changelog
 
-## Unreleased
+## 0.1.3 - 2026-10-27
+
+- Add optional ChatGPT and Claude Console connection helpers for native use and
+  explicit browser pairing, with local credentials, cancellation and logout.
+  Claude OAuth avoids manual API-key entry but uses Console API billing, not
+  Pro/Max allowances. Real-account OAuth and paid inference remain unverified;
+  automated authorization tests use isolated local fixtures.
+- Require confirmation before Claude reauthorization can change the workspace
+  receiving existing conversation history, even when the profile ID is unchanged.
+- Add explicit, scoped conversation analysis and reflection without granting
+  plugins access to connection credentials or changing model history.
+- Replace repository Python scripts and fixtures with Rust tools, preserve both
+  Unix archive formats, and include third-party notices in connection packages.
+- Update ZIP handling and add release gates for secret scanning, dependency
+  audits, browser storage/crash regression tests and offline native verification.
+- Separate plugin source links from accessible download-and-inspect buttons;
+  preserve installation and permission confirmation. Fix active-tab renaming
+  and make browser test fixtures handle Firefox clipboard and pointer behavior.
+
+### Other improvements
 
 - Add a PR-managed community plugin catalog, public plugin directory and
   digest-verified downloads. Inspection, installation and workspace permission

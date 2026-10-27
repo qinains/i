@@ -5,7 +5,14 @@ on:
 permissions:
   contents: read
 jobs:
+  security:
+    uses: ./.github/workflows/security.yml
+  native-verification:
+    uses: ./.github/workflows/ci.yml
+  browser-verification:
+    uses: ./.github/workflows/web-checks.yml
   package:
+    needs: [security, native-verification, browser-verification]
     strategy:
       fail-fast: false
       matrix:
@@ -18,9 +25,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
         with:
           toolchain: '1.95.0'
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: '3.12'
       - name: Install native TLS build prerequisites
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev ca-certificates
@@ -36,9 +40,16 @@ jobs:
       - name: Verify packaged clients offline
         shell: bash
         run: |
-          for archive in dist/*.tar.gz dist/*.zip; do
-            if [ -f "$archive" ]; then python scripts/check_package.py "$archive"; fi
+          for archive in dist/*.tar.gz dist/*.tar.xz dist/*.zip; do
+            if [ -f "$archive" ]; then cargo run --locked --manifest-path tools/native-tool/Cargo.toml --target-dir target -- check-package "$archive"; fi
           done
+      - name: Package and verify optional connection helpers separately
+        run: cargo run --locked --manifest-path tools/native-tool/Cargo.toml --target-dir target -- package-connections --verify
+      - name: Scan packaged clients for secrets
+        shell: bash
+        run: |
+          go install github.com/zricethezav/gitleaks/v8@v8.30.0
+          "$(go env GOPATH)/bin/gitleaks" dir --redact --config .gitleaks.toml --max-archive-depth 3 dist
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: packages-${{ matrix.os }}
@@ -68,6 +79,13 @@ jobs:
             Check BUILD.json in the archive; these are not universal binaries.
             Adjacent .sha256 files verify archive integrity, not publisher identity.
             macOS packages are not Developer-ID signed or notarized.
+
+            Optional connection helpers are packaged separately as i-connections-*.zip.
+            Claude OAuth avoids manual API-key entry, but uses Claude Console API billing.
+            It does NOT use Claude Pro/Max subscription allowances.
+            ChatGPT plan access depends on account eligibility and granted permissions.
+            Real-account OAuth login and paid inference were not verified for this release;
+            automated authorization checks use isolated local fixtures.
 
             Source installation from this repository:
             `cargo install --path . --locked --features bundled --bin i`

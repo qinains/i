@@ -1,10 +1,33 @@
 import {test as base,expect} from '@playwright/test';
 import http from 'node:http';
+import {mkdtemp,rm,lstat} from 'node:fs/promises';
+import {execFileSync} from 'node:child_process';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 const usedWebKitPorts=new Set();
 
 // WebKit's ephemeral context rejects real OPFS on macOS; each test gets its
 // own persistent profile rather than mocking away the storage boundary.
 export const test = base.extend({
+    launchOptions:[async({launchOptions,browserName},use)=>{
+        if(browserName!=='firefox'||process.platform!=='darwin'){await use(launchOptions);return;}
+        // Firefox 157 on macOS 27 needs app-data isolation as well as -profile
+        // (Playwright #42768). Do not grant access to the user's Firefox data.
+        const home=await mkdtemp(join(tmpdir(),'i-firefox-home-'));
+        try{await use({...launchOptions,env:{...process.env,...launchOptions.env,CFFIXED_USER_HOME:home}});}
+        finally{
+            try{await rm(home,{recursive:true,force:true});}
+            catch(error){
+                if(!['EACCES','EPERM'].includes(error.code))throw error;
+                const entry=await lstat(home);
+                if(!entry.isDirectory()||entry.isSymbolicLink())throw error;
+                // Cocoa adds deny-delete ACLs to folders in this new fixture home.
+                // Remove only those ACLs; never change the real HOME or follow links.
+                execFileSync('/bin/chmod',['-R','-P','-N',home]);
+                await rm(home,{recursive:true,force:true});
+            }
+        }
+    },{scope:'worker'}],
     context: async ({browser,browserName,playwright,baseURL,viewport,acceptDownloads,hasTouch,locale},use,testInfo) => {
         let alias;
         if (browserName === 'webkit') {

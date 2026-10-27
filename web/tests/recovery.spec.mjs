@@ -36,7 +36,7 @@ test('file written before result checkpoint failure is recovered as unknown, nev
     expect(await page.evaluate(async()=>{const fs=await import('/platform.js');return new TextDecoder().decode(await fs.opfsRead(await fs.opfsOpen(),'nested/结果.txt',100));})).toBe('hello\n');
 });
 test('two windows reject conflicting session saves instead of overwriting a newer draft',async({page,context})=>{
-    await page.goto('/');await expect(page.locator('#save-status')).toHaveText('Saved');const second=await context.newPage();await second.goto('/');await expect(second.locator('#status')).toHaveText('Ready');
+    await page.goto('/');await expect(page.locator('#output')).toContainText('Conversations save automatically.');await expect(page.locator('#save-status')).toHaveText('Saved');const second=await context.newPage();await second.goto('/');await expect(second.locator('#status')).toHaveText('Ready');
     await second.locator('#input').fill('newer draft');await expect(second.locator('#save-status')).toHaveText('Saved');
     await page.locator('#input').fill('stale draft');await expect(page.locator('#global-error')).toContainText('another window');
     await second.reload();await expect(second.locator('#input')).toHaveValue('newer draft');await second.close();

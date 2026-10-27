@@ -1,28 +1,17 @@
-// Test-only adapter: concise request handlers run inside a framed worker fixture.
+// Native test workers implement the production NDJSON framing contract.
 #![allow(dead_code)]
 use std::{path::Path, process::Command};
-pub fn python(body: &str) -> String {
-    format!(
-        r#"import io,json,sys
-source={}
-wire_in,wire_out=sys.stdin,sys.stdout
-for line in wire_in:
-    frame=json.loads(line)
-    ident=frame.pop('id')
-    captured=io.StringIO()
-    sys.stdin,sys.stdout=io.StringIO(json.dumps(frame)),captured
-    try:
-        exec(source,{{'__name__':'__main__'}})
-        reply={{'id':ident,'data':json.loads(captured.getvalue())}}
-    except Exception as error:
-        reply={{'id':ident,'error':str(error)}}
-    finally:
-        sys.stdin,sys.stdout=wire_in,wire_out
-    wire_out.write(json.dumps(reply)+'\n')
-    wire_out.flush()
-"#,
-        serde_json::to_string(body).unwrap()
-    )
+pub fn fixture(mode: &str, config: serde_json::Value) -> serde_json::Value {
+    let binary = std::env::var_os("I_TEST_FIXTURE_BIN").map(std::path::PathBuf::from).unwrap_or_else(|| {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("target/debug")
+            .join(format!("i-test-fixtures{}", std::env::consts::EXE_SUFFIX))
+    });
+    assert!(
+        binary.is_absolute() && binary.is_file(),
+        "build the Rust fixtures first: cargo build --manifest-path tools/test-fixtures/Cargo.toml --target-dir target (or set absolute I_TEST_FIXTURE_BIN)"
+    );
+    serde_json::json!([binary, mode, config.to_string()])
 }
 pub fn isolate(command: &mut Command, root: &Path) {
     for key in [

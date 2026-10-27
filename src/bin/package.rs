@@ -498,6 +498,13 @@ fn calculate_dir_size(dir: &Path) -> Result<u64> {
     Ok(total)
 }
 
+fn write_tar<W: Write>(encoder: W, package_name: &str, package_path: &Path) -> Result<W> {
+    let mut tar = tar::Builder::new(encoder);
+    tar.follow_symlinks(false);
+    tar.append_dir_all(package_name, package_path)?;
+    Ok(tar.into_inner()?)
+}
+
 fn create_tar_archive(
     temp_dir: &Path,
     dist_dir: &Path,
@@ -505,48 +512,50 @@ fn create_tar_archive(
     binary_size: u64,
     unpacked_size: u64,
 ) -> Result<()> {
-    let archive_name = format!("{}.tar.gz", package_name);
-    let archive_path = dist_dir.join(&archive_name);
-    let temp_archive = temp_dir.join(&archive_name);
+    for extension in ["gz", "xz"] {
+        let archive_name = format!("{}.tar.{}", package_name, extension);
+        let archive_path = dist_dir.join(&archive_name);
+        let temp_archive = temp_dir.join(&archive_name);
 
-    println!("  Creating {}...", archive_name);
+        println!("  Creating {}...", archive_name);
 
-    let file = fs::File::create(&temp_archive)?;
-    let package_path = temp_dir.join(package_name);
+        let file = fs::File::create(&temp_archive)?;
+        let package_path = temp_dir.join(package_name);
 
-    let encoder = flate2::write::GzEncoder::new(file, flate2::Compression::new(9));
-    let mut tar = tar::Builder::new(encoder);
-    tar.follow_symlinks(false);
-    tar.append_dir_all(package_name, &package_path)?;
-    let encoder = tar.into_inner()?;
-    encoder.finish()?;
+        if extension == "gz" {
+            let encoder = flate2::write::GzEncoder::new(file, flate2::Compression::new(9));
+            write_tar(encoder, package_name, &package_path)?.finish()?;
+        } else {
+            let encoder = lzma_rust2::XzWriter::new(file, lzma_rust2::XzOptions::with_preset(9))?;
+            write_tar(encoder, package_name, &package_path)?.finish()?;
+        }
 
-    fs::rename(&temp_archive, &archive_path)?;
+        fs::rename(&temp_archive, &archive_path)?;
 
-    // Generate checksum
-    let archive_content = fs::read(&archive_path)?;
-    let mut hasher = Sha256::new();
-    hasher.update(&archive_content);
-    let hash = hasher.finalize();
-    let hex = hex::encode(hash);
+        // Generate checksum
+        let archive_content = fs::read(&archive_path)?;
+        let mut hasher = Sha256::new();
+        hasher.update(&archive_content);
+        let hash = hasher.finalize();
+        let hex = hex::encode(hash);
 
-    let sha_path = dist_dir.join(format!("{}.sha256", archive_name));
-    fs::write(&sha_path, format!("{}  {}\n", hex, archive_name))?;
+        let sha_path = dist_dir.join(format!("{}.sha256", archive_name));
+        fs::write(&sha_path, format!("{}  {}\n", hex, archive_name))?;
 
-    let archive_size = fs::metadata(&archive_path)?.len();
+        let archive_size = fs::metadata(&archive_path)?.len();
 
-    // Print summary
-    let summary = serde_json::json!({
-        "archive": archive_path.to_string_lossy(),
-        "binary_bytes": { "i": binary_size },
-        "binary_total_bytes": binary_size,
-        "unpacked_file_bytes": unpacked_size,
-        "archive_bytes": archive_size,
-        "sha256": hex
-    });
+        // Print summary
+        let summary = serde_json::json!({
+            "archive": archive_path.to_string_lossy(),
+            "binary_bytes": { "i": binary_size },
+            "binary_total_bytes": binary_size,
+            "unpacked_file_bytes": unpacked_size,
+            "archive_bytes": archive_size,
+            "sha256": hex
+        });
 
-    println!("{}", serde_json::to_string_pretty(&summary)?);
-
+        println!("{}", serde_json::to_string_pretty(&summary)?);
+    }
     Ok(())
 }
 
@@ -634,5 +643,63 @@ fn add_dir_to_zip<W: Write + io::Seek>(
 mod hex {
     pub fn encode(bytes: impl AsRef<[u8]>) -> String {
         bytes.as_ref().iter().map(|b| format!("{:02x}", b)).collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unix_tar_packaging_preserves_both_formats_and_archive_checksums() {
+        let root = tempfile::tempdir().unwrap();
+        let staging = root.path().join("staging");
+        let dist = root.path().join("dist");
+        let name = "i-fixture-test-release";
+        fs::create_dir_all(staging.join(name).join("bin")).unwrap();
+        fs::create_dir_all(&dist).unwrap();
+        fs::write(staging.join(name).join("bin/i"), b"fixture executable\n").unwrap();
+        fs::write(staging.join(name).join("LICENSE.txt"), b"fixture MIT notice\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(staging.join(name).join("bin/i"), fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        create_tar_archive(&staging, &dist, name, 19, 38).unwrap();
+        let mut payloads = Vec::new();
+        for extension in ["gz", "xz"] {
+            let archive_name = format!("{name}.tar.{extension}");
+            let archive = dist.join(&archive_name);
+            assert!(archive.is_file(), "missing {extension} distribution format");
+            let expected = format!("{}  {archive_name}\n", hex::encode(Sha256::digest(fs::read(&archive).unwrap())));
+            assert_eq!(fs::read_to_string(dist.join(format!("{archive_name}.sha256"))).unwrap(), expected);
+            let file = fs::File::open(&archive).unwrap();
+            let mut reader: Box<dyn io::Read> = if extension == "gz" {
+                Box::new(flate2::read::GzDecoder::new(file))
+            } else {
+                Box::new(lzma_rust2::XzReader::new(file, true))
+            };
+            let mut payload = Vec::new();
+            reader.read_to_end(&mut payload).unwrap();
+            let mut tar = tar::Archive::new(payload.as_slice());
+            let mut files = std::collections::BTreeMap::new();
+            for entry in tar.entries().unwrap() {
+                let mut entry = entry.unwrap();
+                if entry.header().entry_type().is_file() {
+                    let path = entry.path().unwrap().to_string_lossy().into_owned();
+                    #[cfg(unix)]
+                    if path == format!("{name}/bin/i") {
+                        assert_eq!(entry.header().mode().unwrap() & 0o777, 0o755);
+                    }
+                    let mut content = Vec::new();
+                    io::Read::read_to_end(&mut entry, &mut content).unwrap();
+                    files.insert(path, content);
+                }
+            }
+            assert_eq!(files[&format!("{name}/bin/i")], b"fixture executable\n");
+            assert_eq!(files[&format!("{name}/LICENSE.txt")], b"fixture MIT notice\n");
+            payloads.push(payload);
+        }
+        assert_eq!(payloads[0], payloads[1], "both formats must carry identical tar contents");
     }
 }

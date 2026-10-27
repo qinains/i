@@ -17,6 +17,7 @@
 - [从零编写插件](plugin-development.md)：两个可复现的 Rust 教程。
 - [WASM 插件参考](wasm-plugin-reference.md)：清单、ABI、host API、限制。
 - [原生 worker 参考](plugins.md)：NDJSON、hooks、工具和路径上下文。
+- [对话分析与反思](conversation-analysis.md)：显式分析、受限投影和可选原生 reflection worker。
 - [Provider 插件](providers.md)：模型协议、传输、重试与鉴权边界。
 - [审批策略](approval.md)、[预算与压缩](compaction.md)、[缓存统计](cache.md)。
 

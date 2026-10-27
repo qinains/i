@@ -8,9 +8,9 @@
 
 ```sh
 sh scripts/build_web.sh
-python3 scripts/build_site.py
-python3 -m unittest discover -s site -p test_build.py
-python3 -m http.server 8090 --directory dist/site
+cargo run --locked --manifest-path tools/site-tool/Cargo.toml -- site
+cargo test --locked --manifest-path tools/site-tool/Cargo.toml
+cargo run --locked --manifest-path tools/site-tool/Cargo.toml -- serve --directory dist/site --port 8090
 ```
 
 打开 `http://localhost:8090/`，工作台为 `/app/`。构建器校验 app 静态资源的 SHA-256，

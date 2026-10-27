@@ -1,19 +1,9 @@
 use super::*;
 
 fn manifest(root: &Path, reply: Option<Value>) -> std::path::PathBuf {
-    let policy = match reply {
-        Some(reply) => format!(
-            "import json,sys\np=json.load(sys.stdin)\nassert p['event']=='tool_approval'\nassert set(p['data'])=={{'name','arguments','external','decision'}}\nprint({:?})",
-            reply.to_string()
-        ),
-        None => "raise RuntimeError('policy unavailable')".into(),
-    };
-    let tool = support::python(
-        "from pathlib import Path\nimport json\nPath('external-ran').write_text('bad')\nprint(json.dumps({'output':'executed'}))",
-    );
     let path = root.join("plugins.json");
     fs::write(&path, json!({"tools":[{"name":"external_action","description":"test","parameters":{"type":"object"},
-        "exec":["python3","-c",tool]}],"hooks":[{"events":["tool_approval"],"exec":["python3","-c",support::python(&policy)]}]}).to_string()).unwrap();
+        "exec":support::fixture("external-effect",json!({}))}],"hooks":[{"events":["tool_approval"],"exec":support::fixture("approval-policy",json!({"reply":reply}))}]}).to_string()).unwrap();
     path
 }
 #[test]
@@ -54,17 +44,15 @@ fn policy_decisions_are_enforced_including_ask_despite_yes_and_failures_never_fa
 }
 #[test]
 fn console_uses_replacement_approval_with_mode_file_and_never_falls_back() {
-    let python = Command::new("python3").args(["-c", "import sys; print(sys.executable)"]).output().unwrap();
-    assert!(python.status.success());
-    let python = String::from_utf8(python.stdout).unwrap().trim().to_owned();
     for missing in [false, true] {
         let dir = tempfile::tempdir().unwrap();
         let config = dir.path().join(".app/config");
         fs::create_dir_all(&config).unwrap();
-        let body = support::python(
-            "import json,sys\nfrom pathlib import Path\np=json.load(sys.stdin)\nmode=json.loads(Path(sys.argv[sys.argv.index('--mode-file')+1]).read_text())['mode']\nPath('policy-seen.json').write_text(json.dumps({'mode':mode,'default':p['data']['decision']}))\np['data']['decision']='deny'\nprint(json.dumps(p['data']))",
-        );
-        let exec = if missing { json!([dir.path().join("missing-worker")]) } else { json!([python, "-c", body]) };
+        let exec = if missing {
+            json!([dir.path().join("missing-worker")])
+        } else {
+            support::fixture("mode-approval", json!({}))
+        };
         fs::write(config.join("bindings.json"), json!({"approval":{"exec":exec,"cwd":dir.path()}}).to_string())
             .unwrap();
         let (base, server) = server(vec![

@@ -3,6 +3,11 @@ export function node(tag,text='',className='') {
     const el=document.createElement(tag);el.textContent=text;el.className=className;return el;
 }
 export function renderMessage(record,{onChange=()=>{},onConfigure}={}) {
+    if(record.type==='analysis'){
+        const el=node('section','','line analysis');
+        const heading=node('h3',uiText('Reflection report'));heading.dataset.i18n='Reflection report';
+        const content=node('pre',record.text);content.dir='auto';el.append(heading,content);return el;
+    }
     if(record.type==='error'&&record.text.trim()==="Error: Failed to construct 'URL': Invalid URL"){
         const message='A previous attempt could not read the API URL. Open settings to check your API URL, API key and model.';
         const el=node('div','','line error');

@@ -1,0 +1,43 @@
+name: Security
+on:
+  workflow_call:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install pinned secret scanner
+        run: go install github.com/zricethezav/gitleaks/v8@v8.30.0
+      - name: Scan tracked history (redacted output)
+        run: '"$(go env GOPATH)/bin/gitleaks" git --redact --config .gitleaks.toml --log-opts="--all" .'
+      - name: Scan current source including new files
+        run: '"$(go env GOPATH)/bin/gitleaks" dir --redact --config .gitleaks.toml .'
+  dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
+        with:
+          toolchain: '1.95.0'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - run: cargo install cargo-audit --locked --version 0.22.2
+      - run: cargo audit --file Cargo.lock
+      - name: Audit locked Rust development tools
+        run: |
+          for lock in tools/*/Cargo.lock; do cargo audit --file "$lock"; done
+      - run: npm ci --prefix web
+      - run: npm audit --prefix web --audit-level=high

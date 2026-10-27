@@ -29,12 +29,12 @@ Direct。使用后关闭；浏览器重启后默认关闭，不自动重发旧�
 ## 构建
 
 ```sh
-python3 scripts/build_cors_extension.py
-python3 scripts/build_cors_safari.py --build
+cargo run --locked --manifest-path tools/site-tool/Cargo.toml -- cors-extension
+cargo run --locked --manifest-path tools/site-tool/Cargo.toml -- cors-safari --build
 node extensions/cors-helper/test-browser.mjs
 ```
 
-第一个命令用标准库生成三套确定性源码 ZIP 和 SHA-256 metadata，输出
+第一个命令用 Rust 工具生成三套确定性源码 ZIP 和 SHA-256 metadata，输出
 `web/downloads/`。Safari 命令要求 macOS/Xcode，生成工程 ZIP并编译未签名容器。
 源代码包可以重现；Xcode 工程生成器本身不保证项目 ID 或编译结果逐字节一致。
 
@@ -51,7 +51,7 @@ Safari 后会复位。发布需要遵循 Apple 签名/容器分发流程，不�
 无需再次启用。地址变更需先停止再启动；Firefox/Safari 只有普通模式。
 
 不要直接加载仓库 `extensions/cors-helper` 源码目录，否则会缺少生成的 PNG 图标及
-浏览器专用配置。先运行 `python3 scripts/build_cors_extension.py`，Chrome 加载
+浏览器专用配置。先运行 `cargo run --locked --manifest-path tools/site-tool/Cargo.toml -- cors-extension`，Chrome 加载
 `dist/cors-helper/chromium`，或解压官网 ZIP 后加载其中的目录。
 
 Chrome / Edge 118+ 版本需要安装时声明的高权限 `debugger`，无法将其作为 optional 权限。

@@ -21,7 +21,7 @@ Firefox/Safari 包不声明 debugger，也不提供此模式，不应把 Chromiu
 2. Open chrome://extensions or edge://extensions, enable Developer mode.
 3. Choose Load unpacked and select the built directory containing manifest.json
    and icon-48.png. Do not load the repository's extensions/cors-helper source
-   directory directly. Run python3 scripts/build_cors_extension.py first and load
+   directory directly. Run `cargo run --locked --manifest-path tools/site-tool/Cargo.toml -- cors-extension` first and load
    dist/cors-helper/chromium, or unzip the published browser ZIP.
 4. Open the Harness page, click this extension's toolbar icon.
 5. Save the API settings in the workbench first. The popup automatically reads

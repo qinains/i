@@ -8,7 +8,7 @@
 
 ## 准备环境
 
-从源码仓库根目录操作，要求 Rust 1.91+、Cargo、Node.js、Python 3。浏览器测试
+从源码仓库根目录操作，要求 Rust 1.91+、Cargo；前端还需 Node.js 22+，不需要 Python。浏览器测试
 还需要 npm 依赖和 Playwright 浏览器。首次为浏览器插件安装 target：
 
 ```sh

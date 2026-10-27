@@ -53,7 +53,7 @@ fn rejects_crc_encryption_symlinks_and_central_directory_size_forgery() {
     let license = archive.by_name("LICENSE").unwrap();
     let local = license.header_start() as usize;
     let central = license.central_header_start() as usize;
-    let data = license.data_start() as usize;
+    let data = license.data_start().unwrap() as usize;
     drop(license);
     drop(archive);
     let mut crc = valid.clone();

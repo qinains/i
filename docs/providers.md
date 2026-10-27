@@ -2,6 +2,8 @@
 
 ## 当前边界
 
+可选的 [原生连接插件](chatgpt-login.md) 使用另一条明确启用的 `provider.completion: "plugin"` 路径：插件自己管理 OAuth 和模型 HTTP，核心只传模型/历史/工具等无主配置凭据的完成请求，继续拥有 Agent 工具审批与会话状态。ChatGPT 和 Claude Console 插件单独构建、安装，不是核心内置登录；下文的核心 HTTP/凭据注入边界描述默认 prepare/parse 路径，不应套用于 completion 插件。
+
 核心不再包含 OpenAI/Anthropic 的端点拼接、鉴权格式、图片块转换、工具 schema 转换或响应解析分支。
 这些实现位于可替换的 `provider` worker：
 
@@ -98,7 +100,13 @@ API 配置可显式指定：
 
 ## NDJSON 合约 v1
 
-沿用现有 worker 的请求 ID、48 MiB 帧上限和15秒期限，不开第二套传输机制。
+`provider: {"exec":["/absolute/i-chatgpt-plugin","worker"],"completion":"plugin"}` 显式选择原生完成插件。核心发送 `provider_complete`，插件返回 `{"version":1,"response":...}` 的规范化模型响应，不执行工作区工具。此路径不把主配置 API key 交给插件，不自动回退默认 HTTP provider；可用插件自带的 `configure --model MODEL --output FILE` 生成独立配置。插件是普通 OS 进程而非 WASM 沙箱，同用户文件仍可能被恶意程序读取，只应运行可信二进制。具体命令、计费区别和浏览器配对见 [连接插件说明](chatgpt-login.md)。
+
+`provider_complete` 的 `data` 包含 `version:1`、`protocol`、`model`、`history`、`tools`、`plugin_tools`、`compact`、`max_tokens` 和 `extra_body`。成功回复继续使用下方的 `choices/message/tool_calls` 结构，必须有字符串 `content`；无工具时 `finish_reason:stop`，有工具时 `finish_reason:tool_calls`。插件必须拒绝中断、不完整或不合法的工具批次，不能把它们包装成成功。
+
+此完成路径不经过默认 HTTP 的 `before_request`、`request_retry`、`after_response` 和 `provider_prepare/provider_parse`，因此依赖这些事件的缓存、原始 usage 统计或 wire-format hook 不适用。回合、上下文预算、压缩规划、工具审批及会话检查点仍由核心处理；预算没有服务商 usage 锚点时使用既有估算，不声称有精确计费统计。
+
+默认 prepare/parse 路径沿用现有 worker 的请求 ID、48 MiB 帧上限和15秒期限，不开第二套传输机制。`provider_complete` 使用独立的长请求期限，不能用默认 prepare/parse 的15秒期限描述模型推理。
 请求的 event 为 provider_prepare 或 provider_parse，data.version 固定1，data.protocol 是选择器。
 
 prepare 输入包含 base_url、model、history、max_tokens、compact、tools、plugin_tools、use_max_tokens、extra_body。

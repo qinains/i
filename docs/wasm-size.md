@@ -70,4 +70,4 @@ The offline native literal-search fixture (6.4 MB, seven runs per binary,
 including process startup and file reads) had medians of 33.781 ms before and
 33.843 ms after. This small, noisy fixture showed no material regression; it
 does not establish performance for all glob or regex workloads. Reproduce with
-`python3 scripts/bench_search.py BEFORE AFTER --runs 7`.
+`cargo run --locked --manifest-path tools/repo-tool/Cargo.toml -- bench-search BEFORE AFTER --runs 7`.

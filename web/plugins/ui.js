@@ -4,6 +4,11 @@ import {isTemporaryWorkspace} from '../workspaces.js';
 import {promptEditor} from './prompts.js';
 import {fetchCatalog,previewCatalogPlugin} from './catalog.js';
 const text=(tag,key,className='')=>{const element=node(tag,uiText(key),className);element.dataset.i18n=key;return element;};
+function actionIcon(kind){
+    const namespace='http://www.w3.org/2000/svg',icon=document.createElementNS(namespace,'svg'),path=document.createElementNS(namespace,'path');
+    for(const [name,value]of Object.entries({viewBox:'0 0 24 24',fill:'none',stroke:'currentColor','stroke-width':'1.8','stroke-linecap':'round','stroke-linejoin':'round','aria-hidden':'true',focusable:'false'}))icon.setAttribute(name,value);
+    path.setAttribute('d',kind==='download'?'M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4':'M14 4h6v6m0-6L10 14M10 4H4v16h16v-6');icon.append(path);return icon;
+}
 function permissions(p){return [uiText(p.workspace==='read-write'?'Read and modify workspace files':p.workspace==='read'?'Read workspace files':'No workspace file access'),uiText(p.storage?'Private plugin storage':'No private plugin storage')].join(' · ');}
 function securityReport(checks,expanded=false){
     const details=node('details','','plugin-security');details.open=expanded;
@@ -31,9 +36,10 @@ export function mountPluginSettings({manager,currentWorkspace,isBusy,onError,onB
         for(const entry of result.plugins){
             const card=node('section','','plugin-card');card.dataset.catalogPlugin=entry.id;
             card.append(node('h3',`${entry.name} · ${entry.version}`),node('p',entry.description),node('p',`${entry.id} · ${entry.license}`,'note'),node('p',permissions(entry.permissions),'note'));
-            const source=node('a',entry.repository);source.href=entry.repository;source.target='_blank';source.rel='noopener noreferrer';source.referrerPolicy='no-referrer';card.append(source);
+            const source=node('a','','plugin-catalog-source');source.append(text('span','Source'),actionIcon('external'));source.href=entry.repository;source.title=entry.repository;source.target='_blank';source.rel='noopener noreferrer';source.referrerPolicy='no-referrer';
             const inspect=button('Download and inspect',async()=>{const m=await getManager(),p=await previewCatalogPlugin(m,entry,{signal:abort.signal});showPreview(p,m);});
-            inspect.dataset.catalogInspect=entry.id;card.append(inspect);catalogList.append(card);
+            inspect.className='plugin-catalog-inspect';delete inspect.dataset.i18n;inspect.replaceChildren(actionIcon('download'),text('span','Download and inspect'));
+            inspect.dataset.catalogInspect=entry.id;const actions=node('div','','plugin-catalog-actions');actions.append(source,inspect);card.append(actions);catalogList.append(card);
         }
         status.textContent=uiText('Catalog updated. Choose a package to inspect before installing.');
     });load.id='plugin-catalog-load';
