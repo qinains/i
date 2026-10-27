@@ -103,6 +103,7 @@ fn markdown_escapes_html_preserves_blocks_and_routes_safe_links() {
     assert!(!rendered.contains("href=\"javascript:"));
     assert_eq!(site::href(root, "//evil.test", &source), "#");
     assert_eq!(site::href(root, "mailto:person@example.test", &source), "mailto:person@example.test");
+    assert_eq!(site::href(root, "missing.js", &source), "https://github.com/qinains/i/blob/main/docs/missing.js");
 }
 #[test]
 fn full_site_preserves_public_pages_localization_security_and_asset_allowlist() {

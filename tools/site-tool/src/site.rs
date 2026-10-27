@@ -85,7 +85,17 @@ fn resolve(path: &Path) -> Result<PathBuf> {
             output = fs::canonicalize(&output)?;
         }
     }
-    Ok(output)
+    match fs::canonicalize(&output) {
+        Ok(canonical) => Ok(canonical),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            // Normalize existing ancestors too, including Windows verbatim
+            // prefixes, while keeping links to not-yet-created files usable.
+            let parent = output.parent().context("Path has no existing ancestor")?;
+            let name = output.file_name().context("Path has no filename")?;
+            Ok(resolve(parent)?.join(name))
+        }
+        Err(error) => Err(error.into()),
+    }
 }
 pub fn route(root: &Path, path: &Path) -> Option<String> {
     let canonical = fs::canonicalize(root).ok()?;
