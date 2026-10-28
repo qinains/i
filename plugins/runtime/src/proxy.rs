@@ -192,7 +192,7 @@ mod tests {
         assert_eq!(resolve(&saved, "claude").unwrap(), Setting::Direct);
         assert_eq!(resolve(&saved, "plugins").unwrap(), Setting::Direct);
         assert_eq!(resolve(&saved, "model").unwrap(), Setting::Url("socks5://127.0.0.1:3067".into()));
-        assert!(handle("/proxy claude http://user:PRIVATE@localhost:1", &paths).is_err());
+        assert!(handle("/proxy claude http://user:YOUR_PASSWORD@localhost:1", &paths).is_err());
         assert_eq!(read(&paths).unwrap(), saved);
         handle("/proxy claude default", &paths).unwrap();
         assert_eq!(resolve(&read(&paths).unwrap(), "claude").unwrap(), resolve(&saved, "default").unwrap());
@@ -240,10 +240,11 @@ mod tests {
             "http://a:bad",
             "http://a/path",
             "http://a?key=PRIVATE",
-            "http://user:PRIVATE@localhost:3067",
+            "http://user:YOUR_PASSWORD@localhost:3067",
         ] {
             let error = Setting::parse(input).unwrap_err().to_string();
             assert!(!error.contains("PRIVATE"));
+            assert!(!error.contains("YOUR_PASSWORD"));
         }
     }
     #[test]
