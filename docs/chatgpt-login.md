@@ -1,134 +1,198 @@
-# 可选原生连接插件：ChatGPT 与 Claude Console
+# 使用 i 管理登录插件
 
-> **Claude 计费提醒：免填 API key，不等于免费或使用订阅额度。**
-> Claude 连接插件使用 Claude Console API OAuth，调用按 Console API 计费，
-> **不使用 Claude Pro / Max 套餐额度**。请在授权前确认 Console 的计费与权限。
+> **Claude 使用 Console API 计费，不使用 Pro / Max 套餐额度。**
+> 免填 API key 不等于免费，授权前请确认 Console 的组织、工作区与计费权限。
 
-连接插件是单独安装、单独运行的原生程序，不是核心内置登录功能，也不是工作区的 WASM 工具插件。源码位于 `plugins/connections`；核心只使用通用 `provider.completion: "plugin"` 合约，不依赖 Codex Agent 或 Claude Code。
+用户操作统一通过 `i`，不用记辅助程序名称或手写连接配置。原生登录插件
+拥有操作系统用户权限，与工作区 WASM 工具插件不同，不要混用安装包。
 
-## 从 Release 安装
+## 终端内完成
 
-1. 打开项目的 [GitHub Releases](https://github.com/qinains/i/releases)，选择已公开版本中的 `i-connections-<target>.zip` 和对应 `.zip.sha256`。连接插件是**独立附件**，不包含在主程序 `i-<version>-<target>-<profile>` 包内；同一个连接包包含 ChatGPT 和 Claude 两个程序。
-2. 按操作系统和 CPU 架构选择 target，不把 macOS arm64/x86_64、Linux 和 Windows 的附件混用。以 Release 附件及包内 `BUILD.json` 的 `target` 为准；没有适合本机的附件时，使用下文源码构建，不假定存在通用二进制或包管理器版本。
-3. 先对照 `.sha256` 校验 ZIP，再用系统归档工具解压到一个固定、由自己管理的目录，例如 `i-connections/`。摘要只能检查下载完整性，不能代替来源与发布者身份核验。不要把插件放进项目工作区、共享目录或浏览器临时下载缓存后直接长期使用。
+启动 `i`，即使尚未配置模型，也可输入本地管理命令：
 
-以下把下载的实际文件名替换进 `archive`。macOS 可用：
+```text
+/plugins
+```
+
+选择 ChatGPT 或 Claude，确认权限后安装，再启用插件。输入 `/login`，
+选择登录插件，在系统浏览器完成授权，然后选择模型编号或填写有权限的模型 ID。
+成功后自动保存连接配置，下一条任务即可使用。也可直接输入：
+
+```text
+/plugins install chatgpt
+/plugins enable chatgpt
+/login chatgpt
+```
+
+`/cancel` 取消菜单；任务运行中不能更换插件或连接。
+授权和模型目录查询不发送模型生成请求。只有登录确认和模型选择都完成后才切换配置；
+失败或取消不覆盖旧连接，切换前会保存私有配置备份。
+
+## 命令行管理
+
+### 切换模型和思考等级
+
+终端中的 `/model` 从当前原生连接插件读取模型目录，可输入编号选择；也可直接指定模型。
+普通 API-key 连接不探测模型目录，使用手填模型 ID。不会重新登录或切换账户：
+
+```text
+/model
+/model status
+/model gpt-6.1-sol
+/model gpt-6.1-sol high
+/model effort high
+/model effort auto
+```
+
+仅在任务、审批及队列全部空闲时修改。修改按连接配置保存，写入前保留私有备份；
+取消目录选择不改变配置。仅切换模型时恢复服务商默认思考等级，避免沿用另一模型的参数。
+`auto` / `default` 表示不显式指定等级；其余可填写 `none`、`minimal`、`low`、`medium`、
+`high`、`xhigh`、`max`，但并非每个模型支持全部等级，目录也不一定提供能力声明。
+设置不发送付费生成请求，实际可用性由服务商在后续请求时校验。
+Responses 使用 `reasoning.effort`，Chat Completions 使用 `reasoning_effort`；
+Claude 使用 `output_config.effort` 与 adaptive thinking，`none` 请求关闭思考，
+只适用于支持相应模式的模型。不要将高等级或关闭思考视为所有模型都支持。
+参考：[OpenAI reasoning](https://developers.openai.com/api/docs/guides/reasoning)、
+[Claude effort](https://platform.claude.com/docs/en/build-with-claude/effort)。
 
 ```sh
-archive=i-connections-REPLACE_WITH_TARGET.zip
-shasum -a 256 -c "$archive.sha256"
+i plugins list
+i plugins install chatgpt
+i plugins enable chatgpt
+i login chatgpt
+i plugins status chatgpt
+i plugins models chatgpt
+i plugins logout chatgpt
+i plugins disable chatgpt
+i plugins update chatgpt
+i plugins reconnect chatgpt
+i plugins remove chatgpt
 ```
 
-Linux 可用 `sha256sum -c "$archive.sha256"`。Windows PowerShell 可分别显示实际和预期摘要，再解压到新的目录：
+已有账户可用 `i plugins use chatgpt ACCOUNT_ID` 切换；
+`i login chatgpt --account ACCOUNT_ID` 重新授权已有注册，
+`i plugins logout chatgpt --account ACCOUNT_ID` 登出指定账户。
+重新授权只暂存注册信息，不复制旧的轮换令牌；模型确认前不会改变旧连接的账户。
 
-```powershell
-$archive = 'i-connections-REPLACE_WITH_TARGET.zip'
-Get-FileHash -Algorithm SHA256 -LiteralPath $archive
-Get-Content -LiteralPath "$archive.sha256"
-Expand-Archive -LiteralPath $archive -DestinationPath .\i-connections
+将 `chatgpt` 换成 `claude` 即可管理 Claude Console 插件。
+安装和更新需要确认；更新后重新启用并登录，避免悄悄替换活动连接。
+若只更新辅助程序、不更换已有账户，可重新启用后运行 `i plugins reconnect chatgpt`，
+保留当前账户目录和模型设置，只将当前连接绑定到校验过的新程序；不会重新登录或发送生成请求。
+安装时显示版本查询、下载字节数、摘要校验与保存进度，可用 `/cancel` 取消。
+网络连接超时为 10 秒，每次下载最多 120 秒；失败不会自动重试或启用插件。
+GitHub 下载使用终端的代理环境变量，不自动继承浏览器代理。需要时可先运行
+`HTTPS_PROXY=http://127.0.0.1:3067 i`，地址与端口应替换为自己的代理配置。
+
+也可在 `i` 内通过内置代理管理命令动态切换，默认按用户保存至
+`~/.i/config/proxy.json`（设置 `I_CONFIG_DIR` 时跟随该目录），不写入工作区：
+
+```text
+/proxy                         # 查看默认和各用途的有效规则
+/proxy 3067                    # 等同于 http://127.0.0.1:3067
+/proxy :3067
+/proxy 127.0.0.1:3067
+/proxy socks5://127.0.0.1:3067
+/proxy no                      # 强制直连，也支持 noproxy
+/proxy env                     # 恢复环境变量/模型原配置
+/proxy chatgpt 3067            # 仅 ChatGPT 登录、模型目录及推理
+/proxy claude no               # Claude Console 直连
+/proxy plugins no              # 插件下载直连
+/proxy model 3067              # 普通模型 API 使用代理
+/proxy chatgpt default         # 移除 ChatGPT 覆盖，跟随默认
 ```
 
-解压后是 `bin/i-chatgpt-plugin`、`bin/i-claude-plugin`（Windows 带 `.exe`）、`BUILD.json`、`README.txt`、`LICENSE` 和 `THIRD_PARTY_LICENSES.txt`。保留许可文件；macOS 包未提供 Developer-ID 签名或公证，系统可能要求额外的来源审批。这里不要求关闭系统安全机制。
+规则优先级：用途专属规则、用户默认规则、原环境/配置。显式 `no` 不回退到环境代理。
+修改只影响后续操作，不中断或重放正在运行的请求；浏览器及已经运行的独立服务需另行配置。
+支持 HTTP、HTTPS、SOCKS5 和 SOCKS5h；本地授权回调不走代理。
+不支持在代理地址中填写用户名、密码、查询参数或路径，避免凭据进入命令历史。
+本命令是宿主内置功能，不向工作区 WASM 插件开放代理配置或账户凭据。
+移除安装选择会保留旧包与凭据，不代表远端撤销。希望登出时，在禁用或移除前
+运行 `i plugins logout NAME`；远端撤销未确认时，仍需到服务商设置检查授权。
 
-无需安装 Rust 即可使用匹配本机的 Release 程序。将选用的程序加入 PATH，或使用解压目录中的路径。macOS/Linux 若归档工具未保留执行权限，可先执行：
+安装器从官方 GitHub Release 下载匹配平台的连接附件，校验 GitHub 提供的
+SHA-256 摘要、ZIP 成员白名单与目标平台，每次调用前再检查程序摘要。
+无匹配平台时停止，不执行第三方安装脚本。摘要验证完整性，不代替发布者签名；
+macOS 包目前没有 Developer-ID 签名或公证。安装不修改 PATH，不要求管理员权限。
 
-```sh
-chmod u+x ./i-connections/bin/i-chatgpt-plugin ./i-connections/bin/i-claude-plugin
-```
+开发者测试自己构建的连接包，可运行 `i plugins install chatgpt --package /absolute/path/package.zip`，
+确认后仍检查 ZIP 成员与平台，安装后默认禁用，并在调用前校验程序摘要。
+本地包明确标为 `local-build`，不代表经过官方发布验证；只安装自己信任的原生代码。
+浏览器显示回调已收到，并不代表登录完成；仍须等待终端完成令牌交换、身份验证和模型选择。
 
-Claude 还需按 [官方 ant CLI 安装指南](https://platform.claude.com/docs/en/cli-sdks-libraries/cli/quickstart) 单独安装 `ant`，并确保插件进程的 PATH 能找到它；连接 ZIP 不携带 `ant`。**这条免填 key 的登录仍使用 Console API 计费，不是 Pro/Max 额度。**
+旧版生成的用户级 `desktop.json` 可能仍包含现已进入核心的 `search` / `find_files`。
+宿主会在加载时移除可识别的旧内置搜索条目，并将同一用户配置目录中的旧内置 worker
+绑定到当前程序，不修改磁盘原文件。自定义 worker 和自定义插件名称冲突仍保留并报错，
+不会通过跳过重复校验来绕过注册规则。此类错误发生在模型请求前，无需重新登录。
 
-## 源码构建与 CLI
+### 生成失败的诊断
 
-```sh
-cargo build --locked -p i-chatgpt --release --bins
-```
+原生 ChatGPT 连接使用 Responses API，发送 `store:false` 和 `stream:true`，不是 Chat Completions。
+终端优先解析 SSE；兼容层也可接收 `application/json` 的完整 Responses 对象，
+但必须有 `object:response`、有效 ID、`status:completed` 和通过校验的输出。
+若响应缺少 `Content-Type`，终端仅根据正文识别 SSE 或 JSON，再执行相同的完整性校验；
+明确标注为 HTML 等其他类型的响应仍拒绝。失败诊断只显示格式分类和字节数，不显示正文。
+不接受 HTML、Chat Completions 对象、错误 JSON 或尚未完成的工具调用，不因响应格式变化重发请求。
+网页本地服务的流式转发仍要求有效 SSE。
 
-构建得到 `target/release/i-chatgpt-plugin` 和 `target/release/i-claude-plugin`。以下命令假设已将所选程序放入 PATH；也可使用绝对路径。
+生成失败会显示请求准备、授权、HTTP、响应类型或流解析阶段。HTTP 诊断仅保留状态、
+已知错误码/参数名和受限 request ID，不输出原始错误正文、提示词或令牌。
+网络或响应格式失败不清除现有登录，也不自动切换账户、模型或 API-key 计费路径。
 
-```sh
-i-chatgpt-plugin login
-i-chatgpt-plugin status
-i-chatgpt-plugin models
-i-chatgpt-plugin use <account-id>
-i-chatgpt-plugin logout [--account ID]
-```
+## 配置与凭据
 
-`login` 通过系统浏览器完成官方 OAuth 注册和用户授权。请从 `models` 的当前账户目录中选择模型，再创建独立配置：
+- `<config_dir>/native-plugins.json` 保存安装位置、摘要与启用状态，不含 OAuth token。
+- `<data_dir>/connections/accounts/NAME` 保存插件自己的凭据，不交给工作区 WASM 插件。
+- 模型配置由登录菜单自动填写，不需要手工生成 `chatgpt.json`。
+- macOS/Linux 使用私有目录和文件权限；Windows 继承用户目录 ACL。
+- 凭据不作应用层加密，不宣称存于系统钥匙串。同用户恶意原生程序仍可能读取它们。
 
-```sh
-i-chatgpt-plugin configure --model <model-id> --output ./chatgpt.json
-i start --config ./chatgpt.json -C .
-```
-
-`configure` 写入插件可执行文件的绝对路径，不写 OAuth 凭据，也不覆盖主配置或已有输出文件。不传 `--output` 时输出到插件配置目录；读取命令打印的 `path` 后传给 `i start --config`。模型推理由插件完成，文件操作和审批仍由 `i` 自己的 Agent 工具执行。需要额外工具清单时，按现有部署方式在独立配置中显式设置 `plugins`，不把凭据写进工具清单。
-
-可用全局 `--data-dir /absolute/plugin-data` 为插件指定独立目录；建议使用绝对路径，`configure` 会把规范化后的绝对目录写入 worker 参数，避免核心切换工作目录后使用错误凭据目录。
+不要把上述目录放进工作区、共享目录、版本控制或公开备份。
+直接填写 API key 的模型连接仍然可用，无需登录插件。
 
 ## 浏览器配对
 
-在**运行浏览器的同一台电脑**启动所选插件，并保持进程运行：
+安装、启用后，在运行浏览器的同一台电脑执行：
 
 ```sh
-i-chatgpt-plugin serve --origin https://i.lninl.com --port 0
+i plugins serve chatgpt --origin https://i.lninl.com --port 0
 ```
 
-若未添加 PATH，在解压目录的上一级选择运行以下一个命令；不要把它当作浏览器插件 ZIP 上传：
+Claude 将 `chatgpt` 换成 `claude`。保持终端运行，打开打印的配对链接，
+在页面检查插件、账户和模型后保存。配对先创建未保存草稿，不自动替换原连接。
+服务重启后使用新链接；链接含本地能力密钥，不要分享。
 
-```sh
-./i-connections/bin/i-chatgpt-plugin serve --origin https://i.lninl.com --port 0
-# Claude Console 改用：
-./i-connections/bin/i-claude-plugin serve --origin https://i.lninl.com --port 0
-```
+服务只监听 `127.0.0.1`，绑定指定页面 origin，不提供任意 URL 代理。
+HTTPS 页面访问 loopback 可能需要本地网络权限，本功能不绕过浏览器权限或 CORS。
+手机不能独立运行原生插件。删除浏览器连接不等于原生账户登出。
 
-Windows PowerShell 对应使用 `.\i-connections\bin\i-chatgpt-plugin.exe` 或 `.\i-connections\bin\i-claude-plugin.exe`，后续参数相同。先确认 `ant` 已安装再选择 Claude；如果只用 ChatGPT，不需要安装它。
+## ChatGPT 边界与排错
 
-1. 打开插件打印的 `/app/#connection-plugin=...` 链接。页面消费配对信息后移除地址栏片段，并新建一个**尚未保存**的连接草稿，不覆盖现有连接。
-2. 设置中的连接方式为 **Local connection plugin**。点击 **Check local plugin**，页面读取通用插件清单、账户和实际模型目录，而非猜测服务商。
-3. 点击 **Log in to provider**，在系统浏览器完成授权。可取消等待；登录后重新检查账户和模型。
-4. 选择账户、模型，检查插件身份，再点击 **Save changes**。未保存的配对不会启用连接。
+使用官方 OAuth 动态客户端注册、PKCE、独立宿主标识与凭据存储，
+不读取个人 `~/.codex/auth.json`，不借用专有客户端 ID。见
+[官方登录文档](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)
+与[账户和会话](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions)。
 
-浏览器配对不要求安装主程序 `i`；只有使用原生 Agent CLI 流程时才另外安装主程序。关闭终端或结束 `serve` 后浏览器不能继续调用该插件；重新启动后请使用新打印的链接重新配对，旧链接不能当成永久下载/登录入口。
+推理使用公开 Responses API，不是私有 `backend-api`。
+资格、工作区政策与授权额度由 OpenAI 决定，登录不保证推理权限。
+套餐授权固定 `store: false`、`stream: true`；当前预览忽略最大输出 token 设置，
+见[预览限制](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations)。
 
-顶部「插件」中的 **Local connection plugins** 提供管理入口，但页面不会下载安装原生程序。Claude 使用同样流程，只需将命令换成 `i-claude-plugin serve`。一个助手实例的活动账户由所有连接共享；切换账户会影响其他使用该实例的连接，请重新检查模型权限。删除浏览器连接不等于退出原生账户，退出需单独执行登出。
+失败会区分授权码交换、会话刷新和网络错误，显示 HTTP 状态码，不显示令牌端点
+原始响应、凭据或授权码。失败不自动重放授权或模型请求。授权码交换被拒绝时，
+重新发起登录，并检查版本、系统时钟、网络及代理；不能仅凭状态码猜测拒绝原因。
 
-退出时先持久化清除本地凭据，再执行最长 20 秒的远端撤销或官方 CLI 清理；取消等待不会恢复本地登录。登出结果应区分本地清理与远端撤销授权。结果中的 `remote_revocation_confirmed: false` 表示远端撤销尚未确认，不能解读为“已撤销”；请到服务商设置中检查和移除访问权限。Claude 的官方 CLI 登出完成也不等于已确认服务端撤销。
+## Claude Console 边界
 
-插件只监听 `127.0.0.1`，使用明确的页面 origin 和随机能力密钥，不提供任意 URL 代理。配对密钥只授权浏览器访问本地插件，**不是 OpenAI/Anthropic OAuth token**；选择记住连接时可单独保存在浏览器，OAuth 凭据仍留在原生侧受保护的配置文件中。不要分享配对链接，或把任何凭据授予工作区工具插件。
+还需按[官方安装指南](https://platform.claude.com/docs/en/cli-sdks-libraries/cli/quickstart)
+安装 `ant` 并确保它在 PATH 中。连接包不携带 `ant`，不会自动执行其安装脚本。
+之后仍通过 `i login claude` 操作。
 
-凭据文件不作应用层加密，也不宣称存于系统钥匙串。macOS/Linux 使用私有目录和文件权限；Windows 继承所在用户目录的 ACL。请使用自己的私有配置目录，不放进项目、共享目录、版本控制或公开备份；同用户运行的恶意程序仍可能读取它们。
+插件使用隔离 HOME、`ANTHROPIC_CONFIG_DIR` 与自身 profile，不读取已有 Claude Code
+或个人 ant profile。目前支持一个 Console profile；重新授权可能切换工作区，
+后续请求可能发送到新工作区，必要时新建会话。**不是 Pro/Max 订阅额度。**
 
-本模式不支持手机独立运行。HTTPS 页面访问 loopback 可能触发本地网络权限提示或被浏览器策略阻止；不能绕过权限、混合内容或 CORS 安全机制。可改用 CLI，或在电脑上以本地 HTTP 静态服务打开 Web UI，并为该确切 origin 重新启动、配对插件。不要把监听地址改成公网地址。
+## 验证范围
 
-**原生连接插件没有 WASM 沙箱。** 它们是拥有当前操作系统用户权限的进程，应只安装可信二进制。宿主不转发主配置的 API key，并不意味着恶意原生插件无法读取同用户文件；插件私有凭据目录和环境隔离也不是 OS 沙箱。
-
-## ChatGPT 的使用边界
-
-ChatGPT 插件使用自行注册的官方 OAuth 客户端、独立宿主标识及凭据存储，不借用专有客户端 ID，也不读取 `~/.codex/auth.json`。注册、PKCE、授权和权限要求见 [OpenAI 官方登录文档](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)；账户隔离、刷新与退出见 [账户和会话](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions)。
-
-推理只发往公开的 `https://api.openai.com/v1/responses`，不是 ChatGPT 私有 `backend-api`。模型来自当前账户的实际目录，按服务端可见性和顺序展示；成功必须收到 `response.completed`，中断或失败流不视为成功。见 [模型与推理](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference)。
-
-套餐授权路径固定 `store: false`、`stream: true`。当前预览不支持 `max_output_tokens`，因此 **ChatGPT 插件忽略界面/配置的最大输出 token 设置**，不将其转换成其他限额字段；不支持的温度、持久会话或托管工具字段也不能按普通 API 路径推断可用。见 [预览限制](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations)。资格、工作区政策、用户同意和套餐使用额度均由 OpenAI 决定；登录不保证推理权限，不承诺免费 API 计费或无限使用。
-
-## Claude Console 插件
-
-先按 [Anthropic 官方 ant CLI 安装指南](https://platform.claude.com/docs/en/cli-sdks-libraries/cli/quickstart) 安装 `ant`，再运行：
-
-```sh
-i-claude-plugin login
-i-claude-plugin status
-i-claude-plugin models
-i-claude-plugin configure --model <model-id> --output ./claude.json
-i start --config ./claude.json -C .
-```
-
-插件在自己的 `ANTHROPIC_CONFIG_DIR`、隔离 HOME 和 `i` profile 下调用官方 `ant auth login/print-credentials/logout`，不读取已有 Claude Code 或个人 ant profile 凭据。目前支持一个 Console 工作区 profile；不把它描述为多账户管理。
-
-重新登录可能在授权页面切换 Console 组织或工作区，即使本地 profile 名称没有变化。
-网页对已有 Claude 注册的再次登录会先要求确认：继续后，后续模型请求可能把当前会话历史发送到新工作区；取消不会启动登录。需要隔离聊天历史时，请新建会话再使用新的工作区。
-
-这是 **Claude Console API OAuth**，不是 Claude Pro/Max 订阅额度；需要相应 Console 组织、工作区、权限和 API 计费资格。OAuth 登录方式见 [官方认证文档](https://platform.claude.com/docs/en/cli-sdks-libraries/cli/authentication)。插件通过 `ant auth print-credentials --access-token` 获取和刷新令牌，以 Bearer 方式调用公开 Messages API，见 [官方脚本认证说明](https://platform.claude.com/docs/en/cli-sdks-libraries/cli/scripting)。无需把 token 粘贴进网页。
-
-## 验证状态
-
-离线测试可以验证请求合约、配置无凭据、配对边界和失败处理，不能证明真实用户已获得服务商权限。完整 OAuth 浏览器授权、实际账户模型目录和收费推理仍需用户同意后现场验证；本次未完成真实 OAuth 登录或付费推理，不将 mock/单元测试当作这些能力的实测。
+自动测试使用隔离目录及本地 OAuth/TLS fixture，不使用个人真实 token，
+不替用户授权或发送付费请求。离线通过不能证明真实账户的服务商权限。
+辅助程序保留内部 worker/服务协议，用户操作统一由 `i` 转发。

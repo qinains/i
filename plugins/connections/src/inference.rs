@@ -9,6 +9,117 @@ const MAX_REQUEST: usize = 16 * 1024 * 1024;
 const MAX_STREAM: usize = 48 * 1024 * 1024;
 const DEADLINE: Duration = Duration::from_secs(1800);
 
+#[derive(Debug)]
+pub struct SafeDiagnostic(String);
+impl SafeDiagnostic {
+    pub fn authentication_http(stage: &'static str, status: u16, hint: &'static str) -> Self {
+        Self(format!("ChatGPT {stage} failed (HTTP {status}): {hint}"))
+    }
+    pub fn stage(stage: &'static str, hint: &'static str) -> Self {
+        Self(format!("ChatGPT {stage} failed: {hint}"))
+    }
+}
+impl std::fmt::Display for SafeDiagnostic {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+impl std::error::Error for SafeDiagnostic {}
+pub fn worker_diagnostic(error: &anyhow::Error) -> String {
+    error
+        .chain()
+        .find_map(|error| error.downcast_ref::<SafeDiagnostic>())
+        .map(ToString::to_string)
+        .unwrap_or_else(|| "Connection operation failed; check login and model selection".into())
+}
+fn http_diagnostic(status: u16, request_id: Option<&str>, body: Option<&Value>) -> SafeDiagnostic {
+    const CODES: &[&str] = &[
+        "subscription_sharing_user_not_eligible",
+        "subscription_sharing_usage_limit_exceeded",
+        "subscription_sharing_usage_unavailable",
+        "subscription_sharing_unsupported_capability",
+        "subscription_sharing_route_not_supported",
+        "subscription_sharing_invalid_user",
+        "subscription_sharing_user_unavailable",
+        "chatpass_v2_scope_not_authorized",
+        "chatpass_v2_invalid_authorization_context",
+        "model_not_found",
+        "invalid_request_error",
+        "insufficient_quota",
+        "rate_limit_exceeded",
+        "server_error",
+        "invalid_api_key",
+        "unsupported_parameter",
+        "unsupported_value",
+        "context_length_exceeded",
+    ];
+    const PARAMS: &[&str] = &[
+        "model",
+        "input",
+        "tools",
+        "tool_choice",
+        "reasoning",
+        "reasoning.effort",
+        "reasoning.mode",
+        "text",
+        "store",
+        "stream",
+        "service_tier",
+    ];
+    let shape = if body.is_some_and(|body| body.get("error").is_some()) {
+        "error"
+    } else if body.is_some_and(|body| body.get("detail").is_some()) {
+        "detail"
+    } else {
+        "unrecognized"
+    };
+    let code = body
+        .and_then(|body| body.pointer("/error/code"))
+        .and_then(Value::as_str)
+        .filter(|code| CODES.contains(code))
+        .unwrap_or("unrecognized");
+    let param = body
+        .and_then(|body| body.pointer("/error/param"))
+        .and_then(Value::as_str)
+        .filter(|param| PARAMS.contains(param))
+        .unwrap_or("unrecognized");
+    let request_id = request_id
+        .filter(|id| {
+            id.starts_with("req_")
+                && id.len() <= 128
+                && id.bytes().all(|b| b.is_ascii_alphanumeric() || b"_-".contains(&b))
+        })
+        .unwrap_or("unavailable");
+    let hint = match status {
+        400 | 422 => "request/model/tool or thinking options were rejected; check /model settings; do not replay the same invalid request",
+        401 => "selected account or signed ChatGPT plan permission was not accepted; check login/scopes",
+        403 => "account/workspace/region or direct-route permission was denied; repeated login may not resolve policy restrictions",
+        404 => "model or endpoint unavailable for this account; check /model",
+        429 => "usage or rate limit reached; check ChatGPT usage and wait before retrying",
+        500..=599 => "provider/direct-route service unavailable; credentials were preserved; try later",
+        _ => "unexpected provider response; check connection settings",
+    };
+    SafeDiagnostic(format!("ChatGPT response request failed (HTTP {status}; body={shape}; code={code}; param={param}; request_id={request_id}): {hint}"))
+}
+async fn rejected_response(mut response: reqwest::Response) -> SafeDiagnostic {
+    let status = response.status().as_u16();
+    let request_id = response.headers().get("x-request-id").and_then(|value| value.to_str().ok()).map(str::to_owned);
+    let body = tokio::time::timeout(Duration::from_secs(5), async {
+        let mut bytes = Vec::new();
+        while let Ok(Some(chunk)) = response.chunk().await {
+            if bytes.len().saturating_add(chunk.len()) > 16_384 {
+                return None;
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        serde_json::from_slice::<Value>(&bytes).ok()
+    })
+    .await
+    .ok()
+    .flatten();
+    http_diagnostic(status, request_id.as_deref(), body.as_ref())
+}
+
 pub fn prepare(mut body: Value) -> Result<Value> {
     if serde_json::to_vec(&body).map_err(|_| anyhow!(FAILURE))?.len() > MAX_REQUEST {
         bail!("ChatGPT request is too large");
@@ -143,46 +254,164 @@ fn validate_tool(tool: &Value, names: &mut HashSet<String>) -> Result<()> {
     Ok(())
 }
 
-pub async fn response(auth: &Auth, body: Value) -> Result<reqwest::Response> {
-    let body = prepare(body)?;
-    let token = auth.access_token().await?;
+fn content_type(response: &reqwest::Response) -> &'static str {
+    let Some(value) = response.headers().get(reqwest::header::CONTENT_TYPE) else {
+        return "missing";
+    };
+    let value = value.to_str().unwrap_or("").split(';').next().unwrap_or("").trim();
+    [
+        "text/event-stream",
+        "application/json",
+        "text/html",
+        "text/plain",
+        "application/problem+json",
+        "application/octet-stream",
+    ]
+    .into_iter()
+    .find(|known| value.eq_ignore_ascii_case(known))
+    .unwrap_or("other")
+}
+async fn unexpected_content_type(response: reqwest::Response) -> SafeDiagnostic {
+    let mime = content_type(&response);
+    let diagnostic = rejected_response(response).await;
+    SafeDiagnostic(format!("ChatGPT response format failed (content_type={mime}); {diagnostic}; expected Responses SSE or completed JSON, not HTML, errors or partial tools"))
+}
+async fn send_response(auth: &Auth, body: Value) -> Result<reqwest::Response> {
+    let body = prepare(body)
+        .map_err(|_| SafeDiagnostic::stage("request preparation", "unsupported input/history or tool schema"))?;
+    let token = auth.access_token().await.map_err(|error| {
+        if error.downcast_ref::<SafeDiagnostic>().is_some() {
+            return error;
+        }
+        SafeDiagnostic::stage(
+            "authorization",
+            "selected account/session or ChatGPT plan permission is unavailable; check login/scopes",
+        )
+        .into()
+    })?;
     let response = tokio::time::timeout(
         DEADLINE,
         auth.inference_http.post("https://api.openai.com/v1/responses").bearer_auth(token).json(&body).send(),
     )
     .await
-    .map_err(|_| anyhow!("ChatGPT response timed out"))?
-    .map_err(|_| anyhow!(FAILURE))?;
+    .map_err(|_| SafeDiagnostic::stage("response connection", "request timed out; check network/proxy"))?
+    .map_err(|error| {
+        SafeDiagnostic::stage(
+            "response connection",
+            if error.is_timeout() {
+                "network timeout; check proxy"
+            } else if error.is_connect() {
+                "connection/TLS/proxy failure"
+            } else {
+                "transport failure; check network/proxy"
+            },
+        )
+    })?;
     if !response.status().is_success() {
-        bail!("ChatGPT response request was not accepted");
+        return Err(rejected_response(response).await.into());
     }
-    if response
-        .headers()
-        .get(reqwest::header::CONTENT_TYPE)
-        .and_then(|v| v.to_str().ok())
-        .map(|v| v.split(';').next().unwrap_or("").trim())
-        != Some("text/event-stream")
-    {
-        bail!("ChatGPT returned an invalid response stream");
+    Ok(response)
+}
+pub async fn response(auth: &Auth, body: Value) -> Result<reqwest::Response> {
+    let response = send_response(auth, body).await?;
+    if content_type(&response) != "text/event-stream" {
+        return Err(unexpected_content_type(response).await.into());
     }
     Ok(response)
 }
 
 pub async fn complete(auth: &Auth, body: Value) -> Result<Value> {
-    let body = prepare(body)?;
-    let mut response = response(auth, body.clone()).await?;
+    let body = prepare(body)
+        .map_err(|_| SafeDiagnostic::stage("request preparation", "unsupported input/history or tool schema"))?;
+    let mut response = send_response(auth, body.clone()).await?;
+    let mime = content_type(&response);
+    if !matches!(mime, "text/event-stream" | "application/json" | "missing") {
+        return Err(unexpected_content_type(response).await.into());
+    }
     tokio::time::timeout(DEADLINE, async {
         let mut bytes = Vec::new();
-        while let Some(chunk) = response.chunk().await.map_err(|_| anyhow!(FAILURE))? {
+        while let Some(chunk) = response
+            .chunk()
+            .await
+            .map_err(|_| SafeDiagnostic::stage("response stream", "stream read was interrupted; check network/proxy"))?
+        {
             if bytes.len().saturating_add(chunk.len()) > MAX_STREAM {
-                bail!("ChatGPT response stream is too large");
+                return Err(SafeDiagnostic::stage("response stream", "stream exceeds 48 MiB limit").into());
             }
             bytes.extend_from_slice(&chunk);
         }
-        parse_sse(&bytes, &body)
+        decode_complete(&bytes, &body, mime)
     })
     .await
-    .map_err(|_| anyhow!("ChatGPT response timed out"))?
+    .map_err(|_| SafeDiagnostic::stage("response stream", "request timed out; no automatic replay"))?
+}
+
+fn decode_complete(bytes: &[u8], request: &Value, mime: &'static str) -> Result<Value> {
+    let payload = bytes.strip_prefix(b"\xef\xbb\xbf").unwrap_or(bytes);
+    let start = payload.trim_ascii_start();
+    let format = if start.is_empty() {
+        "empty"
+    } else if start.starts_with(b"{") {
+        "json"
+    } else if [b"data:".as_slice(), b"event:", b":", b"id:", b"retry:"].iter().any(|prefix| start.starts_with(prefix)) {
+        "sse"
+    } else {
+        "unrecognized"
+    };
+    let parsed = if bytes.len() > MAX_STREAM {
+        Err(SafeDiagnostic::stage("response decoding", "response exceeds 48 MiB limit").into())
+    } else if mime == "application/json" || mime == "missing" && format == "json" {
+        parse_json(payload, request)
+    } else if mime == "text/event-stream" || mime == "missing" && format == "sse" {
+        parse_sse(payload, request)
+    } else {
+        Err(SafeDiagnostic::stage(
+            "response decoding",
+            if format == "empty" {
+                "empty response body; check proxy/provider; no automatic replay"
+            } else {
+                "not a Responses SSE or JSON payload; pending tools were not executed"
+            },
+        )
+        .into())
+    };
+    parsed.map_err(|error: anyhow::Error| {
+        let safe = error
+            .chain()
+            .find_map(|error| error.downcast_ref::<SafeDiagnostic>())
+            .map(ToString::to_string)
+            .unwrap_or_else(|| "invalid or incomplete Responses payload; pending tools were not executed".into());
+        SafeDiagnostic(format!(
+            "ChatGPT response decoding failed (content_type={mime}; format={format}; bytes={}): {safe}",
+            bytes.len()
+        ))
+        .into()
+    })
+}
+
+fn parse_json(bytes: &[u8], request: &Value) -> Result<Value> {
+    if bytes.len() > MAX_STREAM {
+        return Err(SafeDiagnostic::stage("response JSON", "response exceeds 48 MiB").into());
+    }
+    let value: Value = serde_json::from_slice(bytes)
+        .map_err(|_| SafeDiagnostic::stage("response JSON", "invalid JSON; pending tools were not executed"))?;
+    if value.get("error").is_some_and(|error| !error.is_null()) || value.get("detail").is_some() {
+        return Err(http_diagnostic(200, None, Some(&value)).into());
+    }
+    if value["object"] != "response"
+        || value["status"] != "completed"
+        || value["id"].as_str().is_none_or(str::is_empty)
+        || value.get("incomplete_details").is_some_and(|details| !details.is_null())
+    {
+        return Err(SafeDiagnostic::stage(
+            "response JSON",
+            "not a completed Responses object; pending tools were not executed",
+        )
+        .into());
+    }
+    normalize(value, request).map_err(|_| {
+        SafeDiagnostic::stage("response JSON", "invalid output or tool call; pending tools were not executed").into()
+    })
 }
 
 fn parse_sse(bytes: &[u8], request: &Value) -> Result<Value> {
@@ -229,13 +458,30 @@ fn parse_sse(bytes: &[u8], request: &Value) -> Result<Value> {
             bail!(FAILURE);
         }
         let event: Value = serde_json::from_str(&data).map_err(|_| anyhow!(FAILURE))?;
+        let kind = event.get("type").and_then(Value::as_str).ok_or_else(|| anyhow!(FAILURE))?;
+        let failed_event = match kind {
+            "error" => Some("error"),
+            "response.error" => Some("response.error"),
+            "response.failed" => Some("response.failed"),
+            "response.incomplete" => Some("response.incomplete"),
+            _ => None,
+        };
+        if let Some(kind) = failed_event {
+            let error = event.pointer("/response/error").or_else(|| event.get("error")).unwrap_or(&event);
+            let diagnostic = http_diagnostic(200, None, Some(&json!({"error":error})));
+            let reason = event
+                .pointer("/response/incomplete_details/reason")
+                .and_then(Value::as_str)
+                .filter(|reason| matches!(*reason, "max_output_tokens" | "content_filter"))
+                .unwrap_or("unrecognized");
+            return Err(SafeDiagnostic(format!("ChatGPT stream event={kind}; incomplete_reason={reason}; {diagnostic}; pending tools were not executed")).into());
+        }
         if event.get("error").is_some_and(|error| !error.is_null())
             || event.pointer("/response/error").is_some_and(|error| !error.is_null())
             || event.pointer("/response/incomplete_details").is_some_and(|details| !details.is_null())
         {
             bail!(FAILURE);
         }
-        let kind = event.get("type").and_then(Value::as_str).ok_or_else(|| anyhow!(FAILURE))?;
         if event_name.is_some_and(|name| name != kind) {
             bail!(FAILURE);
         }
@@ -348,6 +594,56 @@ fn normalize(response: Value, request: &Value) -> Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn completed_json_responses_are_accepted_but_errors_and_incomplete_tools_are_not() {
+        let request = prepare(json!({"model":"fixture","input":[]})).unwrap();
+        let response = json!({"object":"response","id":"r1","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"OK"}]}]});
+        let result = parse_json(&serde_json::to_vec(&response).unwrap(), &request).unwrap();
+        assert_eq!(result["choices"][0]["message"]["content"], "OK");
+        for bad in [
+            json!({"choices":[{"message":{"content":"fake chat completion"}}]}),
+            json!({"object":"response","id":"r1","status":"incomplete","output":[]}),
+            json!({"object":"response","id":"r1","status":"completed","output":[{"type":"function_call","name":"unrequested","call_id":"c1","arguments":"{}"}]}),
+            json!({"error":{"code":"model_not_found","message":"PRIVATE_PROMPT"}}),
+        ] {
+            let error = parse_json(&serde_json::to_vec(&bad).unwrap(), &request).unwrap_err();
+            assert!(!worker_diagnostic(&error).contains("PRIVATE_PROMPT"));
+        }
+    }
+    #[test]
+    fn worker_reports_only_typed_safe_diagnostics_and_never_response_secrets() {
+        let body = json!({"error":{"code":"subscription_sharing_unsupported_capability","param":"reasoning.effort","message":"PRIVATE_TOKEN_AND_PROMPT"}});
+        let error = http_diagnostic(400, Some("req_fixture"), Some(&body));
+        let displayed = worker_diagnostic(&anyhow::Error::new(error).context("untrusted PRIVATE_TOKEN_AND_PROMPT"));
+        assert!(displayed.contains("HTTP 400") && displayed.contains("subscription_sharing_unsupported_capability"));
+        assert!(displayed.contains("reasoning.effort") && displayed.contains("req_fixture"));
+        assert!(!displayed.contains("PRIVATE_TOKEN_AND_PROMPT"));
+        let error = http_diagnostic(403, Some("PRIVATE_TOKEN"), Some(&json!({"detail":"PRIVATE_TOKEN"})));
+        let displayed = error.to_string();
+        assert!(displayed.contains("HTTP 403") && displayed.contains("detail"));
+        assert!(!displayed.contains("PRIVATE_TOKEN"));
+        assert!(!worker_diagnostic(&anyhow!("PRIVATE_TOKEN")).contains("PRIVATE_TOKEN"));
+        let body = json!({"error":{"code":"PRIVATE_TOKEN","param":"PRIVATE_TOKEN"}});
+        assert!(!http_diagnostic(400, None, Some(&body)).to_string().contains("PRIVATE_TOKEN"));
+    }
+    #[test]
+    fn failed_and_incomplete_stream_events_keep_only_safe_metadata() {
+        let body = prepare(json!({"model":"fixture","input":[]})).unwrap();
+        for (kind, error, reason) in [
+            ("response.failed", json!({"code":"model_not_found","message":"PRIVATE_PROMPT"}), Value::Null),
+            ("response.incomplete", Value::Null, json!({"reason":"max_output_tokens","message":"PRIVATE_PROMPT"})),
+        ] {
+            let bytes = format!(
+                "data: {}\n\ndata: {}\n\n",
+                json!({"type":"response.created","response":{"id":"r1"}}),
+                json!({"type":kind,"response":{"id":"r1","error":error,"incomplete_details":reason}})
+            );
+            let error = parse_sse(bytes.as_bytes(), &body).unwrap_err();
+            let text = worker_diagnostic(&error);
+            assert!(text.contains(kind) && !text.contains("PRIVATE_PROMPT"), "{text}");
+            assert!(text.contains("model_not_found") || text.contains("max_output_tokens"));
+        }
+    }
     use serde_json::json;
 
     #[test]

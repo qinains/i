@@ -137,6 +137,10 @@ async fn main() -> Result<()> {
     }
     args.config = args.config.or_else(|| config_dir().map(|dir| dir.join("config.json")).filter(|p| p.is_file()));
     let config = load_config(args.config.as_deref())?;
+    #[cfg(feature = "bundled")]
+    if let Some(provider) = &config.provider {
+        i_plugins::check_connection(provider)?;
+    }
     workspace.io_limit = config.io_limit_bytes.unwrap_or(1024 * 1024);
     ensure!((1..=48 * 1024 * 1024).contains(&workspace.io_limit), "io_limit_bytes must be 1..48 MiB");
     let parent = args.config.as_deref().and_then(Path::parent).unwrap_or(Path::new("."));
@@ -162,7 +166,11 @@ async fn main() -> Result<()> {
     let key = args.api_key.or(config.api_key.clone()).unwrap_or_else(|| env::var(&key_env).unwrap_or_default());
     #[cfg(feature = "bundled")]
     let key = i_plugins::deployment_key(&key_env, key)?;
-    let client = net::client(config.proxy.as_deref())?;
+    #[cfg(feature = "bundled")]
+    let session_proxy = i_plugins::model_proxy()?;
+    #[cfg(not(feature = "bundled"))]
+    let session_proxy: Option<String> = None;
+    let client = net::client(session_proxy.as_deref().or(config.proxy.as_deref()))?;
     let api = Api { client, url, key, protocol, model: model.clone(), max_tokens, config, plugins };
     if let Some(action) = args.provider_action {
         let action: Value = serde_json::from_str(&action)?;
@@ -541,7 +549,10 @@ impl Plugins {
         let key = json!([entry["exec"], dir]).to_string();
         let mut workers = self.workers.borrow_mut();
         if !workers.contains_key(&key) {
-            workers.insert(key.clone(), Worker::start(&entry["exec"], &dir, self.io_limit)?);
+            workers.insert(
+                key.clone(),
+                Worker::start_routed(&entry["exec"], &dir, self.io_limit, entry["managed_connection"].as_str())?,
+            );
         }
         let timeout = if event == "provider_complete" { Duration::from_secs(1800) } else { Duration::from_secs(15) };
         let result =
@@ -554,7 +565,9 @@ impl Plugins {
     fn emit(&self, event: &str, mut data: Value) -> Result<Value> {
         for hook in &self.hooks {
             if hook["events"].as_array().unwrap().iter().any(|e| e == event || e == "*") {
-                data = self.call(hook, event, data).with_context(|| format!("plugin event {event}"))?;
+                data = self.call(hook, event, data).map_err(|error| {
+                    anyhow::anyhow!("plugin event {event} ({}): {error:#}", hook["module"].as_str().unwrap_or("custom"))
+                })?;
             }
         }
         Ok(data)

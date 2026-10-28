@@ -98,6 +98,10 @@ bumpalo 3.20.3
 Declared license: MIT OR Apache-2.0
 Notices: LICENSE-APACHE [954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76]; LICENSE-MIT [5662394bebb1a815b411eb4e101a251b1c3118b9ad44e6f305cedcebfaa2522f]
 
+byteorder 1.5.0
+Declared license: Unlicense OR MIT
+Notices: COPYING [65314a6c96683f76f7495709bb0ddecb4eaa6fa244b28f23c4812ef8e5524066]; LICENSE-MIT [154c1af2b38e25e5c18613dfe352eed29b0863cb39e494007822cdeb39150ac5]
+
 bytes 1.12.1
 Declared license: MIT
 Notices: LICENSE [51f778ffff2c0705f0392f4202c932c7c93124850ced31abb7eef1e937da42c4]
@@ -853,6 +857,10 @@ Notices: LICENSE-APACHE [954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be
 socket2 0.6.5
 Declared license: MIT OR Apache-2.0
 Notices: LICENSE-APACHE [954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76]; LICENSE-MIT [84e1bbfebd74e4196cfa0ea5cf58e677aa24b47c6661adbb19fb07920d089d1d]
+
+socks 0.3.4
+Declared license: MIT/Apache-2.0
+Notices: LICENSE-APACHE [6dc0e068dcf3a5bc8e054205b85b7720e1d49265bbc64bf515d2cf79197df69a]; LICENSE-MIT [ced1357fd5945152c9428ccb214d5a5c7b206ff2b511872a2b855c2ab41eb0d7]
 
 stable_deref_trait 1.2.1
 Declared license: MIT OR Apache-2.0
@@ -10110,6 +10118,27 @@ the following restrictions:
    misrepresented as being the original software.
 
 3. This notice may not be removed or altered from any source distribution.
+
+===== ced1357fd5945152c9428ccb214d5a5c7b206ff2b511872a2b855c2ab41eb0d7 =====
+Copyright (c) 2015 The rust-socks Developers
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 ===== d30183ec6610abca89d6095d5f1dc56ea50248a1001cbb4549fadc3a582f6f9a =====
 # Community Data License Agreement - Permissive - Version 2.0

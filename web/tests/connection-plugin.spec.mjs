@@ -40,6 +40,7 @@ test('pairing is an unsaved new plugin connection and inference uses only local 
     await page.goto('/'+fragment);await expect(page.locator('#status')).toHaveText('Ready');
     expect(new URL(page.url()).hash).toBe('');expect(requests).toHaveLength(0);
     await expect(page.locator('#transport')).toHaveValue('plugin');await expect(page.locator('#base-url')).toBeHidden();await expect(page.locator('#api-key')).toBeHidden();await expect(page.locator('#connection-guide')).toBeHidden();
+    await expect(page.locator('#local-plugin-command')).toHaveText(/^i plugins serve chatgpt --origin /);
     expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('i_harness_profiles')).current)).toBe('original');
     await page.locator('#local-plugin-check').click();await expect(page.locator('#local-plugin-status')).toHaveText('Plugin accounts and models refreshed.');
     await expect(page.locator('#local-plugin-identity')).toHaveText('ChatGPT (openai.chatgpt)');await expect(page.locator('#local-plugin-model')).toHaveValue('real-model');await expect(page.locator('#local-plugin-model option[value=hidden-model]')).toHaveCount(0);

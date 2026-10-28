@@ -5,6 +5,84 @@ use std::{
     process::{Command, Stdio},
 };
 
+#[test]
+fn console_plugins_and_login_are_local_commands_without_a_model() {
+    let root = tempfile::tempdir().unwrap();
+    let mut child = command(root.path())
+        .args(["console", "--no-logo", "-C", root.path().to_str().unwrap()])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child.stdin.take().unwrap().write_all(b"/plugins\n/login\n/cancel\n/exit\n").unwrap();
+    let output = child.wait_with_output().unwrap();
+    let text = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{text}");
+    assert!(text.contains("ChatGPT") && text.contains("Console API"), "{text}");
+    assert!(text.contains("/plugins install chatgpt"), "{text}");
+    assert!(text.contains("No enabled login plugins"), "{text}");
+    assert!(!text.contains("[task:"), "slash commands must never be model tasks: {text}");
+    assert!(!root.path().join("config/config.json").exists());
+}
+
+#[test]
+fn console_plugin_install_requires_confirmation_and_can_cancel() {
+    let root = tempfile::tempdir().unwrap();
+    let mut child = command(root.path())
+        .args(["console", "--no-logo"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child.stdin.take().unwrap().write_all(b"/plugins install chatgpt\nn\n/exit\n").unwrap();
+    let output = child.wait_with_output().unwrap();
+    let text = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{text}");
+    assert!(text.contains("native code") && text.contains("[y/N]"), "{text}");
+    assert!(text.contains("cancelled"), "{text}");
+    assert!(!root.path().join("data/connections").exists());
+}
+
+#[test]
+fn start_without_configuration_can_open_plugins_before_setup() {
+    let root = tempfile::tempdir().unwrap();
+    let mut child = command(root.path())
+        .args(["start", "--no-logo"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child.stdin.take().unwrap().write_all(b"/plugins\n/cancel\n/exit\n").unwrap();
+    let output = child.wait_with_output().unwrap();
+    let text = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{text}");
+    assert!(text.contains("ChatGPT"), "{text}");
+    assert!(!root.path().join("config/config.json").exists());
+}
+
+#[test]
+fn plugin_cli_lists_and_cancels_install_without_external_helper_commands() {
+    let root = tempfile::tempdir().unwrap();
+    let list = command(root.path()).args(["plugins", "list"]).output().unwrap();
+    assert!(list.status.success(), "{}", String::from_utf8_lossy(&list.stderr));
+    assert!(String::from_utf8_lossy(&list.stdout).contains("ChatGPT"));
+    let mut child = command(root.path())
+        .args(["plugins", "install", "claude"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child.stdin.take().unwrap().write_all(b"n\n").unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(String::from_utf8_lossy(&output.stdout).contains("cancelled"));
+    assert!(!root.path().join("data/connections").exists());
+}
+
 fn command(root: &std::path::Path) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_i-plugins"));
     for (key, name) in
@@ -13,6 +91,33 @@ fn command(root: &std::path::Path) -> Command {
         command.env(key, root.join(name));
     }
     command
+}
+#[test]
+fn console_proxy_switches_locally_without_a_model_or_configuration_write() {
+    let root = tempfile::tempdir().unwrap();
+    let mut child = command(root.path())
+        .args(["console", "--no-logo"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(
+            b"/proxy 3067\n/proxy\n/proxy socks5://127.0.0.1:3067\n/proxy no\n/proxy noproxy\n/proxy env\n/exit\n",
+        )
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    let text = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{text}");
+    assert!(text.contains("http://127.0.0.1:3067"), "{text}");
+    assert!(text.contains("socks5://127.0.0.1:3067"), "{text}");
+    assert!(text.contains("direct") && text.contains("environment"), "{text}");
+    assert!(!text.contains("[task:"), "{text}");
+    assert!(!root.path().join("config/config.json").exists());
 }
 #[test]
 fn desktop_init_preserves_files_and_separates_portable_and_executable_configuration() {

@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- Manage native connection plugins and sign in through `i` and `/plugins` rather
+  than separate helper commands; keep failed or cancelled setup from replacing
+  the working connection.
+- Change user-level proxy defaults and per-purpose overrides with `/proxy`, and
+  change the active model and thinking effort with `/model`.
+- Preserve the selected account when reconnecting a custom configuration, and
+  accept legacy generated search registrations without weakening custom plugin
+  name checks.
+- Decode completed ChatGPT Responses SSE and JSON even when the response omits
+  its content type. Reject incomplete outputs without executing pending tools or
+  retrying automatically, and expose credential-free failure diagnostics.
+- Update browser pairing instructions to use the unified `i plugins serve`
+  command. Provider credentials remain in the local native helper.
+
 ## 0.1.3 - 2026-10-27
 
 - Add optional ChatGPT and Claude Console connection helpers for native use and

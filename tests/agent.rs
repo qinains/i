@@ -12,7 +12,11 @@ use std::{
 mod approval_cases;
 mod cache_cases;
 mod compaction_cases;
+mod connection_login_cases;
 mod provider_cases;
+#[cfg(feature = "bundled")]
+#[path = "proxy_cases/mod.rs"]
+mod proxy_cases;
 mod support;
 fn workspace_store(root: &Path) -> std::path::PathBuf {
     let mut command = Command::new(plugin_binary());

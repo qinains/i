@@ -435,7 +435,7 @@ function updateTransport(){
     const relay=$('transport').value==='relay',local=$('transport').value==='plugin';
     $('relay-options').hidden=!relay;
     $('local-plugin-options').hidden=!local;
-    $('local-plugin-command').textContent=`i-chatgpt-plugin serve --origin ${location.origin}`;
+    $('local-plugin-command').textContent=`i plugins serve chatgpt --origin ${location.origin}`;
     for(const id of ['base-url','api-key','protocol','model'])$(id).closest('.form-field').hidden=local;
     $('stream').closest('label').hidden=local;
     $('connection-guide').hidden=local;$('credential-privacy').hidden=local;

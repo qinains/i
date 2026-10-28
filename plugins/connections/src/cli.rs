@@ -198,7 +198,7 @@ async fn worker(backend: Backend) -> Result<()> {
         };
         let reply = match result {
             Ok(data) => json!({"id":id,"data":data}),
-            Err(_) => json!({"id":id,"error":"Connection operation failed; check login and model selection"}),
+            Err(error) => json!({"id":id,"error":i_chatgpt::inference::worker_diagnostic(&error)}),
         };
         let mut line = serde_json::to_vec(&reply).map_err(|_| anyhow!("Cannot encode worker response"))?;
         line.push(b'\n');

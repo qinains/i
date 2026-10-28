@@ -374,11 +374,34 @@ impl Auth {
     }
 
     async fn token(&self, form: &[(&str, &str)]) -> Result<Tokens> {
-        let response = self.http.post(TOKEN).form(form).send().await.map_err(|_| anyhow!(FAILURE))?;
+        let refresh = form.iter().any(|(key, value)| *key == "grant_type" && *value == "refresh_token");
+        let stage = if refresh { "session refresh" } else { "sign-in code exchange" };
+        let response = self.http.post(TOKEN).form(form).send().await.map_err(|error| {
+            anyhow!(
+                "ChatGPT {stage} failed ({}); check network/proxy and try again",
+                if error.is_timeout() {
+                    "timeout"
+                } else if error.is_connect() {
+                    "connection failure"
+                } else {
+                    "transport failure"
+                }
+            )
+        })?;
         if !response.status().is_success() {
-            bail!("ChatGPT session could not be renewed; sign in again");
+            let status = response.status();
+            // Never echo the token response or its free-form descriptions: they may contain credentials.
+            let hint = match status.as_u16() {
+                400 | 401 if refresh => "session renewal was rejected; run /login chatgpt",
+                400 | 401 => "authorization code exchange was rejected; start a fresh login; check the helper version and system clock",
+                403 => "access was denied; check account/workspace authorization and network/proxy policy",
+                429 => "too many requests; wait before trying again",
+                500..=599 => "authorization service unavailable; try again later",
+                _ => "unexpected authorization response; check network/proxy and helper version",
+            };
+            return Err(inference::SafeDiagnostic::authentication_http(stage, status.as_u16(), hint).into());
         }
-        response.json().await.map_err(|_| anyhow!(FAILURE))
+        response.json().await.map_err(|_| anyhow!("ChatGPT {stage} returned an invalid token response"))
     }
 
     async fn verify(&self, token: &str, client: &str, nonce: Option<&str>) -> Result<Claims> {
@@ -659,7 +682,7 @@ async fn receive_callback(listener: TcpListener, state: &str, existing: Option<&
         // The first callback consumes the listener; success and failure both end this attempt.
         let result = callback(&target, state, existing);
         let body = if result.is_ok() {
-            "Sign-in received. You may close this window."
+            "Authorization callback received. Login is not complete yet: return to i for token exchange and verification. You may close this window."
         } else {
             "Sign-in could not be verified. Return to the application."
         };
@@ -830,8 +853,17 @@ mod tests {
         socket.read_to_string(&mut reply).await.unwrap();
         assert!(!reply.contains("secret-code"));
         assert!(reply.contains("no-store"));
+        assert!(reply.contains("Login is not complete yet"));
+        assert!(reply.contains("token exchange and verification"));
         assert_eq!(task.await.unwrap().unwrap(), ("secret-code".into(), "issued".into()));
-        assert!(tokio::net::TcpStream::connect(address).await.is_err());
+        // Concurrent TLS fixtures can reuse the released ephemeral port. A SYN
+        // succeeding does not mean this consumed OAuth listener accepted again.
+        if let Ok(mut second) = tokio::net::TcpStream::connect(address).await {
+            let _=second.write_all(b"GET /auth/callback?code=secret-code&state=state HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n").await;
+            let mut bytes = Vec::new();
+            let _ = tokio::time::timeout(Duration::from_millis(100), second.take(4096).read_to_end(&mut bytes)).await;
+            assert!(!String::from_utf8_lossy(&bytes).contains("Sign-in received"));
+        }
     }
 
     #[tokio::test]

@@ -19,7 +19,7 @@ fs2 = "0.4"
 globset = "=0.4.20"
 # Keep the complete Unicode language; omit optional acceleration engines for size.
 regex = { version = "1", default-features = false, features = ["std", "unicode"] }
-ureq = { version = "=3.4.2", default-features = false, features = ["native-tls"] }
+ureq = { version = "=3.4.2", default-features = false, features = ["native-tls", "socks-proxy"] }
 url = "2"
 ryu = "1" # Already required by YAML; preserve exact GET float formatting.
 serde_json = "1"
@@ -29,6 +29,7 @@ sha2 = "0.10"
 tempfile = "3"
 uuid = { version = "1", features = ["v4"] }
 walkdir = "2"
+zip = { version = "9", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 serde_urlencoded = "0.7" # Reference oracle only, not linked into release programs.

@@ -6,11 +6,16 @@ pub(super) struct Worker {
     serial: u64,
 }
 impl Worker {
+    #[cfg(test)]
     pub(super) fn start(exec: &Value, dir: &Path, limit: usize) -> Result<Self> {
+        Self::start_routed(exec, dir, limit, None)
+    }
+    pub(super) fn start_routed(exec: &Value, dir: &Path, limit: usize, route: Option<&str>) -> Result<Self> {
         let argv: Vec<String> = serde_json::from_value(exec.clone()).context("exec must be string array")?;
         let program = argv.first().context("empty exec")?;
         let program = if Path::new(program).components().count() > 1 { dir.join(program) } else { program.into() };
-        let mut child = Command::new(program)
+        let mut command = Command::new(&program);
+        command
             .args(&argv[1..])
             .current_dir(dir)
             .env_clear()
@@ -23,8 +28,15 @@ impl Worker {
             )
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .group_spawn()?;
+            .stderr(Stdio::piped());
+        #[cfg(feature = "bundled")]
+        if let Some(route) = route {
+            i_plugins::apply_connection_proxy(&mut command, route)?;
+        }
+        #[cfg(not(feature = "bundled"))]
+        let _ = route;
+        let mut child =
+            command.group_spawn().with_context(|| format!("cannot start plugin executable {}", program.display()))?;
         let mut input = child.inner().stdin.take().context("missing stdin")?;
         let mut output = io::BufReader::new(child.inner().stdout.take().context("missing stdout")?);
         let error = child.inner().stderr.take().context("missing stderr")?;

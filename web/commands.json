@@ -1,7 +1,12 @@
 [
   {"name":"/help","description":"Show available commands","platforms":["web","console","readline"],"arguments":[]},
+  {"name":"/plugins","description":"Manage optional native login plugins","platforms":["console"],"arguments":["list","install chatgpt","install claude","enable chatgpt","enable claude","disable chatgpt","disable claude","update chatgpt","update claude","remove chatgpt","remove claude","status chatgpt","status claude","models chatgpt","models claude","logout chatgpt","logout claude"]},
+  {"name":"/login","description":"Sign in and configure a model connection","platforms":["console"],"arguments":["chatgpt","claude"]},
+  {"name":"/proxy","description":"Manage user proxy defaults and per-purpose overrides","platforms":["console"],"arguments":["no","noproxy","env","3067",":3067","http://127.0.0.1:3067","socks5://127.0.0.1:3067","chatgpt 3067","chatgpt no","chatgpt default","claude no","plugins no","model 3067"]},
+  {"name":"/cancel","description":"Cancel the pending plugin menu or login selection","platforms":["console"],"arguments":[]},
   {"name":"/new","description":"Start a new conversation","platforms":["web"],"arguments":[]},
   {"name":"/mode","description":"View or change approval mode","platforms":["web","console"],"arguments":["ask","auto","status"]},
+  {"name":"/model","description":"Switch model or thinking effort","platforms":["console"],"arguments":["list","status","effort auto","effort low","effort medium","effort high","effort xhigh","effort max"]},
   {"name":"/clear","description":"Clear the display","platforms":["web","readline"],"arguments":[]},
   {"name":"/files","description":"Open workspace files","platforms":["web"],"arguments":[]},
   {"name":"/download","description":"Download workspace or selected path as ZIP","platforms":["web"],"arguments":[]},

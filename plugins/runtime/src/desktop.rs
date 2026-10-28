@@ -4,6 +4,60 @@ use anyhow::{Context, Result, bail, ensure};
 use serde_json::{Value, json};
 use std::{fs, io::Write, path::Path};
 
+fn legacy_module<'a>(entry: &'a Value, paths: &AppPaths) -> Option<&'a str> {
+    if entry["cwd"].as_str() != paths.config_dir.to_str() {
+        return None;
+    }
+    let exec = entry["exec"].as_array()?;
+    if exec.len() != 2 {
+        return None;
+    }
+    let program = Path::new(exec[0].as_str()?);
+    if !program.is_absolute() || program.file_stem()?.to_str()? != "i-plugins" {
+        return None;
+    }
+    let module = exec[1].as_str()?;
+    super::MODULES.contains(&module).then_some(module)
+}
+pub(crate) fn resolve_legacy(mut value: Value, paths: &AppPaths) -> Result<Value> {
+    let obsolete = |entry: &Value| {
+        legacy_module(entry, paths) == Some("search") && matches!(entry["name"].as_str(), Some("search" | "find_files"))
+    };
+    if !value["tools"].as_array().is_some_and(|tools| tools.iter().any(obsolete)) {
+        return Ok(value);
+    }
+    // Only the retired user-config builtins are recognized. Custom name collisions
+    // still reach the core's normal rejection, and the on-disk manifest is untouched.
+    value["tools"].as_array_mut().unwrap().retain(|entry| !obsolete(entry));
+    let bindings = bindings(paths)?;
+    let rewrite = |entry: &mut Value| -> Result<()> {
+        if let Some(module) = legacy_module(entry, paths).map(str::to_owned) {
+            let mut argv = super::executable()?;
+            argv.push(module.clone());
+            entry["exec"] = bindings[&module].get("exec").cloned().unwrap_or_else(|| json!(argv));
+            if let Some(cwd) = bindings[&module].get("cwd") {
+                entry["cwd"] = cwd.clone();
+            }
+        }
+        Ok(())
+    };
+    for section in ["tools", "hooks", "analyses"] {
+        if let Some(entries) = value.get_mut(section).and_then(Value::as_array_mut) {
+            for entry in entries {
+                rewrite(entry)?;
+            }
+        }
+    }
+    if let Some(provider) = value.get_mut("provider") {
+        rewrite(provider)?;
+    }
+    Ok(value)
+}
+
+#[cfg(test)]
+#[path = "desktop_legacy_tests.rs"]
+mod legacy_tests;
+
 fn selection(paths: &AppPaths) -> Result<Value> {
     let file = paths.config_dir.join("plugins.json");
     Ok(if file.try_exists()? {

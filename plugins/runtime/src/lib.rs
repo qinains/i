@@ -15,6 +15,8 @@ mod cache;
 mod compact;
 #[cfg(test)]
 mod compact_tests;
+mod connection_job;
+mod connections;
 mod console;
 mod console_editor;
 mod console_ui;
@@ -22,13 +24,22 @@ mod context;
 mod credentials;
 mod deployment;
 mod desktop;
+mod installation;
+mod model_settings;
+mod proxy;
+pub fn model_proxy() -> Result<Option<String>> {
+    proxy::model()
+}
+pub fn apply_connection_proxy(command: &mut std::process::Command, id: &str) -> Result<()> {
+    proxy::apply_connection(command, id)
+}
 static HOSTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 pub fn entry(args: Vec<String>) -> Result<()> {
     use std::io::IsTerminal;
     HOSTED.store(true, std::sync::atomic::Ordering::Relaxed);
     match args.first().map(String::as_str) {
         Some("--runtime") => main(args.into_iter().skip(1).collect()),
-        Some("install" | "setup" | "start") => main(args),
+        Some("install" | "setup" | "start" | "plugins" | "login") => main(args),
         None if io::stdin().is_terminal() && io::stdout().is_terminal() => main(vec!["start".into()]),
         _ => Ok(()),
     }
@@ -39,8 +50,17 @@ pub fn deployment_key(name: &str, current: String) -> Result<String> {
     }
     credentials::load(name)
 }
+pub fn check_connection(provider: &Value) -> Result<()> {
+    if provider.get("managed_connection").is_none() {
+        return Ok(());
+    }
+    connections::check_connection(&paths::AppPaths::desktop()?, provider)
+}
 pub fn resolve_manifest(value: Value) -> Result<Value> {
     if value.get("builtin_profile").is_none() {
+        if value["tools"].as_array().is_some_and(|tools| tools.iter().any(|tool| tool["name"] == "search")) {
+            return desktop::resolve_legacy(value, &paths::AppPaths::desktop()?);
+        }
         return Ok(value);
     }
     ensure!(
@@ -167,6 +187,9 @@ fn run(args: Vec<String>) -> Result<i32> {
     let command = args
         .first()
         .context("usage: i-plugins console|init|setup|install|start|paths|logo|manifest|cache-report|provider-files; worker modules: provider|approval|budget|compact|reflection|cache|responses|memory|prompts|search|web|skills|steering|brand|smoke")?;
+    if matches!(command.as_str(), "plugins" | "login") {
+        return connections::run_cli(command, &args[1..]);
+    }
     if matches!(command.as_str(), "install" | "setup" | "start") {
         return deployment::run(command, &args[1..]);
     }

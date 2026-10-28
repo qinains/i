@@ -80,6 +80,52 @@ fn handle(mode: &str, config: &Value, event: &Value, count: u64) -> Result<Value
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let mode = args.get(1).expect("fixture mode required");
+    if mode == "--data-dir" {
+        let directory = Path::new(&args[2]);
+        fs::create_dir_all(directory).unwrap();
+        let owner = std::env::current_exe().unwrap();
+        let owner = owner.parent().unwrap();
+        if let Ok(expected) = fs::read_to_string(owner.join("expected-proxy")) {
+            assert_eq!(std::env::var("HTTPS_PROXY").unwrap(), expected);
+            assert_eq!(std::env::var("https_proxy").unwrap(), expected);
+            assert_eq!(std::env::var("NO_PROXY").unwrap(), "localhost,127.0.0.1,::1");
+            append(&owner.join("proxy-phases"), &format!("{}\n", args[3]));
+        }
+        match args[3].as_str() {
+            "login" => {
+                if std::env::current_exe().unwrap().parent().unwrap().join("slow-login").exists() {
+                    thread::sleep(Duration::from_secs(5));
+                }
+                if std::env::current_exe().unwrap().parent().unwrap().join("deny-login").exists() {
+                    eprintln!("fixture login rejected (HTTP 401)");
+                    std::process::exit(1);
+                }
+                fs::write(directory.join("active-account"), "account-B").unwrap();
+                println!("{}", json!({"signed_in":true,"id":"fixture-account"}));
+            }
+            "models" => println!("{}", json!({"models":[{"slug":"fixture-model","visibility":"list"},{"slug":"hidden-model","visibility":"hide"}]})),
+            "status" => println!("{}", json!({"active":"fixture-account","accounts":[]})),
+            "logout" => println!("{}", json!({"signed_out":true,"remote_revocation_confirmed":false})),
+            "worker" => {
+                for line in io::stdin().lock().lines() {
+                    let request: Value = serde_json::from_str(&line.unwrap()).unwrap();
+                    assert_eq!(request["event"], "provider_complete");
+                    assert!(request["data"].get("api_key").is_none());
+                    if let Ok(expected) = fs::read_to_string(owner.join("expected-model.json")) {
+                        let expected: Value = serde_json::from_str(&expected).unwrap();
+                        assert_eq!(request["data"]["model"], expected["model"]);
+                        assert_eq!(request["data"]["extra_body"]["reasoning"]["effort"], expected["effort"]);
+                    }
+                    println!(
+                        "{}",
+                        json!({"id":request["id"],"data":{"version":1,"response":{"choices":[{"finish_reason":"stop","message":{"role":"assistant","content":"fixture connection reply"}}]}}})
+                    );
+                }
+            }
+            _ => panic!("unknown connection fixture command"),
+        }
+        return;
+    }
     if mode == "console-menu-pty" {
         pty::run(args.get(2).expect("console binary required"));
         return;

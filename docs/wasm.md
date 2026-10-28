@@ -43,7 +43,7 @@ node web/serve.mjs
 
 ### 可选本地连接插件
 
-设置的 **Local connection plugins** 管理入口与工作区 WASM 工具插件分开。用户需自行安装可信的 `i-chatgpt-plugin` 或 `i-claude-plugin`，运行 `serve --origin <页面确切 origin> --port 0`，打开其 `#connection-plugin=...` 配对链接，再在模型连接中检查插件、登录服务商、选择实际返回的账户/模型并保存更改。配对先创建未保存草稿，不替换已有连接，页面也不自动安装可执行程序。完整命令及 CLI 用法见 [原生连接插件](chatgpt-login.md)。
+设置的 **Local connection plugins** 管理入口与工作区 WASM 工具插件分开。通过 `i plugins` 安装并启用原生插件，再运行 `i plugins serve chatgpt --origin <页面确切 origin> --port 0`（Claude 将 `chatgpt` 换成 `claude`）。打开 `#connection-plugin=...` 配对链接，在模型连接中检查插件、账户、模型后保存。配对先创建未保存草稿，不替换已有连接，页面不自动安装可执行程序。完整命令见 [原生连接插件](chatgpt-login.md)。
 
 OAuth 凭据保留在原生插件侧；浏览器使用的是独立的本地配对能力密钥，可按记住配置选项保存。删除连接只清浏览器配对，不等于服务商登出；同一助手实例的账户选择会影响共享它的所有连接。原生插件有当前用户的 OS 权限，**不受 WASM 沙箱隔离**，不能因不转发主 API key 就将其视为无害。
 

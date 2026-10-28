@@ -100,7 +100,7 @@ API 配置可显式指定：
 
 ## NDJSON 合约 v1
 
-`provider: {"exec":["/absolute/i-chatgpt-plugin","worker"],"completion":"plugin"}` 显式选择原生完成插件。核心发送 `provider_complete`，插件返回 `{"version":1,"response":...}` 的规范化模型响应，不执行工作区工具。此路径不把主配置 API key 交给插件，不自动回退默认 HTTP provider；可用插件自带的 `configure --model MODEL --output FILE` 生成独立配置。插件是普通 OS 进程而非 WASM 沙箱，同用户文件仍可能被恶意程序读取，只应运行可信二进制。具体命令、计费区别和浏览器配对见 [连接插件说明](chatgpt-login.md)。
+`provider: {"exec":["/absolute/i-chatgpt-plugin","worker"],"completion":"plugin"}` 是原生完成插件的内部绑定。核心发送 `provider_complete`，插件返回 `{"version":1,"response":...}` 的规范化模型响应，不执行工作区工具。此路径不把主配置 API key 交给插件，也不自动回退默认 HTTP provider。用户通过 `i plugins` 安装和启用、`i login` 登录并自动配置，不需要手写 worker 路径。插件是普通 OS 进程而非 WASM 沙箱，同用户文件仍可能被恶意程序读取，只应运行可信二进制。计费区别和浏览器配对见 [连接插件说明](chatgpt-login.md)。
 
 `provider_complete` 的 `data` 包含 `version:1`、`protocol`、`model`、`history`、`tools`、`plugin_tools`、`compact`、`max_tokens` 和 `extra_body`。成功回复继续使用下方的 `choices/message/tool_calls` 结构，必须有字符串 `content`；无工具时 `finish_reason:stop`，有工具时 `finish_reason:tool_calls`。插件必须拒绝中断、不完整或不合法的工具批次，不能把它们包装成成功。
 

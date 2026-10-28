@@ -44,16 +44,9 @@ pub(crate) fn run(command: &str, args: &[String]) -> Result<i32> {
                     && value["base_url"].as_str().is_none()
                     && env::var_os("API_BASE_URL").is_none())
             {
-                use std::io::IsTerminal;
-                ensure!(
-                    option(args, "--config").is_none(),
-                    "explicit API config is incomplete; configure it rather than replacing it"
+                eprintln!(
+                    "No model connection configured. Use /plugins then /login in the console, or run i setup for an API-key connection. No requests are sent until you enter a task."
                 );
-                ensure!(io::stdin().is_terminal(), "run i setup first (model and endpoint are required)");
-                let mut exec = super::executable()?;
-                exec.push("setup".into());
-                let status = std::process::Command::new(&exec[0]).args(&exec[1..]).status()?;
-                ensure!(status.success(), "setup did not complete");
             }
             console::run(args)
         }

@@ -305,7 +305,7 @@ fn first_launch(binary: &Path, root: &Path, answer: Option<&str>) -> Result<Stri
             let _ = p.master.write_all(answer.as_bytes());
             answered = true;
         }
-        p.text().contains("Provider")
+        p.text().contains("Type a task")
     })?;
     Ok(pty.text())
 }
@@ -316,10 +316,10 @@ pub fn first_run(binary: &Path) -> Result<()> {
     cmd.arg("start");
     let out = crate::run(&mut cmd, b"")?;
     ensure!(
-        !out.status.success()
+        out.status.success()
             && !String::from_utf8_lossy(&out.stdout).contains("Install for this user?")
             && !root.join("config/first-run-install.json").exists(),
-        "Noninteractive install prompt"
+        "Noninteractive first run must open the local console without installation or model setup"
     );
     for accept in [false, true] {
         let temp = tempfile::tempdir()?;

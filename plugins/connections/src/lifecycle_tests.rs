@@ -21,7 +21,13 @@ struct Exchange {
     requests: Vec<(String, String, String)>,
     refreshes: usize,
     reject_refresh: bool,
+    reject_code: bool,
     wrong_subject: bool,
+    inference_status: u16,
+    json_response: bool,
+    inference_mime: Option<&'static str>,
+    omit_inference_content_type: bool,
+    inference_body: Option<&'static str>,
 }
 struct Fixture {
     http: reqwest::Client,
@@ -173,7 +179,7 @@ impl Fixture {
                             state.requests.push((path.clone(), auth.clone(), body.clone()));
                             let mut status = 200;
                             let mut content_type = "application/json";
-                            let output = match path.as_str() {
+                            let mut output = match path.as_str() {
                                 "/.well-known/jwks.json" => jwks.to_string(),
                                 "/api/accounts/oauth/token" => {
                                     let form: HashMap<String, String> =
@@ -191,7 +197,10 @@ impl Fixture {
                                             state.challenge
                                         );
                                     }
-                                    if refresh && state.reject_refresh {
+                                    if !refresh && state.reject_code {
+                                        status = 400;
+                                        json!({"error":"invalid_grant", "error_description":"fixture-private-access-token"}).to_string()
+                                    } else if refresh && state.reject_refresh {
                                         status = 401;
                                         json!({"error":"fixture expired"}).to_string()
                                     } else {
@@ -206,12 +215,19 @@ impl Fixture {
                                     let body: Value = serde_json::from_str(&body).unwrap();
                                     assert_eq!(body["store"], false);
                                     assert_eq!(body["stream"], true);
-                                    content_type = "text/event-stream";
-                                    format!(
-                                        "data: {}\n\ndata: {}\n\n",
-                                        json!({"type":"response.created","response":{"id":"fixture-response"}}),
-                                        json!({"type":"response.completed","response":{"id":"fixture-response","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"offline reply"}]}]}})
-                                    )
+                                    if state.inference_status != 0 {
+                                        status = state.inference_status;
+                                        json!({"error":{"code":"subscription_sharing_unsupported_capability","param":"reasoning.effort","message":"fixture-private-access-token and prompt"}}).to_string()
+                                    } else if state.json_response {
+                                        json!({"object":"response","id":"fixture-response","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"offline reply"}]}]}).to_string()
+                                    } else {
+                                        content_type = "text/event-stream";
+                                        format!(
+                                            "data: {}\n\ndata: {}\n\n",
+                                            json!({"type":"response.created","response":{"id":"fixture-response"}}),
+                                            json!({"type":"response.completed","response":{"id":"fixture-response","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"offline reply"}]}]}})
+                                        )
+                                    }
                                 }
                                 "/.well-known/openid-configuration" => {
                                     json!({"issuer":ISSUER,"revocation_endpoint":"https://auth.openai.com/revoke"})
@@ -228,13 +244,19 @@ impl Fixture {
                                     "{}".into()
                                 }
                             };
-                            Ok::<_, Infallible>(
-                                Response::builder()
-                                    .status(status)
-                                    .header("content-type", content_type)
-                                    .body(Full::new(Bytes::from(output)))
-                                    .unwrap(),
-                            )
+                            if path == "/v1/responses" {
+                                if let Some(body) = state.inference_body {
+                                    output = body.into();
+                                }
+                                if let Some(mime) = state.inference_mime {
+                                    content_type = mime;
+                                }
+                            }
+                            let mut response = Response::builder().status(status).header("x-request-id", "req_fixture");
+                            if path != "/v1/responses" || !state.omit_inference_content_type {
+                                response = response.header("content-type", content_type);
+                            }
+                            Ok::<_, Infallible>(response.body(Full::new(Bytes::from(output))).unwrap())
                         }
                     });
                     let _ = http1::Builder::new().serve_connection(TokioIo::new(socket), service).await;
@@ -279,6 +301,18 @@ impl Fixture {
 }
 
 #[tokio::test]
+async fn failed_code_exchange_is_not_reported_as_a_refresh_and_never_leaks_response() {
+    let fixture = Fixture::start().await;
+    let root = tempfile::tempdir().unwrap();
+    let auth = fixture.auth(root.path().to_path_buf());
+    fixture.exchange.lock().unwrap().reject_code = true;
+    let error = fixture.login(&auth).await.unwrap_err().to_string();
+    assert!(error.contains("code exchange") && error.contains("HTTP 400"), "{error}");
+    assert!(!error.contains("renewed") && !error.contains("fixture-private"), "{error}");
+    assert!(auth.status().await.unwrap().accounts.is_empty());
+}
+
+#[tokio::test]
 async fn oauth_tls_lifecycle_rotates_once_across_instances_and_revokes_without_leaking() {
     let fixture = Fixture::start().await;
     let root = tempfile::tempdir().unwrap();
@@ -309,6 +343,96 @@ async fn oauth_tls_lifecycle_rotates_once_across_instances_and_revokes_without_l
     let state = fixture.exchange.lock().unwrap();
     assert_eq!(state.requests.iter().filter(|(path, _, _)| path == "/revoke").count(), 1);
     assert!(state.requests.iter().filter(|(path, _, _)| path != "/v1/responses").all(|(_, auth, _)| auth.is_empty()));
+}
+#[tokio::test]
+async fn inference_http_failure_reaches_worker_diagnostics_without_leaks_replay_or_credential_loss() {
+    let fixture = Fixture::start().await;
+    let root = tempfile::tempdir().unwrap();
+    let auth = fixture.auth(root.path().to_path_buf());
+    fixture.login(&auth).await.unwrap();
+    {
+        let mut store = auth.read().unwrap();
+        store.accounts[0].credentials.as_mut().unwrap().expires_at = 0;
+        auth.write(&store).unwrap();
+    }
+    auth.access_token().await.unwrap();
+    let before = fs::read(root.path().join("accounts.json")).unwrap();
+    for status in [400, 403, 429, 503] {
+        fixture.exchange.lock().unwrap().inference_status = status;
+        let error =
+            inference::complete(&auth, json!({"model":"fixture","input":[{"role":"user","content":"offline test"}]}))
+                .await
+                .unwrap_err();
+        let displayed = inference::worker_diagnostic(&error);
+        assert!(displayed.contains(&format!("HTTP {status}")) && displayed.contains("req_fixture"), "{displayed}");
+        assert!(!displayed.contains("fixture-private") && !displayed.contains("prompt"), "{displayed}");
+        assert_eq!(fs::read(root.path().join("accounts.json")).unwrap(), before);
+    }
+    assert_eq!(
+        fixture.exchange.lock().unwrap().requests.iter().filter(|(path, _, _)| path == "/v1/responses").count(),
+        4
+    );
+}
+#[tokio::test]
+async fn nonstream_completed_json_uses_the_same_request_without_replay_and_html_is_rejected() {
+    let fixture = Fixture::start().await;
+    let root = tempfile::tempdir().unwrap();
+    let auth = fixture.auth(root.path().to_path_buf());
+    fixture.login(&auth).await.unwrap();
+    {
+        let mut store = auth.read().unwrap();
+        store.accounts[0].credentials.as_mut().unwrap().expires_at = 0;
+        auth.write(&store).unwrap();
+    }
+    auth.access_token().await.unwrap();
+    fixture.exchange.lock().unwrap().json_response = true;
+    let request = json!({"model":"fixture","input":[{"role":"user","content":"offline test"}]});
+    let output = inference::complete(&auth, request.clone()).await.unwrap();
+    assert_eq!(output["choices"][0]["message"]["content"], "offline reply");
+    fixture.exchange.lock().unwrap().inference_mime = Some("text/html");
+    let error = inference::complete(&auth, request).await.unwrap_err();
+    let displayed = inference::worker_diagnostic(&error);
+    assert!(displayed.contains("content_type=text/html"), "{displayed}");
+    assert!(!displayed.contains("offline reply") && !displayed.contains("fixture-access"));
+    assert_eq!(
+        fixture.exchange.lock().unwrap().requests.iter().filter(|(path, _, _)| path == "/v1/responses").count(),
+        2
+    );
+}
+#[tokio::test]
+async fn missing_content_type_accepts_only_complete_responses_and_never_retries_or_leaks_bytes() {
+    let fixture = Fixture::start().await;
+    let root = tempfile::tempdir().unwrap();
+    let auth = fixture.auth(root.path().to_path_buf());
+    fixture.login(&auth).await.unwrap();
+    {
+        let mut store = auth.read().unwrap();
+        store.accounts[0].credentials.as_mut().unwrap().expires_at = 0;
+        auth.write(&store).unwrap();
+    }
+    auth.access_token().await.unwrap();
+    fixture.exchange.lock().unwrap().omit_inference_content_type = true;
+    let request = json!({"model":"fixture","input":[{"role":"user","content":"offline test"}]});
+    for json_response in [false, true] {
+        fixture.exchange.lock().unwrap().json_response = json_response;
+        let result = inference::complete(&auth, request.clone()).await.unwrap();
+        assert_eq!(result["choices"][0]["message"]["content"], "offline reply");
+    }
+    for (body, shape) in [
+        ("", "empty"),
+        ("<html>PRIVATE_TOKEN_AND_PROMPT</html>", "unrecognized"),
+        ("data: {\"type\":\"response.created\",\"response\":{\"id\":\"r1\"}}\n\n", "sse"),
+    ] {
+        fixture.exchange.lock().unwrap().inference_body = Some(body);
+        let error = inference::complete(&auth, request.clone()).await.unwrap_err();
+        let text = inference::worker_diagnostic(&error);
+        assert!(text.contains("content_type=missing") && text.contains(&format!("format={shape}")), "{text}");
+        assert!(!text.contains("PRIVATE_TOKEN_AND_PROMPT"), "{text}");
+    }
+    assert_eq!(
+        fixture.exchange.lock().unwrap().requests.iter().filter(|(path, _, _)| path == "/v1/responses").count(),
+        5
+    );
 }
 
 #[tokio::test]

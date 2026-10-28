@@ -259,6 +259,7 @@ fn plugin_manifest_validation() {
     for bad in [
         json!({"tools":[valid, valid]}),
         json!({"tools":[{"name":"read"}]}),
+        json!({"tools":[{"name":"search","description":"custom","parameters":{"type":"object"},"exec":["/custom/worker","search"],"cwd":dir.path()}]}),
         json!({}),
         json!({"tools":[{"name":"bad name"}]}),
         json!({"tools":[{"name":"x","description":"x","exec":["true"],"parameters":{"type":"string"}}]}),
@@ -576,4 +577,14 @@ async fn shell_drains_large_output_without_deadlock() {
     assert!(output.contains("timed_out: false"));
     assert!(output.contains("[truncated]"));
     assert!(output.len() < ws.io_limit + 500);
+}
+#[test]
+fn hook_failure_names_module_and_underlying_reason_without_only_outer_context() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut plugins = load_plugins(None).unwrap();
+    plugins.dir = dir.path().to_path_buf();
+    plugins.hooks =
+        vec![json!({"module":"cache","events":["session_load"],"exec":[dir.path().join("missing-worker")]})];
+    let error = plugins.emit("session_load", json!({"messages":[]})).unwrap_err().to_string();
+    assert!(error.contains("session_load") && error.contains("cache") && error.contains("missing-worker"), "{error}");
 }

@@ -301,7 +301,9 @@ pub fn package(args: &[String]) -> Result<()> {
     }
     let helpers: Vec<_> =
         HELPERS.iter().map(|(name, _)| (*name, plan.binaries_dir.join(format!("{name}{}", suffix())))).collect();
-    let archive = package_into(&crate::root().join("dist"), host, &helpers, plan.rustc_flags.as_deref())?;
+    let out = args.windows(2).find(|v| v[0] == "--output").map(|v| PathBuf::from(&v[1]))
+        .unwrap_or_else(|| crate::root().join("dist"));
+    let archive = package_into(&out, host, &helpers, plan.rustc_flags.as_deref())?;
     if args.iter().any(|arg| arg == "--verify") {
         verify(&archive)?;
     }
@@ -447,7 +449,7 @@ fn package_into(
     }
     for (name, bytes) in [
         ("LICENSE", fs::read(crate::root().join("LICENSE"))?),
-        ("README.txt", b"Optional trusted local connection helpers.\n\nCLAUDE BILLING: OAuth avoids manual API-key entry, but uses Claude Console API billing. It does NOT use Claude Pro/Max plan allowances.\n\nChatGPT: bin/i-chatgpt-plugin login (account eligibility and granted permissions apply).\nClaude Console: install official ant, then bin/i-claude-plugin login.\nBrowser: serve --origin https://i.lninl.com and open the private pairing link; do not share it. Credentials are not included.\nGuide: https://i.lninl.com/docs/chatgpt-login/\n".to_vec()),
+        ("README.txt", b"Optional trusted local connection helpers, managed through i.\n\nCLAUDE BILLING: OAuth avoids manual API-key entry, but uses Claude Console API billing. It does NOT use Claude Pro/Max plan allowances.\n\nRun i, then /plugins to install and enable, then /login to authorize and select a model.\nCommand line: i plugins install chatgpt; i plugins enable chatgpt; i login chatgpt.\nClaude Console: install official ant, then use the same i commands with claude.\nBrowser: i plugins serve chatgpt --origin https://i.lninl.com and open the private pairing link; do not share it. Credentials are not included.\nThese helper executables implement internal worker/service contracts, not a WASM sandbox.\nGuide: https://i.lninl.com/docs/chatgpt-login/\n".to_vec()),
         ("BUILD.json", json!({"format_version":1,"kind":"optional-connections","target":target,"crt_linkage":rustc_flags.map(|_|"static"),"rustc_flags":rustc_flags}).to_string().into_bytes()),
     ] {
         zip.start_file(name, option.unix_permissions(0o644))?;

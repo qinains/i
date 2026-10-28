@@ -22,7 +22,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-fn without(args: &[String], flag: &str) -> Vec<String> {
+pub(super) fn without(args: &[String], flag: &str) -> Vec<String> {
     let mut result = Vec::new();
     let mut iter = args.iter();
     while let Some(arg) = iter.next() {
@@ -370,12 +370,18 @@ pub(crate) fn run(args: &[String]) -> Result<i32> {
     let mut followups: VecDeque<Task> = option(args, "--task").into_iter().map(Task::from).collect();
     // Declared after TempDir so process cleanup always precedes directory deletion.
     let mut running: Option<Running> = None;
+    let mut connections = super::connections::Menu::default();
     let approval = Arc::new(AtomicBool::new(false));
     let (mut eof, mut exiting, mut status) = (false, false, 0);
     ui.note("Type a task; Ctrl-V reads a clipboard image as a pending [Image #N]; add a caption or send it alone. Long text pastes fold without submitting.\nWhile busy: plain text or /steer TEXT steers, /queue TEXT follows up; image messages queue after the current task.\nApprovals: y/n or /approve /deny ONLY when prompted. /mode ask|auto switches policy; /exit finishes; Ctrl-C aborts.")?;
     ui.note(&format!("[mode: {initial_mode}; auto may allow actions without asking; shell is NOT sandboxed]"))?;
     loop {
         ui.drain()?;
+        match connections.poll(&paths) {
+            Ok(Some(message)) => ui.note(&message)?,
+            Err(error) => ui.note(&format!("[plugin operation failed: {error:#}; current connection preserved]"))?,
+            Ok(None) => {}
+        }
         ui.approval_pending(approval.load(Ordering::Acquire))?;
         if cancelled.load(Ordering::Acquire) {
             return Ok(130);
@@ -450,6 +456,26 @@ pub(crate) fn run(args: &[String]) -> Result<i32> {
         };
         if line.trim().is_empty() {
             continue;
+        }
+        match connections.handle(
+            &line,
+            &paths,
+            &mut backend,
+            running.is_some()
+                || !followups.is_empty()
+                || approval.load(Ordering::Acquire)
+                || exiting
+                || !steering::pending(&inbox)?.is_empty(),
+        ) {
+            Ok(Some(message)) => {
+                ui.note(&message)?;
+                continue;
+            }
+            Err(error) => {
+                ui.note(&format!("[plugin operation failed: {error:#}; current connection preserved]"))?;
+                continue;
+            }
+            Ok(None) => {}
         }
         if line.split_whitespace().next() == Some("/reflect") {
             let busy = running.is_some()

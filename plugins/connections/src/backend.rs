@@ -75,7 +75,18 @@ impl Backend {
     }
     pub async fn complete(&self, data: Value) -> Result<Value> {
         match self {
-            Self::Chatgpt(a) => inference::complete(a, responses_body(data)?).await,
+            Self::Chatgpt(a) => {
+                inference::complete(
+                    a,
+                    responses_body(data).map_err(|_| {
+                        inference::SafeDiagnostic::stage(
+                            "request preparation",
+                            "unsupported input/history or tool schema",
+                        )
+                    })?,
+                )
+                .await
+            }
             Self::Claude(a) => {
                 let body = claude::messages_body(data)?;
                 a.complete(body).await
