@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Accept response-scoped ChatGPT metadata events without treating them as output
+  items; retain response identity, completed-item and tool argument validation.
 - Manage native connection plugins and sign in through `i` and `/plugins` rather
   than separate helper commands; keep failed or cancelled setup from replacing
   the working connection.

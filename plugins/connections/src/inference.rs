@@ -313,21 +313,90 @@ async fn send_response(auth: &Auth, body: Value) -> Result<reqwest::Response> {
     Ok(response)
 }
 pub async fn response(auth: &Auth, body: Value) -> Result<reqwest::Response> {
-    let response = send_response(auth, body).await?;
-    if content_type(&response) != "text/event-stream" {
+    let body = prepare(body)
+        .map_err(|_| SafeDiagnostic::stage("request preparation", "unsupported input/history or tool schema"))?;
+    let mut response = send_response(auth, body.clone()).await?;
+    let mime = content_type(&response);
+    if mime == "text/event-stream" {
+        response.headers_mut().insert("content-type", "text/event-stream".parse().unwrap());
+        return Ok(response);
+    }
+    if !matches!(mime, "application/json" | "missing") {
         return Err(unexpected_content_type(response).await.into());
     }
-    Ok(response)
+    // Only the compatibility path buffers; ordinary SSE still streams immediately.
+    let (_, bytes) = read_complete(response, &body, mime).await?;
+    let payload = bytes.strip_prefix(b"\xef\xbb\xbf").unwrap_or(&bytes);
+    let stream = if payload.trim_ascii_start().starts_with(b"{") {
+        let completed: Value = serde_json::from_slice(payload)?;
+        completed_stream(&completed)?
+    } else {
+        payload.to_vec()
+    };
+    Ok(reqwest::Response::from(
+        hyper::Response::builder()
+            .header("content-type", "text/event-stream")
+            .header("cache-control", "no-store")
+            .body(stream)?,
+    ))
+}
+
+fn completed_stream(completed: &Value) -> Result<Vec<u8>> {
+    fn append(stream: &mut Vec<u8>, event: Value) -> Result<()> {
+        let event = format!("data: {event}\n\n");
+        if stream.len().saturating_add(event.len()) > MAX_STREAM {
+            return Err(SafeDiagnostic::stage("response conversion", "converted stream exceeds 48 MiB limit").into());
+        }
+        stream.extend_from_slice(event.as_bytes());
+        Ok(())
+    }
+    let invalid = || {
+        SafeDiagnostic::stage("response conversion", "invalid Responses output item; pending tools were not executed")
+    };
+    let mut stream = Vec::new();
+    append(
+        &mut stream,
+        json!({"type":"response.created","response":{"id":completed["id"],"object":"response","status":"in_progress","output":[]}}),
+    )?;
+    for (index, item) in completed["output"].as_array().ok_or_else(invalid)?.iter().enumerate() {
+        if index >= 1000 || item["id"].as_str().is_none_or(str::is_empty) {
+            return Err(invalid().into());
+        }
+        append(&mut stream, json!({"type":"response.output_item.added","output_index":index,"item":item}))?;
+        let (parts, kind, position) = match item["type"].as_str() {
+            Some("message") if item["status"] == "completed" => {
+                (Some(&item["content"]), "response.content_part.added", "content_index")
+            }
+            Some("reasoning") => (Some(&item["summary"]), "response.reasoning_summary_part.added", "summary_index"),
+            Some("function_call") => (None, "", ""),
+            _ => return Err(invalid().into()),
+        };
+        if let Some(parts) = parts {
+            for (part_index, part) in parts.as_array().ok_or_else(invalid)?.iter().enumerate() {
+                append(
+                    &mut stream,
+                    json!({"type":kind,"output_index":index,"item_id":item["id"],(position):part_index,"part":part}),
+                )?;
+            }
+        }
+        append(&mut stream, json!({"type":"response.output_item.done","output_index":index,"item":item}))?;
+    }
+    append(&mut stream, json!({"type":"response.completed","response":completed}))?;
+    Ok(stream)
 }
 
 pub async fn complete(auth: &Auth, body: Value) -> Result<Value> {
     let body = prepare(body)
         .map_err(|_| SafeDiagnostic::stage("request preparation", "unsupported input/history or tool schema"))?;
-    let mut response = send_response(auth, body.clone()).await?;
+    let response = send_response(auth, body.clone()).await?;
     let mime = content_type(&response);
     if !matches!(mime, "text/event-stream" | "application/json" | "missing") {
         return Err(unexpected_content_type(response).await.into());
     }
+    Ok(read_complete(response, &body, mime).await?.0)
+}
+
+async fn read_complete(mut response: reqwest::Response, body: &Value, mime: &'static str) -> Result<(Value, Vec<u8>)> {
     tokio::time::timeout(DEADLINE, async {
         let mut bytes = Vec::new();
         while let Some(chunk) = response
@@ -340,7 +409,7 @@ pub async fn complete(auth: &Auth, body: Value) -> Result<Value> {
             }
             bytes.extend_from_slice(&chunk);
         }
-        decode_complete(&bytes, &body, mime)
+        Ok((decode_complete(&bytes, body, mime)?, bytes))
     })
     .await
     .map_err(|_| SafeDiagnostic::stage("response stream", "request timed out; no automatic replay"))?
@@ -594,6 +663,36 @@ fn normalize(response: Value, request: &Value) -> Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn json_conversion_preserves_output_items_and_emits_the_full_browser_lifecycle() {
+        let response = json!({"id":"r1","object":"response","status":"completed","output":[
+            {"id":"rs1","type":"reasoning","summary":[{"type":"summary_text","text":"Plan"}],"encrypted_content":"OPAQUE"},
+            {"id":"m1","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"OK"}]},
+            {"id":"f1","type":"function_call","call_id":"c1","name":"read","arguments":"{}","status":"completed"}
+        ],"usage":{"input_tokens":1,"output_tokens":2}});
+        let stream = completed_stream(&response).unwrap();
+        let events: Vec<Value> = std::str::from_utf8(&stream)
+            .unwrap()
+            .lines()
+            .filter_map(|line| line.strip_prefix("data: "))
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert_eq!(events.first().unwrap()["type"], "response.created");
+        assert_eq!(events.last().unwrap()["response"], response);
+        for (index, item) in response["output"].as_array().unwrap().iter().enumerate() {
+            let items: Vec<_> = events
+                .iter()
+                .filter(|event| event["type"] == "response.output_item.done" && event["output_index"] == index)
+                .collect();
+            assert_eq!(items.len(), 1);
+            assert_eq!(items[0]["item"], *item);
+        }
+        let request = prepare(json!({"model":"fixture","input":[],"tools":[{"type":"function","name":"read","parameters":{"type":"object"}}]})).unwrap();
+        assert!(parse_sse(&stream, &request).is_ok());
+        let mut bad = response.clone();
+        bad["output"][1].as_object_mut().unwrap().remove("id");
+        assert!(completed_stream(&bad).is_err());
+    }
     #[test]
     fn completed_json_responses_are_accepted_but_errors_and_incomplete_tools_are_not() {
         let request = prepare(json!({"model":"fixture","input":[]})).unwrap();

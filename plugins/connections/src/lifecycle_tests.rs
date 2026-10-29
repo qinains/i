@@ -219,13 +219,17 @@ impl Fixture {
                                         status = state.inference_status;
                                         json!({"error":{"code":"subscription_sharing_unsupported_capability","param":"reasoning.effort","message":"fixture-private-access-token and prompt"}}).to_string()
                                     } else if state.json_response {
-                                        json!({"object":"response","id":"fixture-response","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"offline reply"}]}]}).to_string()
+                                        json!({"object":"response","id":"fixture-response","status":"completed","output":[{"id":"msg_fixture","type":"message","status":"completed","role":"assistant","content":[{"type":"output_text","text":"offline reply"}]}]}).to_string()
                                     } else {
                                         content_type = "text/event-stream";
+                                        let item = json!({"id":"msg_fixture","type":"message","status":"completed","role":"assistant","content":[{"type":"output_text","text":"offline reply"}]});
                                         format!(
-                                            "data: {}\n\ndata: {}\n\n",
-                                            json!({"type":"response.created","response":{"id":"fixture-response"}}),
-                                            json!({"type":"response.completed","response":{"id":"fixture-response","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"offline reply"}]}]}})
+                                            "data: {}\n\ndata: {}\n\ndata: {}\n\ndata: {}\n\ndata: {}\n\n",
+                                            json!({"type":"response.created","response":{"id":"fixture-response","object":"response","status":"in_progress","output":[]}}),
+                                            json!({"type":"response.output_item.added","output_index":0,"item":{"id":"msg_fixture","type":"message","status":"in_progress","role":"assistant","content":[]}}),
+                                            json!({"type":"response.content_part.added","output_index":0,"item_id":"msg_fixture","content_index":0,"part":item["content"][0]}),
+                                            json!({"type":"response.output_item.done","output_index":0,"item":item}),
+                                            json!({"type":"response.completed","response":{"id":"fixture-response","object":"response","status":"completed","output":[item]}})
                                         )
                                     }
                                 }
@@ -432,6 +436,52 @@ async fn missing_content_type_accepts_only_complete_responses_and_never_retries_
     assert_eq!(
         fixture.exchange.lock().unwrap().requests.iter().filter(|(path, _, _)| path == "/v1/responses").count(),
         5
+    );
+}
+
+#[tokio::test]
+async fn browser_relay_validates_missing_mime_and_json_before_returning_sse_without_replay() {
+    let fixture = Fixture::start().await;
+    let root = tempfile::tempdir().unwrap();
+    let auth = fixture.auth(root.path().to_path_buf());
+    fixture.login(&auth).await.unwrap();
+    let mut store = auth.read().unwrap();
+    store.accounts[0].credentials.as_mut().unwrap().expires_at = 0;
+    auth.write(&store).unwrap();
+    auth.access_token().await.unwrap();
+    let request = json!({"model":"fixture","input":[{"role":"user","content":"offline test"}]});
+    for (omit, json_response) in [(false, false), (true, false), (false, true), (true, true)] {
+        {
+            let mut state = fixture.exchange.lock().unwrap();
+            state.omit_inference_content_type = omit;
+            state.json_response = json_response;
+        }
+        let response = inference::response(&auth, request.clone()).await.unwrap();
+        assert_eq!(response.headers()["content-type"], "text/event-stream");
+        let text = response.text().await.unwrap();
+        assert!(text.contains("response.output_item.added") && text.contains("response.output_item.done"));
+        let completed: Value = text
+            .lines()
+            .filter_map(|line| line.strip_prefix("data: "))
+            .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+            .find(|event| event["type"] == "response.completed")
+            .unwrap();
+        assert_eq!(completed["response"]["output"][0]["content"][0]["text"], "offline reply");
+    }
+    for (body, shape) in [
+        ("", "empty"),
+        ("<html>PRIVATE_TOKEN_AND_PROMPT</html>", "unrecognized"),
+        ("data: {\"type\":\"response.created\",\"response\":{\"id\":\"r1\"}}\n\n", "sse"),
+    ] {
+        fixture.exchange.lock().unwrap().inference_body = Some(body);
+        let error = inference::response(&auth, request.clone()).await.unwrap_err();
+        let text = inference::worker_diagnostic(&error);
+        assert!(text.contains(&format!("format={shape}")), "{text}");
+        assert!(!text.contains("PRIVATE_TOKEN_AND_PROMPT"));
+    }
+    assert_eq!(
+        fixture.exchange.lock().unwrap().requests.iter().filter(|(path, _, _)| path == "/v1/responses").count(),
+        7
     );
 }
 

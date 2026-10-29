@@ -38,6 +38,10 @@ export async function readResponses(reader,{signal,onDelta=()=>{},onReasoning=()
         }
         check(start,'Missing response.created');
         if(type==='response.in_progress'){check(value.response?.id===start.id);return;}
+        if(type==='response.metadata'){
+            check(value.response_id===start.id&&Object.hasOwn(value,'metadata'),'Invalid Responses metadata');
+            return;
+        }
         if(type==='response.completed'){
             const response=value.response;
             check(response?.object==='response'&&response.id===start.id&&response.status==='completed'&&Array.isArray(response.output)&&response.output.length===items.length&&items.every((item,index)=>item.done&&same(item.done,response.output[index])),'Incomplete or mismatched Responses output');

@@ -26,6 +26,7 @@ export function sendResponses(res,body){
         }
         send('response.output_item.done',{output_index,item});
     }
+    send('response.metadata',{response_id:id,metadata:{fixture:true}});
     if(task!=='RESPONSES_TRUNCATE')send('response.'+response.status,{response});
     res.end();
 }

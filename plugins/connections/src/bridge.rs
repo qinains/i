@@ -68,6 +68,16 @@ fn cors(response: &mut Response<Body>, origin: &str) {
     headers.insert("access-control-allow-headers", "content-type, x-i-local-token".parse().unwrap());
     headers.insert("access-control-allow-private-network", "true".parse().unwrap());
 }
+fn operation_failure(error: &anyhow::Error) -> Response<Body> {
+    let diagnostic = error
+        .chain()
+        .find_map(|error| error.downcast_ref::<i_chatgpt::inference::SafeDiagnostic>())
+        .map(ToString::to_string)
+        .unwrap_or_else(|| {
+            "Local connection plugin operation failed. Check the local service and selected account/model; credentials were not cleared.".into()
+        });
+    reply(StatusCode::BAD_REQUEST, json!({"error":diagnostic}))
+}
 async fn dispatch(request: Request<Incoming>, state: Arc<State>) -> Result<Response<Body>> {
     if !allowed(request.method(), request.headers(), &state) {
         return Ok(reply(StatusCode::FORBIDDEN, json!({"error":"Local plugin authorization required"})));
@@ -79,10 +89,7 @@ async fn dispatch(request: Request<Incoming>, state: Arc<State>) -> Result<Respo
     }
     let mut response = match process(request, state.clone()).await {
         Ok(value) => value,
-        Err(_) => reply(
-            StatusCode::BAD_REQUEST,
-            json!({"error":"Local connection plugin operation failed. Check the native plugin and sign in again if needed."}),
-        ),
+        Err(error) => operation_failure(&error),
     };
     cors(&mut response, &state.origin);
     Ok(response)
@@ -213,6 +220,22 @@ pub async fn serve(backend: Backend, website: String, port: u16) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn operation_failures_expose_only_safe_diagnostics_not_error_context() {
+        let error = anyhow::Error::new(i_chatgpt::inference::SafeDiagnostic::stage(
+            "response connection",
+            "connection/TLS/proxy failure",
+        ))
+        .context("PRIVATE_TOKEN_AND_PROMPT");
+        let response = operation_failure(&error);
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let value: Value = serde_json::from_slice(&bytes).unwrap();
+        assert!(value["error"].as_str().unwrap().contains("connection/TLS/proxy failure"));
+        assert!(!value.to_string().contains("PRIVATE_TOKEN_AND_PROMPT"));
+        let fallback = operation_failure(&anyhow::anyhow!("PRIVATE_TOKEN_AND_PROMPT"));
+        let bytes = fallback.into_body().collect().await.unwrap().to_bytes();
+        assert!(!String::from_utf8_lossy(&bytes).contains("PRIVATE_TOKEN_AND_PROMPT"));
+    }
     #[tokio::test]
     async fn disconnect_cancels_detached_login_task() {
         let task = tokio::spawn(std::future::pending::<()>());

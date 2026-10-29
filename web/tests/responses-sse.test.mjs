@@ -25,6 +25,44 @@ test('Responses UTF-8 text streams before completion without duplication',async(
     const chunks=[];const result=await readResponses(reader(stream({text:true})),{onDelta:text=>chunks.push(text)});
     assert.equal(chunks.join(''),'你好');assert.equal(result.output[1].content[0].text,'你好');
 });
+test('response-scoped metadata has no output index and never becomes visible output',async()=>{
+    const raw=stream({text:true}),at=raw.lastIndexOf('event: response.output_item.done');
+    const metadata=event('response.metadata',{response_id:'resp_1',sequence_number:42,metadata:{fixture:'PRIVATE_METADATA_SHOULD_NOT_RENDER'}});
+    let text='',reasoning='';
+    const result=await readResponses(reader(raw.slice(0,at)+metadata+raw.slice(at)),{onDelta:part=>text+=part,onReasoning:part=>reasoning+=part});
+    assert.deepEqual(result,await readResponses(reader(raw)));
+    assert.equal(text,'你好');assert.equal(reasoning,'Plan');
+    assert.ok(!JSON.stringify(result).includes('PRIVATE_METADATA_SHOULD_NOT_RENDER'));
+});
+test('metadata must belong to a started, unfinished response and does not waive item validation',async()=>{
+    const raw=stream(),at=raw.lastIndexOf('event: response.completed');
+    const metadata=event('response.metadata',{response_id:'resp_1',metadata:{fixture:true}});
+    for(const value of [metadata+raw,raw+metadata,
+        raw.slice(0,at)+metadata.replace('resp_1','foreign')+raw.slice(at),
+        raw.slice(0,at)+event('response.metadata',{metadata:{}})+raw.slice(at),
+        raw.slice(0,at)+event('response.metadata',{response_id:'resp_1'})+raw.slice(at),
+        raw.slice(0,at)+metadata+raw.slice(at).replace('"name":"write"','"name":"read"')]){
+        await assert.rejects(readResponses(reader(value)));
+    }
+});
+test('validated JSON relay envelopes retain complete items, readable summaries and tool arguments',async()=>{
+    const output=[{id:'rs_json',type:'reasoning',summary:[{type:'summary_text',text:'Plan'}],encrypted_content:'OPAQUE'},
+        {id:'msg_json',type:'message',role:'assistant',status:'completed',content:[{type:'output_text',text:'OK',annotations:[]}]},
+        {id:'fc_json',type:'function_call',call_id:'call_json',name:'read',arguments:'{}',status:'completed'}];
+    const response={id:'resp_json',object:'response',status:'completed',output,usage:{input_tokens:1,output_tokens:2}};
+    let raw=event('response.created',{response:{id:response.id,object:'response',status:'in_progress',output:[]}});
+    for(const [output_index,item]of output.entries()){
+        raw+=event('response.output_item.added',{output_index,item});
+        const parts=item.type==='message'?item.content:item.type==='reasoning'?item.summary:[];
+        for(const [index,part]of parts.entries())raw+=event(item.type==='message'?'response.content_part.added':'response.reasoning_summary_part.added',
+            {output_index,item_id:item.id,[item.type==='message'?'content_index':'summary_index']:index,part});
+        raw+=event('response.output_item.done',{output_index,item});
+    }
+    raw+=event('response.completed',{response});
+    let text='',reasoning='';
+    assert.deepEqual(await readResponses(reader(raw),{onDelta:part=>text+=part,onReasoning:part=>reasoning+=part}),response);
+    assert.equal(text,'OK');assert.equal(reasoning,'Plan');
+});
 test('Responses incomplete, failed, unsupported, duplicate and truncated streams fail closed',async()=>{
     const complete=stream();
     for(const raw of [stream({status:'incomplete'}),stream({status:'failed'}),stream({name:'shell'}),complete.slice(0,complete.lastIndexOf('event: response.completed')),complete+event('response.completed',{response:{status:'completed'}}),complete.replace('"output_index":1','"output_index":3'),complete.replace('"output_index":1,"item_id":"fc_1"','"output_index":1,"item_id":"wrong"'),event('error',{message:'SECRET'})]) await assert.rejects(readResponses(reader(raw)));
