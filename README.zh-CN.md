@@ -270,15 +270,15 @@ python3 scripts/check_package.py 'dist/*.tar.gz' 'dist/*.tar.xz'
 
 ## 当前验证范围
 
-最新本地 bundled/packaging 矩阵：原生 macOS ARM64 为 385 项通过，Windows 11 ARM64 的 x64 模拟执行为 371 项通过，隔离 ARM64 虚拟机内 QEMU 10 执行 Linux x86_64 为 385 项通过，各另有 1 项既有 ignored。较早快照的 macOS x86_64 Rosetta 为 384 项、Linux ARM64 为 384 项、Windows ARM64 为 370 项（默认配置 360 项）；数量差异包含平台条件及后来新增的 socket 回归，不代表同一快照。历史完整 Chromium/WebKit 测试为 288 项通过；Windows 路径修复后重建的资源哈希不变，另复测 17 项关键路径。本轮 Node 单元测试 150 项、Cordis 构建测试 5 项、Python 脚本测试 12 项通过。
+GitHub CI 已通过 Linux、macOS、Windows 各自 ARM64/x86_64 的六平台原生矩阵：bundled/packaging 每个 Unix 目标 386 项、Windows 目标 372 项通过（默认配置分别为 373/360 项），各保留 1 项既有 ignored。六个平台的优化安装包构建及离线集成检查通过，另独立下载审计了全部 14 个归档。Node 单元测试 150 项、Cordis 构建测试 5 项、Python 脚本测试 17 项通过。具体提交、CI 链接和边界见[验证记录](docs/verification.md)。
 
-Windows 程序由 macOS 交叉编译，再在 Parallels Windows 11 ARM64 中执行；ARM64 ZIP/gzip/xz 包均验证自安装、迁移、工具、Unicode 搜索及预算统计，本轮新增 x64 产物仅为 debug/test 程序，不是优化发布包。真实 Windows ARM64 终端验证覆盖中文编辑与导航、多行粘贴、历史草稿恢复、拒绝/允许审批、Ctrl-C 和终端模式恢复，不代表全部编辑器行为。Linux x64 的 Rust 矩阵、严格 Clippy、最小配置及 TLS 拒绝通过，但 QEMU 改变了执行不存在程序时的 spawn 错误语义，因此独立 PTY 错误恢复场景不计为通过。较早一次本地 HTTP fixture 断言失败在完整重跑中未复现，原因仍未确认。
+CI 从源码重建浏览器 WASM，Chromium 的 144 项测试通过。WebKit 两次均为 143/144：首次双插件任务报告 JSON 插件不可用；未改代码复测时该用例通过，但另一个文件预览用例在创建 context/page 时失败。整体 CI 尚未全绿，不声称已修复这两个偶发失败，详情及本地重复对照见验证记录。原生 Unix CI 的 PTY、setup 恢复和 TLS 拒绝检查已通过，补上先前本地 QEMU 的覆盖缺口。真实 Windows ARM64 终端验证覆盖中文编辑导航、多行粘贴、历史草稿、审批、Ctrl-C 和模式恢复，不代表完整编辑器一致性。较早一次本地 HTTP fixture 断言失败虽未在重跑中复现，原因仍未确认。
 
-DeepSeek `deepseek-flash` 已通过限额合成任务实测：原生读写、审批、会话恢复且不重放，以及实际 WASM 浏览器 SSE 显示、刷新和取消。模拟执行不等同于 x64 真机验证。远程 CI、优化 x64 发布包、其他 provider 账户、Developer ID 签名和 Apple 公证仍未验证；不能视为正式发行验收。
+DeepSeek `deepseek-flash` 已通过限额合成任务实测：原生读写、审批、会话恢复且不重放，以及实际 WASM 浏览器 SSE 显示、刷新和取消。本轮 CI 未新增付费模型请求。其他 provider 账户、Developer ID 签名和 Apple 公证仍未验证；没有发布 Release，这些结果不等同于正式签名发行验收。
 
 ## 行数与验证（历史原生快照）
 
-下表及后续测试数量属于旧原生快照，不代表当前跨平台实现。当前 `src/` 为3165物理行（排除 `src/tests.rs`，包含 packaging/completions 和文件内测试），另计运行时、vendor、JS及资源；旧1024行检查已显式 ignored。当前验证及已知失败见 [WASM 文档](docs/wasm.md)。
+下表及后续测试数量属于旧原生快照，不代表当前跨平台实现。当前 `src/` 为7021物理行（排除 `src/tests.rs`，包含 packaging/completions 和文件内测试），另计运行时、vendor、JS及资源；旧1024行检查已显式 ignored。当前验证及已知失败见[验证记录](docs/verification.md)。
 
 | 范围 | Rust物理行数 |
 |---|---:|
