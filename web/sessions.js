@@ -1,29 +1,30 @@
-import {recoverHistory} from './state/recovery.js';
 import {normalizeEndpoint} from './transport.js';
 import {validateSession} from './state/records.js';
+import {SessionRevisionConflict} from './state/store.js';
 import {isTemporaryWorkspace} from './workspaces.js';
 import {initializeTitle} from './titles.js';
 export function connectionIdentity(config){return JSON.stringify([normalizeEndpoint(config.base_url,config.protocol),config.model,config.protocol,config.transport]);}
 export class SessionController {
-    constructor(Agent,store,hooks){this.Agent=Agent;this.store=store;this.hooks=hooks;this.records=new Map();this.agents=new Map();this.agentStarts=new Map();this.queues=new Map();this.timers=new Map();this.failed=new Map();}
+    constructor(Agent,store,hooks){this.Agent=Agent;this.store=store;this.hooks=hooks;this.records=new Map();this.agents=new Map();this.agentStarts=new Map();this.queues=new Map();this.timers=new Map();this.failed=new Map();this.conflicts=new Map();}
     async save(record){
         if(isTemporaryWorkspace(record.workspaceId)){record.updatedAt=Date.now();this.hooks.saving?.(record.id,'Temporary — not saved');return;}
         this.hooks.saving?.(record.id,'Saving…');
         const previous=this.queues.get(record.id) ?? Promise.resolve();
         const next=previous.catch(()=>{}).then(async()=>{
-            if(this.failed.has(record.id))throw this.failed.get(record.id);
-            record.revision=await this.store.commitSession(structuredClone(record),record.revision);
+            if(this.conflicts.has(record.id))throw this.conflicts.get(record.id);
+            try{record.revision=await this.store.commitSession(structuredClone(record),record.revision);this.failed.delete(record.id);}
+            catch(error){this.failed.set(record.id,error);if(error instanceof SessionRevisionConflict)this.conflicts.set(record.id,error);throw error;}
         });
         this.queues.set(record.id,next);
         try{await next;this.hooks.saving?.(record.id,this.queues.get(record.id)===next&&!this.timers.has(record.id)?'Saved':'Saving…');}
-        catch(error){this.failed.set(record.id,error);this.hooks.saving?.(record.id,'Save failed');this.hooks.error?.(error);throw error;}
+        catch(error){if(this.queues.get(record.id)===next)this.hooks.saving?.(record.id,'Save failed');this.hooks.error?.(error);throw error;}
     }
     later(record){
         this.hooks.saving?.(record.id,'Saving…');clearTimeout(this.timers.get(record.id));
         this.timers.set(record.id,setTimeout(()=>{this.timers.delete(record.id);this.save(record).catch(()=>{});},150));
     }
     async flush(id){
-        if(id){const record=this.records.get(id);if(this.timers.has(id)){clearTimeout(this.timers.get(id));this.timers.delete(id);await this.save(record);}await this.queues.get(id);}
+        if(id){const record=this.records.get(id);if(this.timers.has(id)||(record&&this.failed.has(id)&&!this.conflicts.has(id))){clearTimeout(this.timers.get(id));this.timers.delete(id);await this.save(record);}await this.queues.get(id);}
         else await Promise.all([...this.records.keys()].map(key=>this.flush(key)));
     }
     async create(workspaceId,name,connectionId=''){
@@ -41,10 +42,13 @@ export class SessionController {
                 const prepared=await this.store.prepareSession?.(record,imageBudget);
                 if(prepared){record=prepared.record;imageBudget-=prepared.bytes;}
                 if(record.pendingMessages?.length)record.queuePaused=true;
-                stage='recovery';const recovered=recoverHistory(record.history,record.journal);
-                stage='history';
                 // create() persists before lazy agent initialization supplies the system message.
-                if(recovered.length)this.Agent.validate_history(JSON.stringify(recovered));
+                let recovered=record.history;
+                if(record.journal){
+                    stage='recovery';recovered=JSON.parse(this.Agent.recover_history(JSON.stringify(record.history),JSON.stringify(record.journal)));
+                }else if(recovered.length){
+                    stage='history';this.Agent.validate_history(JSON.stringify(recovered));
+                }
                 stage='title';
                 const migrate=!record.titleSource;initializeTitle(record,text=>sanitize(text,record));
                 stage='checkpoint';

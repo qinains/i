@@ -1,4 +1,6 @@
 {
+  "Download unsent draft": "Скачать неотправленный черновик",
+  "Download full message": "Скачать сообщение целиком",
   "Reflect on this conversation (one extra model request)": "Проанализировать этот разговор (один дополнительный запрос к модели)",
   "Reflection report": "Отчёт о рефлексии",
   "Reflection sends selected conversation text to the current model in one extra request. It does not change history, instructions or files. Continue?": "Рефлексия отправит выбранный текст разговора текущей модели одним дополнительным запросом. История, инструкции и файлы не изменятся. Продолжить?",

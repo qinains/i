@@ -1,4 +1,6 @@
 {
+  "Download unsent draft": "보내지 않은 초안 다운로드",
+  "Download full message": "전체 메시지 다운로드",
   "Reflect on this conversation (one extra model request)": "이 대화 돌아보기 (추가 모델 요청 1회)",
   "Reflection report": "회고 보고서",
   "Reflection sends selected conversation text to the current model in one extra request. It does not change history, instructions or files. Continue?": "선택한 대화 텍스트를 현재 모델에 추가로 한 번 보냅니다. 기록, 지침, 파일은 변경하지 않습니다. 계속할까요?",

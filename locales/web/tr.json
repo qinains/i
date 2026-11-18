@@ -1,4 +1,6 @@
 {
+  "Download unsent draft": "Gönderilmemiş taslağı indir",
+  "Download full message": "Mesajın tamamını indir",
   "Reflect on this conversation (one extra model request)": "Bu konuşmayı değerlendir (bir ek model isteği)",
   "Reflection report": "Değerlendirme raporu",
   "Reflection sends selected conversation text to the current model in one extra request. It does not change history, instructions or files. Continue?": "Değerlendirme, seçilen konuşma metnini geçerli modele bir ek istekle gönderir. Geçmişi, talimatları veya dosyaları değiştirmez. Devam edilsin mi?",

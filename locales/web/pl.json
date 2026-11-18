@@ -1,4 +1,6 @@
 {
+  "Download unsent draft": "Pobierz niewysłany szkic",
+  "Download full message": "Pobierz pełną wiadomość",
   "Reflect on this conversation (one extra model request)": "Przeanalizuj tę rozmowę (jedno dodatkowe żądanie do modelu)",
   "Reflection report": "Raport refleksji",
   "Reflection sends selected conversation text to the current model in one extra request. It does not change history, instructions or files. Continue?": "Refleksja wysyła wybrany tekst rozmowy do bieżącego modelu w jednym dodatkowym żądaniu. Nie zmienia historii, instrukcji ani plików. Kontynuować?",

@@ -1,4 +1,17 @@
 import {uiText,hasTranslation} from './i18n.js';
+import {downloadBlob} from './download.js';
+
+const MAX_DISPLAY_LENGTH=16*1024;
+function messagePreview(text){
+    return text.length<=MAX_DISPLAY_LENGTH?text:text.slice(0,MAX_DISPLAY_LENGTH).replace(/[\uD800-\uDBFF]$/u,'')+'\n\u2026';
+}
+function offerFullMessage(container,record){
+    if(record.text.length<=MAX_DISPLAY_LENGTH)return;
+    const label='Download full message',button=node('button',uiText(label),'copy-btn');
+    button.type='button';button.dataset.i18n=label;
+    button.addEventListener('click',()=>downloadBlob(new Blob([record.text],{type:'text/plain;charset=utf-8'}),'i-message.txt'));
+    container.append(button);
+}
 export function node(tag,text='',className='') {
     const el=document.createElement(tag);el.textContent=text;el.className=className;return el;
 }
@@ -6,7 +19,7 @@ export function renderMessage(record,{onChange=()=>{},onConfigure}={}) {
     if(record.type==='analysis'){
         const el=node('section','','line analysis');
         const heading=node('h3',uiText('Reflection report'));heading.dataset.i18n='Reflection report';
-        const content=node('pre',record.text);content.dir='auto';el.append(heading,content);return el;
+        const content=node('pre',messagePreview(record.text));content.dir='auto';el.append(heading,content);offerFullMessage(el,record);return el;
     }
     if(record.type==='error'&&record.text.trim()==="Error: Failed to construct 'URL': Invalid URL"){
         const message='A previous attempt could not read the API URL. Open settings to check your API URL, API key and model.';
@@ -22,12 +35,12 @@ export function renderMessage(record,{onChange=()=>{},onConfigure}={}) {
         summary.addEventListener('click',event=>{
             event.preventDefault();record.expanded=!el.open;el.open=record.expanded;onChange();
         });
-        const content=node('pre',record.text);content.dir='auto';el.append(summary,content);return el;
+        const content=node('pre',messagePreview(record.text));content.dir='auto';el.append(summary,content);offerFullMessage(el,record);return el;
     }
     const legacyWelcome='i — browser workspace. Shell is disabled; file tools use persistent OPFS.\nConversations save automatically. Use /help for commands.';
     const key=record.type==='system'&&record.text===legacyWelcome?'Browser workspace. Shell is disabled; workspace files are saved on this device. Conversations save automatically. Use /help for commands.':record.text;
-    const translated=['system','success','error'].includes(record.type)&&hasTranslation(key);
-    const el=node('div',translated?uiText(key):record.text,`line ${record.type}`);
+    const translated=key.length<=MAX_DISPLAY_LENGTH&&['system','success','error'].includes(record.type)&&hasTranslation(key);
+    const el=node('div',translated?uiText(key):messagePreview(record.text),`line ${record.type}`);
     if(translated)el.dataset.i18n=key;
     el.dir=record.type==='tool'?'ltr':'auto';
     if(record.type==='assistant' && record.text) {
@@ -35,5 +48,5 @@ export function renderMessage(record,{onChange=()=>{},onConfigure}={}) {
         copy.addEventListener('click',async()=>{let key;try{await navigator.clipboard.writeText(record.text);key='Copied';}catch{key='Copy unavailable';}copy.dataset.i18n=key;copy.textContent=uiText(key);});
         el.append(copy);
     }
-    return el;
+    offerFullMessage(el,record);return el;
 }

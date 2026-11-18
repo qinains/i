@@ -1,4 +1,6 @@
 {
+  "Download unsent draft": "Tải xuống bản nháp chưa gửi",
+  "Download full message": "Tải xuống toàn bộ tin nhắn",
   "Reflect on this conversation (one extra model request)": "Suy ngẫm về cuộc trò chuyện này (thêm một yêu cầu mô hình)",
   "Reflection report": "Báo cáo suy ngẫm",
   "Reflection sends selected conversation text to the current model in one extra request. It does not change history, instructions or files. Continue?": "Suy ngẫm gửi văn bản hội thoại đã chọn tới mô hình hiện tại bằng một yêu cầu bổ sung. Không thay đổi lịch sử, hướng dẫn hoặc tệp. Tiếp tục?",

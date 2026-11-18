@@ -1,4 +1,6 @@
 {
+  "Download unsent draft": "Télécharger le brouillon non envoyé",
+  "Download full message": "Télécharger le message complet",
   "Reflect on this conversation (one extra model request)": "Analyser cette conversation (une requête supplémentaire au modèle)",
   "Reflection report": "Rapport de réflexion",
   "Reflection sends selected conversation text to the current model in one extra request. It does not change history, instructions or files. Continue?": "La réflexion envoie le texte sélectionné de la conversation au modèle actuel dans une requête supplémentaire. Elle ne modifie ni l’historique, ni les instructions, ni les fichiers. Continuer ?",
