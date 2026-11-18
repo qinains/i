@@ -64,6 +64,8 @@ GitHub API。发布新版本时，先等待三个平台构建及包内离线测�
 `BUILD.json` 与 `SHA256SUMS`，再对照下载归档及相邻 `.sha256` 的实际摘要更新清单。
 清单只接受约定的平台、target、文件名和 64 位摘要；无发布记录的客户端显示发布进度，
 不生成假下载链接。`v*` tag 工作流先创建草稿 Release，验收后再显式公开。
+如用 `i-<version>-macos-arm64-developer-id.dmg` 作为 macOS 下载包，先验证 Apple 公证票据和
+Gatekeeper 评估，再上传镜像和相邻校验文件并更新清单。原有 tar 归档可以保留在 Release 中。
 
 首页与共享导航支持简体中文、繁体中文、英文、日文、韩文、法文、德文。
 首次按 `navigator.languages` 选择；手动选择保存在 `lninl_site_language`，

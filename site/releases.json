@@ -1,7 +1,7 @@
 {
   "version": "0.1.4",
   "clients": [
-    {"platform":"macos","target":"aarch64-apple-darwin","file":"i-0.1.4-aarch64-apple-darwin-min-size.tar.gz","sha256":"8db440ecb95b1b64c849905d5b33452a7181285187714b61f34ad2d1270832a2"},
+    {"platform":"macos","target":"aarch64-apple-darwin","file":"i-0.1.4-macos-arm64-developer-id.dmg","sha256":"cbc50cbe3692ae5cdbbb1f31d200217df7a76d39f8a8917a62f2d958bc367c04"},
     {"platform":"windows","target":"x86_64-pc-windows-msvc","file":"i-0.1.4-x86_64-pc-windows-msvc-min-size.zip","sha256":"66fd1059fef757a2c12691b53e1680eefba234fb8d2927a3ee42c4ed194c9b5e"},
     {"platform":"linux","target":"x86_64-unknown-linux-gnu","file":"i-0.1.4-x86_64-unknown-linux-gnu-min-size.tar.gz","sha256":"a019ba81c47d63573d16cd54c8dac07424f40d5ec18e28d5332c0f76cd531236"}
   ]

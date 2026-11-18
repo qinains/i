@@ -341,21 +341,44 @@ pub fn render_client_install(root: &Path) -> Result<String> {
         let (_, _, target, extension) =
             platforms.iter().find(|p| p.0 == platform).context("Invalid native release platform")?;
         ensure!(version.is_some() && !validated.contains_key(platform), "Invalid native release platform");
+        let version = version.unwrap();
+        let file = text(client, "file")?;
+        let format = if platform == "macos" && file == format!("i-{version}-macos-arm64-developer-id.dmg") {
+            "dmg"
+        } else {
+            ensure!(file == format!("i-{version}-{target}-min-size.{extension}"), "Invalid native release asset");
+            extension
+        };
         ensure!(
-            text(client, "target")? == *target
-                && text(client, "file")? == format!("i-{}-{target}-min-size.{extension}", version.unwrap())
-                && SHA.is_match(text(client, "sha256")?),
+            text(client, "target")? == *target && SHA.is_match(text(client, "sha256")?),
             "Invalid native release asset"
         );
-        validated.insert(platform, client);
+        validated.insert(platform, (file, format));
     }
     let mut panels = vec![];
     for (platform, name, target, extension) in platforms {
-        let client = validated.get(platform);
-        let url = if let Some(client) = client {
-            format!("{REPOSITORY}/releases/download/v{}/{}", version.unwrap(), text(client, "file")?)
+        let client = validated.get(platform).copied();
+        let url = if let Some((file, _)) = client {
+            format!("{REPOSITORY}/releases/download/v{}/{file}", version.unwrap())
         } else {
             format!("{REPOSITORY}/releases")
+        };
+        let extension = client.map_or(extension, |(_, format)| format);
+        let prefix = if extension == "dmg" { "install.macos.dmg" } else { "install.native" };
+        let note =
+            if extension == "dmg" { "install.macos.dmg.note".into() } else { format!("install.{platform}.note") };
+        let (detail, step, step_detail) = if extension == "dmg" {
+            (
+                "无需 Rust、Node，挂载后可直接运行，无需先安装。",
+                "挂载 DMG 并运行",
+                "验证校验和，然后双击 DMG。在终端切换到可写的项目目录，再运行下面的命令。",
+            )
+        } else {
+            (
+                "无需 Rust、Node，解压后直接运行，不必先安装。",
+                "解压，直接运行",
+                "校验并解压，在解压目录的终端运行。工作区默认为当前终端目录。",
+            )
         };
         let metadata = if client.is_some() { format!("v{} / {target}", version.unwrap()) } else { target.into() };
         let checksum = if client.is_some() {
@@ -368,7 +391,11 @@ pub fn render_client_install(root: &Path) -> Result<String> {
         } else {
             ("install.pending", "查看发布进度 ↗")
         };
-        let launch = if platform == "windows" { ".\\bin\\i.exe" } else { "./bin/i" };
+        let launch = match (platform, extension) {
+            ("macos", "dmg") => format!("\"/Volumes/i {}/bin/i\"", version.unwrap()),
+            ("windows", _) => ".\\bin\\i.exe".into(),
+            _ => "./bin/i".into(),
+        };
         let command = format!("{launch} install --add-to-path");
         let mut panel = include_str!("client-panel.html").trim_end().to_owned();
         for (key, value) in [
@@ -380,8 +407,14 @@ pub fn render_client_install(root: &Path) -> Result<String> {
             ("KEY", key),
             ("DOWNLOAD", download),
             ("CHECKSUM", &checksum),
-            ("NOTE", &format!("install.{platform}.note")),
-            ("LAUNCH", launch),
+            ("NOTE", &note),
+            ("DETAIL_KEY", &format!("{prefix}.detail")),
+            ("DETAIL", detail),
+            ("STEP1_KEY", &format!("{prefix}.step1")),
+            ("STEP1", step),
+            ("STEP1_DETAIL_KEY", &format!("{prefix}.step1.detail")),
+            ("STEP1_DETAIL", step_detail),
+            ("LAUNCH", &launch),
             ("COMMAND", &command),
         ] {
             panel = panel.replace(&format!("{{{{{key}}}}}"), value);

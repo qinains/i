@@ -69,6 +69,29 @@ fn native_downloads_reject_unverified_shapes() {
     }
     assert!(render(json!("../bad"), json!([client])).is_err());
     assert!(render(json!("0.1.0"), json!([client, client])).is_err());
+
+    let dmg_file = "i-0.1.0-macos-arm64-developer-id.dmg";
+    let mut dmg = client.clone();
+    dmg["file"] = dmg_file.into();
+    let output = render(json!("0.1.0"), json!([dmg])).unwrap();
+    let mac_panel = output.split_once("id=\"client-macos\"").unwrap().1.split_once("id=\"client-windows\"").unwrap().0;
+    let url = format!("/releases/download/v0.1.0/{dmg_file}");
+    for text in [
+        &format!("{url}\""),
+        &format!("{url}.sha256\""),
+        "NATIVE CLI / DMG",
+        "install.macos.dmg.note",
+        "install.macos.dmg.step1.detail",
+        "<code>\"/Volumes/i 0.1.0/bin/i\"</code>",
+    ] {
+        assert!(mac_panel.contains(text), "{text}");
+    }
+    assert!(!mac_panel.contains("install.macos.note"));
+    assert!(!mac_panel.contains("TAR.GZ"));
+    assert!(render(json!("0.1.1"), json!([dmg])).is_err());
+    dmg["platform"] = "linux".into();
+    dmg["target"] = "x86_64-unknown-linux-gnu".into();
+    assert!(render(json!("0.1.0"), json!([dmg])).is_err());
 }
 #[test]
 fn markdown_escapes_html_preserves_blocks_and_routes_safe_links() {
