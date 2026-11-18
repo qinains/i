@@ -22,6 +22,7 @@ mod analysis_native;
 mod net;
 use i::platform;
 mod readline;
+mod session_lock;
 mod worker;
 use worker::Worker;
 const SYSTEM: &str = "You are a coding agent. Inspect before editing; report tests honestly. Paths are workspace-relative. \
@@ -183,7 +184,16 @@ async fn main() -> Result<()> {
         )?;
         return Ok(());
     }
-    let mut messages = load_session(args.session.as_deref(), workspace.platform.root(), &workspace).await?;
+    let locked_session = if args.analyze.is_none() {
+        args.session
+            .as_deref()
+            .map(|path| session_lock::SessionLock::acquire(&session_path(path, workspace.platform.root())))
+            .transpose()?
+    } else {
+        None
+    };
+    let session = locked_session.as_ref().map(session_lock::SessionLock::path).or(args.session.as_deref());
+    let mut messages = load_session(session, workspace.platform.root(), &workspace).await?;
     if let Some(name) = args.analyze {
         println!("{}", api.analyze(&name, &messages, &args.analysis_role).await?);
         return Ok(());
@@ -207,12 +217,13 @@ async fn main() -> Result<()> {
     let content = content_with_images(&task, &json!(images));
     let input = api.plugins.emit("user_input", json!({"content":content}))?;
     messages.push(json!({"role": "user", "content": input["content"]}));
-    api.plugins.save(args.session.as_deref(), &mut messages, &workspace).await?;
+    api.plugins.save(session, &mut messages, &workspace).await?;
     eprintln!("{}", i18n.tf("status.workspace", &[&workspace.platform.root().display().to_string(), &model]));
     if workspace.yes {
         eprintln!("{}", i18n.t("status.warning_auto_approve"));
     }
-    let mut host = NativeHost { api: &api, workspace: &workspace, session: args.session.as_deref(), i18n: &i18n };
+    let mut host =
+        NativeHost { api: &api, workspace: &workspace, session, i18n: &i18n, saved: Vec::new(), journal: None };
     i::agent::run(&mut host, &mut messages, args.max_steps).await
 }
 struct NativeHost<'a, P: Platform> {
@@ -220,6 +231,27 @@ struct NativeHost<'a, P: Platform> {
     workspace: &'a Workspace<P>,
     session: Option<&'a Path>,
     i18n: &'a i18n::I18n,
+    saved: Vec<Value>,
+    journal: Option<Value>,
+}
+impl<P: Platform> NativeHost<'_, P> {
+    fn journal_call(&mut self, call: &Value, status: &str, result: Option<&Value>) -> Result<()> {
+        let Some(path) = self.session else {
+            return Ok(());
+        };
+        let journal = self.journal.as_mut().context("missing tool journal")?;
+        let item = journal["calls"]
+            .as_array_mut()
+            .context("invalid tool journal")?
+            .iter_mut()
+            .find(|item| item["id"] == call["id"])
+            .context("unknown journal call")?;
+        item["status"] = json!(status);
+        if let Some(result) = result {
+            item["result"] = result.clone();
+        }
+        save_session_state(path, self.workspace.platform.root(), &self.saved, Some(journal))
+    }
 }
 impl<P: Platform> i::agent::AgentHost for NativeHost<'_, P> {
     async fn before_turn(&mut self, messages: &mut Vec<Value>) -> Result<()> {
@@ -233,7 +265,23 @@ impl<P: Platform> i::agent::AgentHost for NativeHost<'_, P> {
     }
     async fn before_tools(&mut self, history: &[Value], pending: usize) -> Result<usize> {
         let budget = self.api.budget(history, pending, false)?;
-        Ok(number(&budget, "tool_output_bytes", self.workspace.io_limit)?.min(self.workspace.io_limit))
+        let limit = number(&budget, "tool_output_bytes", self.workspace.io_limit)?.min(self.workspace.io_limit);
+        if let Some(path) = self.session {
+            let (assistant, saved) = history.split_last().context("missing assistant batch")?;
+            let calls: Vec<_> =
+                tool_calls(assistant)?.iter().map(|call| json!({"id":call["id"],"status":"pending"})).collect();
+            let journal = json!({"assistant":assistant,"calls":calls});
+            save_session_state(path, self.workspace.platform.root(), saved, Some(&journal))?;
+            self.saved = saved.to_vec();
+            self.journal = Some(journal);
+        }
+        Ok(limit)
+    }
+    async fn before_dispatch(&mut self, call: &Value) -> Result<()> {
+        self.journal_call(call, "started", None)
+    }
+    async fn after_dispatch(&mut self, call: &Value, result: &Value) -> Result<()> {
+        self.journal_call(call, "finished", Some(result))
     }
     async fn dispatch(&mut self, call: &Value, slots: usize) -> Result<Value> {
         let invocation = self
@@ -251,7 +299,10 @@ impl<P: Platform> i::agent::AgentHost for NativeHost<'_, P> {
         self.api.plugins.emit("after_tool", result)
     }
     async fn checkpoint(&mut self, history: &mut Vec<Value>) -> Result<()> {
-        self.api.plugins.save(self.session, history, self.workspace).await
+        self.api.plugins.save(self.session, history, self.workspace).await?;
+        self.journal = None;
+        self.saved.clear();
+        Ok(())
     }
     async fn finish(&mut self, history: &[Value]) -> Result<()> {
         self.api.plugins.emit("finish", json!({"messages":history}))?;
@@ -526,7 +577,8 @@ impl Api {
         let after = after["content_estimate_tokens"].as_u64().context("missing compaction estimate")?;
         ensure!(after < before, "compaction did not reduce estimated tokens");
         if let Some(path) = path {
-            save_session(Some(&path.with_extension("precompact.json")), &self.plugins.root, messages, ws).await?;
+            let backup = session_lock::SessionLock::acquire(&path.with_extension("precompact.json"))?;
+            save_session(Some(backup.path()), &self.plugins.root, messages, ws).await?;
         }
         self.plugins.save(path, &mut next, ws).await?;
         *messages = next;
@@ -865,8 +917,9 @@ async fn manage_sessions<P: Platform>(action: &str, path: Option<&Path>, ws: &Wo
                 &load_session(Some(&path), ws.platform.root(), ws).await?,
             )?;
         } else {
-            ws.approve(&format!("DELETE session {}", path.display()), !ws.yes)?;
-            std::fs::remove_file(path)?;
+            let locked = session_lock::SessionLock::acquire(&path)?;
+            ws.approve(&format!("DELETE session {}", locked.path().display()), !ws.yes)?;
+            std::fs::remove_file(locked.path())?;
         }
     }
     Ok(())
@@ -877,12 +930,13 @@ async fn load_session<P: Platform>(path: Option<&Path>, root: &Path, ws: &Worksp
     {
         ensure!(path.metadata()?.is_file(), "expected a regular session file");
         let mut bytes = Vec::new();
-        std::fs::File::open(&path)?.take(64 * 1024 * 1024 + 1).read_to_end(&mut bytes)?;
-        ensure!(bytes.len() <= 64 * 1024 * 1024, "session exceeds 64 MiB");
+        std::fs::File::open(&path)?.take(MAX_SESSION_BYTES + 1).read_to_end(&mut bytes)?;
+        ensure!(bytes.len() as u64 <= MAX_SESSION_BYTES, "session exceeds 64 MiB");
         let mut session: Value = serde_json::from_slice(&bytes).context("parse session")?;
         ensure!(session["version"] == 1, "unsupported session version");
         ensure!(session["workspace"].as_str() == root.to_str(), "session workspace mismatch");
-        return checked_history(session["messages"].take());
+        let history = checked_history(session["messages"].take())?;
+        return i::agent::recovery::recover(&history, session.get("journal").filter(|journal| !journal.is_null()));
     }
     Ok(vec![json!({"role":"system","content":format!("{SYSTEM}\nWorkspace: {}", root.display())})])
 }
@@ -895,14 +949,27 @@ async fn save_session<P: Platform>(
     let _ = ws;
     if let Some(path) = path {
         let path = session_path(path, root);
-        let parent = path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
-        std::fs::create_dir_all(parent)?;
-        let bytes = serde_json::to_vec_pretty(&json!({"version":1,"workspace":root,"messages":messages}))?;
-        let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
-        temporary.write_all(&bytes)?;
-        temporary.as_file().sync_all()?;
-        temporary.persist(path)?;
+        save_session_state(&path, root, messages, None)?;
     }
+    Ok(())
+}
+const MAX_SESSION_BYTES: u64 = 64 * 1024 * 1024;
+fn save_session_state(path: &Path, root: &Path, messages: &[Value], journal: Option<&Value>) -> Result<()> {
+    let parent = path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
+    std::fs::create_dir_all(parent)?;
+    let mut state = json!({"version":1,"workspace":root,"messages":messages});
+    if let Some(journal) = journal {
+        state["journal"] = journal.clone();
+    }
+    let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
+    {
+        let mut writer = std::io::BufWriter::new(&mut temporary);
+        serde_json::to_writer_pretty(&mut writer, &state)?;
+        writer.flush()?;
+    }
+    ensure!(temporary.as_file().metadata()?.len() <= MAX_SESSION_BYTES, "session exceeds 64 MiB");
+    temporary.as_file().sync_all()?;
+    temporary.persist(path)?;
     Ok(())
 }
 fn session_path(path: &Path, root: &Path) -> PathBuf {

@@ -1,4 +1,5 @@
 pub mod history;
+pub mod recovery;
 use crate::workspace::{
     field,
     text::{clip, image_mime},
@@ -11,7 +12,13 @@ pub trait AgentHost {
     async fn before_turn(&mut self, history: &mut Vec<Value>) -> Result<()>;
     async fn complete(&mut self, history: &[Value]) -> Result<Value>;
     async fn before_tools(&mut self, history: &[Value], pending: usize) -> Result<usize>;
+    async fn before_dispatch(&mut self, _call: &Value) -> Result<()> {
+        Ok(())
+    }
     async fn dispatch(&mut self, call: &Value, image_slots: usize) -> Result<Value>;
+    async fn after_dispatch(&mut self, _call: &Value, _result: &Value) -> Result<()> {
+        Ok(())
+    }
     async fn checkpoint(&mut self, history: &mut Vec<Value>) -> Result<()>;
     async fn finish(&mut self, history: &[Value]) -> Result<()>;
     fn emit(&mut self, event: Value) -> Result<()>;
@@ -65,6 +72,7 @@ async fn run_with_limit<H: AgentHost>(host: &mut H, messages: &mut Vec<Value>, m
             let result = if host.cancelled() {
                 json!({"output":"ERROR: cancelled"})
             } else {
+                host.before_dispatch(&call).await?;
                 host.dispatch(&call, 8 - images.len() / 2).await?
             };
             for image in result.get("images").unwrap_or(&json!([])).as_array().context("invalid tool images")? {
@@ -80,6 +88,7 @@ async fn run_with_limit<H: AgentHost>(host: &mut H, messages: &mut Vec<Value>, m
                 images.push(image.clone());
             }
             let output = field(&result, "output")?;
+            host.after_dispatch(&call, &result).await?;
             host.emit(json!({"type":"tool_result","name":name,"text":clip(output,600)}))?;
             messages.push(json!({"role":"tool","tool_call_id":call["id"],"content":clip(output,limit)}));
         }
