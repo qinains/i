@@ -25,7 +25,21 @@ try{
             for(const platform of ['macos','windows','linux','browser']){
                 await page.locator(`[data-client-tab=${platform}]`).click();await page.locator(`#client-${platform}:visible`).waitFor();
                 assert.equal(await page.locator('[data-client-tab][aria-selected=true]').count(),1);
-                if(platform!=='browser'){const panel=page.locator(`#client-${platform}`);assert.equal(await panel.locator('.install-steps pre').count(),1);assert.equal(await panel.locator('[data-native-install]').evaluate(el=>el.open),false);assert.ok((await panel.locator('.install-steps code').textContent()).endsWith(platform==='windows'?'i.exe':'i'));assert.ok((await panel.locator('.client-download').getAttribute('href')).startsWith('https://github.com/qinains/i/releases'));}
+                if(platform!=='browser'){
+                    const panel=page.locator(`#client-${platform}`);
+                    assert.equal(await panel.locator('.install-steps pre').count(),1);
+                    assert.equal(await panel.locator('[data-native-install]').evaluate(el=>el.open),false);
+                    const launch=await panel.locator('.install-steps code').textContent();
+                    const download=await panel.locator('.client-download').getAttribute('href');
+                    assert.ok(download.startsWith('https://github.com/qinains/i/releases'));
+                    if(platform==='macos'&&download.endsWith('.dmg')){
+                        const version=download.match(/\/releases\/download\/v(\d+\.\d+\.\d+)\//u)?.[1];
+                        assert.ok(version);
+                        assert.equal(launch,`"/Volumes/i ${version}/bin/i"`);
+                        assert.equal(await panel.locator('.checksum-link').getAttribute('href'),download+'.sha256');
+                        assert.ok((await panel.locator('.client-fineprint').textContent()).includes('Apple notarized'));
+                    }else assert.ok(launch.endsWith(platform==='windows'?'i.exe':'i'));
+                }
             }
             await page.locator('[data-client-tab=browser]').focus();await page.keyboard.press('ArrowRight');assert.equal(await page.locator('[data-client-tab=macos]').getAttribute('aria-selected'),'true');await page.keyboard.press('Home');
             const modelRequests=[];page.on('request',request=>{if(request.method()==='POST')modelRequests.push(request.url());});
