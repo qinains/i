@@ -160,6 +160,14 @@ impl BrowserAgent {
     pub fn validate_history(text: &str) -> std::result::Result<(), JsValue> {
         ensure_history(text).map(|_| ()).map_err(failure)
     }
+    pub fn recover_history(history: &str, journal: &str) -> std::result::Result<String, JsValue> {
+        (|| {
+            let history: Vec<Value> = serde_json::from_str(history)?;
+            let journal: Value = serde_json::from_str(journal)?;
+            Ok(serde_json::to_string(&agent::recovery::recover(&history, Some(&journal))?)?)
+        })()
+        .map_err(failure)
+    }
     pub fn import_history(&self, text: &str) -> std::result::Result<(), JsValue> {
         let _busy = acquire(&self.busy, &self.operations).map_err(failure)?;
         self.state.borrow_mut().history = ensure_history(text).map_err(failure)?;

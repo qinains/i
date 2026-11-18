@@ -32,11 +32,16 @@ i 是面向代码和文件任务的 Rust agent，lninl 是项目品牌。它把�
 - 持久 `/workspace` 位于 OPFS；`/tmp` 只在当前页面内存里，刷新即清空。
 - 临时工作区的所有文件和会话均不持久化，重要结果应先下载。
 - IndexedDB 保存会话和插件数据，不与 OPFS 构成跨存储原子事务。
+- 浏览器会话写入比较修订号：跨标签冲突不覆盖新版本，其他失败保留内存草稿，可在下次保存时重试。
 - 同 origin、同工作区的协作读写使用 Web Locks；写入完成以流成功关闭为准。
 - localhost 与 127.0.0.1、端口、协议或域名变化，都可能意味着不同的存储 origin。
 
 刷新不应删除持久文件；清除站点数据或浏览器存储回收会删除。锁不能提供多文件回滚。
 详见 [OPFS 边界](opfs-concurrency.md)。
+
+原生会话文件按规范路径实行单写者。运行中的进程从读取到最终检查点持有系统文件锁；
+另一进程尝试写入或删除时会失败，而不是覆盖工具日志。锁文件位于会话旁的
+`.i-session-locks/`，保留空锁文件是正常行为；进程退出会自动释放锁。
 
 ## 配置与鉴权
 
@@ -58,6 +63,7 @@ i 是面向代码和文件任务的 Rust agent，lninl 是项目品牌。它把�
 | `plugins/wasm-package/` | 包、清单与 WASM 模块校验 |
 | `web/plugins/` | 插件管理、Worker、host broker、私有存储 |
 | `web/state/`、`web/sessions.js` | 会话日志与恢复 |
+| `web/task-controller.js` | 浏览器任务准入、取消、审批、队列和执行前保存 |
 | `extensions/cors-helper/` | 独立浏览器 CORS 扩展 |
 | `server/` | 可选同源 Relay，不是浏览器工作台的必需服务 |
 

@@ -1,6 +1,9 @@
 const DB='harness_state';
 import {validateSession} from './records.js';
 const LIMIT=64*1024*1024;
+export class SessionRevisionConflict extends Error {
+    constructor(){super('Session changed in another window. Reload before continuing; your draft is not overwritten.');}
+}
 function checked(record) {
     validateSession(record);
     if(new TextEncoder().encode(JSON.stringify(record)).length>LIMIT) throw new Error('Session exceeds 64 MiB; export files and start a new conversation.');
@@ -37,7 +40,7 @@ export async function openStateStore() {
             checked(snapshot);const copy=structuredClone(snapshot);
             return write('sessions',(store,result,fail)=>{
                 const get=store.get(copy.id);get.onsuccess=()=>{
-                    if((get.result?.revision ?? 0)!==expectedRevision){fail(new Error('Session changed in another window. Reload before continuing; your draft is not overwritten.'));return;}
+                    if((get.result?.revision ?? 0)!==expectedRevision){fail(new SessionRevisionConflict());return;}
                     copy.revision=expectedRevision+1;copy.updatedAt=Date.now();store.put(copy);result(copy.revision);
                 };
             });

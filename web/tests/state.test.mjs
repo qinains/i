@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {recoverHistory} from '../state/recovery.js';
+import {SessionRevisionConflict} from '../state/store.js';
 import {legacyWorkspace} from '../state/migration.js';
 import {validateSession} from '../state/records.js';
 import {SessionController} from '../sessions.js';
@@ -36,41 +36,29 @@ test('old sessions default to ask while unknown persisted execution modes are re
     const record={id:'a',workspaceId:'default',name:'a',connectionId:'',connectionIdentity:'',draft:'',revision:1,history:[],transcript:[],status:'idle'};
     assert.equal(validateSession(record).mode??'ask','ask');assert.equal(validateSession({...record,mode:'auto'}).mode,'auto');assert.throws(()=>validateSession({...record,mode:'unsafe'}),/Invalid/);
 });
-test('interrupted batch restores real results and explicit unknown/not-executed outcomes',()=>{
-    const call=id=>({id,type:'function',function:{name:'write',arguments:'{}'}});
-    const assistant={role:'assistant',content:null,tool_calls:[call('a'),call('b'),call('c')]};
-    const history=recoverHistory([{role:'system',content:'test'}],{assistant,calls:[{id:'a',status:'finished',result:{output:'written'}},{id:'b',status:'started'},{id:'c',status:'pending'}]});
-    assert.equal(history[2].content,'written');assert.match(history[3].content,/unknown/i);assert.match(history[4].content,/not executed/i);
+test('a transient write error retains the draft and does not poison the next save',async()=>{
+    const context=new Context();let writes=0;
+    const controller=new SessionController(null,{commitSession:async(record,revision)=>{
+        if(++writes===2)throw new DOMException('temporary abort','AbortError');
+        if(writes===3)assert.equal(record.draft,'retained');
+        return revision+1;
+    }},{},context);
+    const record=await controller.create('default','Draft');record.draft='retained';
+    await assert.rejects(controller.save(record),{name:'AbortError'});
+    assert.equal(record.revision,1);assert.equal(controller.failed.has(record.id),true);
+    await controller.flush(record.id);
+    assert.equal(writes,3);assert.equal(record.revision,2);assert.equal(controller.failed.has(record.id),false);
+    await context.fiber.dispose();
 });
-const png='data:image/png;base64,iVBORw0KGgo=';
-const recoveryCall=id=>({id,type:'function',function:{name:'view_image',arguments:'{}'}});
-test('recovery restores finished image results after every tool result in assistant order',()=>{
-    const base=[{role:'system',content:'test'}],assistant={role:'assistant',content:null,tool_calls:['a','b','c'].map(recoveryCall)};
-    const image={type:'image_url',image_url:{url:png}},journal={assistant,calls:[{id:'b',status:'pending',result:{images:[image]}},{id:'a',status:'finished',result:{output:'Image attached.',images:[image]}}]};
-    const before=structuredClone({base,journal});
-    const restored=recoverHistory(base,journal);
-    assert.deepEqual(restored.map(m=>m.role),['system','assistant','tool','tool','tool','user']);
-    assert.deepEqual(restored.at(-1).content,[{type:'text',text:'Image from tool "a"'},image]);
-    assert.match(restored[4].content,/not executed/i);
-    assert.deepEqual({base,journal},before);
-    restored.at(-1).content[1].image_url.url='changed';assert.equal(image.image_url.url,png);
-});
-test('recovery rejects corrupt journals and image data instead of replaying tools',()=>{
-    const base=[{role:'system',content:'test'}],assistant={role:'assistant',content:null,tool_calls:[recoveryCall('a')]};
-    const journal=result=>({assistant,calls:[{id:'a',status:'finished',result}]});
-    for(const result of [{},{output:1},{output:'x',images:{}},{output:'x',images:[{type:'image_url',image_url:{url:'https://example.invalid/image.png'}}]},{output:'x',images:[{type:'image_url',image_url:{url:png.replace('image/png','image/jpeg')}}]},{output:'x',images:[{type:'image_url',image_url:{url:png+'!'}}]},{output:'x',images:Array(9).fill({type:'image_url',image_url:{url:png}})}])assert.throws(()=>recoverHistory(base,journal(result)));
-    assert.throws(()=>recoverHistory(base,{assistant,calls:[{id:'other',status:'pending'}]}));
-    assert.throws(()=>recoverHistory(base,{assistant,calls:[{id:'a',status:'pending'},{id:'a',status:'started'}]}));
-    assert.throws(()=>recoverHistory(base,{assistant,calls:[{id:'a',status:'invalid'}]}));
-});
-test('recovered image limits apply across the whole batch, with strict canonical base64',()=>{
-    const base=[{role:'system',content:'test'}],assistant={role:'assistant',tool_calls:['a','b'].map(recoveryCall)},image={type:'image_url',image_url:{url:png}};
-    const journal={assistant,calls:[{id:'b',status:'finished',result:{output:'b',images:[image]}},{id:'a',status:'finished',result:{output:'a',images:[image]}}]};
-    const images=recoverHistory(base,journal).at(-1).content;
-    assert.equal(images[0].text,'Image from tool "a"');assert.equal(images[2].text,'Image from tool "b"');
-    journal.calls[0].result.images=Array(8).fill(image);assert.throws(()=>recoverHistory(base,journal));
-    journal.calls[0].result.images=[{type:'image_url',image_url:{url:png.slice(0,-1)}}];assert.throws(()=>recoverHistory(base,journal));
-    const bytes=new Uint8Array(8*1024*1024+1);bytes.set([137,80,78,71,13,10,26,10]);
-    journal.calls[0].result.images=[{type:'image_url',image_url:{url:'data:image/png;base64,'+Buffer.from(bytes).toString('base64')}}];
-    assert.throws(()=>recoverHistory(base,journal));
+test('a revision conflict blocks queued and later saves without overwriting newer state',async()=>{
+    const context=new Context();let writes=0;
+    const controller=new SessionController(null,{commitSession:async(_,revision)=>{
+        if(++writes===2)throw new SessionRevisionConflict();return revision+1;
+    }},{},context);
+    const record=await controller.create('default','Draft');
+    const results=await Promise.allSettled([controller.save(record),controller.save(record)]);
+    assert.ok(results.every(result=>result.status==='rejected'&&result.reason instanceof SessionRevisionConflict));
+    await assert.rejects(controller.flush(record.id),SessionRevisionConflict);
+    assert.equal(writes,2);assert.equal(record.revision,1);
+    await context.fiber.dispose();
 });
