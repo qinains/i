@@ -126,6 +126,7 @@ export class TaskController {
     #clearDraft(record){record.draft='';record.composerBlocks=[];this.#view.draftCleared(record);}
     async send(record,visible,blocks,entry=null){
         const view=this.#view,sessions=view.sessions(),composed=composeDraft({composerBlocks:blocks},visible);
+        if(!entry)view.title(record,composed.text||'Image');
         if(!view.online())throw new Error('Offline: the unsent message and attachments are retained.');
         return this.run(record,async(_agent,signal)=>{
             const {id,config}=view.connection();
@@ -147,7 +148,7 @@ export class TaskController {
             }
             this.#current.phase='running';
             if(!entry)view.draftCleared(record);
-            view.transcriptChanged(record);view.title(record,composed.text||'Image');view.changed();signal.throwIfAborted();
+            view.transcriptChanged(record);if(entry)view.title(record,composed.text||'Image');view.changed();signal.throwIfAborted();
             const task=this.#current,pluginAbort=new AbortController();task.pluginAbort=pluginAbort;
             try{await runPluginTask({agent,manager,store,record,text:composed.text,images,signal:AbortSignal.any([signal,pluginAbort.signal]),approve:description=>this.approve(record.id,description),beforeEffect:()=>sessions.flush(record.id),onUnavailable:id=>view.append(record,`Plugin unavailable: ${id}`,'error')});}
             finally{pluginAbort.abort();task.pluginAbort=null;}

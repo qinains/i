@@ -9,7 +9,7 @@ function fixture(save=async()=>{},view={}){
     const config={base_url:'http://127.0.0.1:4173/mock/v1',protocol:'openai',model:'fixture',transport:'direct'};
     const sessions={conflicts:new Map(),save,flush:async()=>{},later(){},agent:async()=>agent,configure:async()=>agent};
     const tasks=new TaskController({sessions:()=>sessions,blocked:()=>false,changed(){},focus(){},append(){},report(){},refresh:async()=>{},
-        online:()=>true,redact:text=>text,connection:()=>({id:'fixture',config}),plugins:async()=>({}),draftCleared(){assert.fail('no durable message was admitted');},...view},async(_id,fn)=>fn());
+        online:()=>true,redact:text=>text,title(){},connection:()=>({id:'fixture',config}),plugins:async()=>({}),draftCleared(){assert.fail('no durable message was admitted');},...view},async(_id,fn)=>fn());
     return {tasks,record,sessions,config};
 }
 
