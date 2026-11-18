@@ -1,8 +1,39 @@
 import {test,expect} from './fixtures.mjs';
 test('corrupt transcript is isolated without losing workspace files or blocking startup',async({page})=>{
-    await page.goto('/');await expect(page.locator('#save-status')).toHaveText('Saved');
-    await page.evaluate(async()=>{const {openStateStore}=await import('/state/store.js');const store=await openStateStore();const {sessions}=await store.load();const record=sessions[0];record.transcript=[null];await new Promise((resolve,reject)=>{const request=indexedDB.open('harness_state');request.onsuccess=()=>{const db=request.result;const tx=db.transaction('sessions','readwrite');tx.objectStore('sessions').put(record);tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};});store.close();});
+    await page.goto('/');
+    // Saved can be shown between initial session creation and the final startup save.
+    await expect(page.locator('#status')).toHaveText('Ready');
+    await expect(page.locator('#save-status')).toHaveText('Saved');
+    const corruptId=await page.evaluate(async()=>{
+        const fs=await import('/platform.js');
+        await fs.opfsWrite(await fs.opfsOpen(),'retained.txt',new TextEncoder().encode('keep me'));
+        const {openStateStore}=await import('/state/store.js');
+        const store=await openStateStore();
+        let record;
+        try{({sessions:[record]}=await store.load());}finally{store.close();}
+        record.transcript=[null];
+        await new Promise((resolve,reject)=>{
+            const request=indexedDB.open('harness_state');
+            request.onerror=()=>reject(request.error);
+            request.onsuccess=()=>{
+                const db=request.result,tx=db.transaction('sessions','readwrite');
+                tx.oncomplete=()=>{db.close();resolve();};
+                tx.onabort=()=>{db.close();reject(tx.error);};
+                tx.objectStore('sessions').put(record);
+            };
+        });
+        return record.id;
+    });
     await page.reload();await expect(page.locator('#status')).toHaveText('Ready');await expect(page.locator('#global-error')).toContainText('invalid');await expect(page.locator('#input')).toBeEnabled();
+    expect(await page.evaluate(async id=>{
+        const {openStateStore}=await import('/state/store.js'),fs=await import('/platform.js');
+        const store=await openStateStore();
+        try{
+            const {sessions,ui}=await store.load();
+            return {transcript:sessions.find(record=>record.id===id)?.transcript,opened:ui.activeSessionId===id,
+                file:new TextDecoder().decode(await fs.opfsRead(await fs.opfsOpen(),'retained.txt',100))};
+        }finally{store.close();}
+    },corruptId)).toEqual({transcript:[null],opened:false,file:'keep me'});
 });
 test('deleted connection requires explicit attachment before old history is sent',async({page})=>{
     await page.route('**/mock/v1/chat/completions',route=>route.fulfill({contentType:'text/event-stream',body:'data: {"choices":[{"index":0,"delta":{"content":"fixture reply"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n'}));

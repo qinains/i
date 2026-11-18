@@ -71,6 +71,23 @@ two-plugin and offline-plugin-PWA tests five times each. These controls do not
 prove that the intermittent failure is fixed. No speculative runtime fix,
 automatic test retry, or removed assertion is used to hide it.
 
+Diagnostic follow-up: [CI on `20069e8`](https://github.com/qinains/i/actions/runs/44222983826).
+It records the failing plugin-snapshot stage and an allowlisted error class,
+without logging package paths or exception text. WebKit CI records browser
+process output and labels OPFS setup separately from test-page creation.
+The two-plugin and file-browser specs passed three local repetitions (15
+tests); all 151 Node tests passed after regenerating PWA asset hashes. These
+local results do not establish a root cause for either original CI failure.
+All six native jobs and Chromium passed again. The follow-up CI also passed
+143/144 on WebKit: both previous failures passed,
+but the corrupt-transcript test did not see the expected recovery alert.
+Its setup waited for `Saved`, which can appear before the startup flush; the
+fixture now waits for `Ready` and verifies the corrupt record remains unopened
+and a real workspace file survives. This is a test precondition fix, not a
+shared explanation for the other intermittent WebKit failures.
+The local full diagnostic WebKit suite passed 144/144 before the fixture
+change, and the strengthened test passed five local WebKit repetitions.
+
 ## Remaining boundaries
 
 - The intermittent WebKit plugin-unavailable failure still needs a captured
