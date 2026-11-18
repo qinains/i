@@ -2,21 +2,23 @@ use anyhow::{Context, Result, bail, ensure};
 use base64::{Engine, engine::general_purpose::STANDARD};
 use clap::Parser;
 use command_group::{CommandGroup, GroupChild};
+use i::application::{ApplicationHost, Services};
+use i::i18n;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::Digest;
 use std::{
-    cell::RefCell,
     collections::HashMap,
     env, fs,
     io::{self, BufRead, Read, Write},
     path::{Component, Path, PathBuf},
     process::{Command, ExitStatus, Stdio},
     sync::mpsc,
+    sync::{Arc, Mutex},
     thread,
     time::{Duration, Instant},
 };
-mod i18n;
+mod native_bundle;
 mod net;
 mod readline;
 mod worker;
@@ -105,15 +107,17 @@ struct Workspace {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    #[cfg(feature = "bundled")]
-    i_plugins::entry(env::args().skip(1).collect())?;
+    let bundled_args = match native_bundle::entry(env::args().skip(1).collect())? {
+        Some(args) => args,
+        None => return Ok(()),
+    };
 
     // Initialize i18n
     let lang = env::var("I_LANG").unwrap_or_else(|_| i18n::detect_system_language());
     let i18n = i18n::I18n::load(&lang, Path::new("locales"));
     let t = |key: &str| i18n.t(key);
 
-    let mut args = Args::parse();
+    let mut args = Args::parse_from(std::iter::once(env::args().next().unwrap()).chain(bundled_args));
     ensure!(args.max_steps > 0 && args.timeout > 0, t("error.invalid_input"));
     let root = dunce::canonicalize(&args.dir).context("open workspace")?;
     ensure!(root.is_dir(), "workspace must be a directory");
@@ -150,10 +154,9 @@ async fn main() -> Result<()> {
     let url = setting(args.base_url.or(config.base_url.clone()), "API_BASE_URL")?;
     let key_env = args.api_key_env.or(config.api_key_env.clone()).unwrap_or_else(|| "API_KEY".into());
     let key = args.api_key.or(config.api_key.clone()).unwrap_or_else(|| env::var(&key_env).unwrap_or_default());
-    #[cfg(feature = "bundled")]
-    let key = i_plugins::deployment_key(&key_env, key)?;
+    let key = native_bundle::deployment_key(&key_env, key)?;
     let client = net::client(config.proxy.as_deref())?;
-    let api = Api { client, url, key, protocol, model: model.clone(), max_tokens, config, plugins };
+    let api = Arc::new(Api { client, url, key, protocol, model: model.clone(), max_tokens, config, plugins });
     if let Some(action) = args.provider_action {
         let action: Value = serde_json::from_str(&action)?;
         ensure!(action.is_object(), "provider action must be an object");
@@ -175,7 +178,7 @@ async fn main() -> Result<()> {
     } else {
         args.task.join(" ")
     };
-    ensure!(!task.trim().is_empty(), i18n.t("error.task_empty"));
+    ensure!(!task.trim().is_empty() || !args.images.is_empty(), i18n.t("error.task_empty"));
     ensure!(args.images.len() <= 8, i18n.t("error.images_too_many"));
     let images = args.images.iter().map(|path| workspace.image(path)).collect::<Result<Vec<_>>>()?;
     let content = content_with_images(&task, &json!(images));
@@ -186,49 +189,128 @@ async fn main() -> Result<()> {
     if workspace.yes {
         eprintln!("{}", i18n.t("status.warning_auto_approve"));
     }
-    let mut host = NativeHost { api: &api, workspace: &workspace, session: args.session.as_deref(), i18n: &i18n };
-    i::agent::run(&mut host, &mut messages, args.max_steps).await
+    let application = i::application::AgentApplication::new(api, Arc::new(workspace))?;
+    let mut conversation = application.attach_conversation(messages)?;
+    let mut host = NativeHost { session: args.session.as_deref(), i18n: &i18n, saved: Vec::new(), journal: None };
+    let result = application.run(&mut host, &mut conversation, args.max_steps).await;
+    let report = application.shutdown().await;
+    ensure!(
+        report.closed && report.errors.is_empty(),
+        "application shutdown incomplete: {:?}; retained: {:?}",
+        report.errors,
+        report.retained
+    );
+    result
 }
 struct NativeHost<'a> {
-    api: &'a Api,
-    workspace: &'a Workspace,
     session: Option<&'a Path>,
     i18n: &'a i18n::I18n,
+    saved: Vec<Value>,
+    journal: Option<Value>,
 }
-impl i::agent::AgentHost for NativeHost<'_> {
-    async fn before_turn(&mut self, messages: &mut Vec<Value>) -> Result<()> {
-        *messages =
-            checked_history(self.api.plugins.emit("before_turn", json!({"messages":messages}))?["messages"].take())?;
-        self.api.plugins.save(self.session, messages)?;
-        self.api.compact(messages, self.session).await
+impl NativeHost<'_> {
+    fn update_journal(&mut self, root: &Path, call: &Value, status: &str, result: Option<&Value>) -> Result<()> {
+        let mut journal = self.journal.clone().context("missing tool journal")?;
+        let item = journal["calls"]
+            .as_array_mut()
+            .context("invalid tool journal")?
+            .iter_mut()
+            .find(|item| item["id"] == call["id"])
+            .context("unknown journal call")?;
+        item["status"] = json!(status);
+        if let Some(result) = result {
+            item["result"] = result.clone();
+        }
+        save_session_state(self.session, root, &self.saved, Some(&journal))?;
+        self.journal = Some(journal);
+        Ok(())
     }
-    async fn complete(&mut self, history: &[Value]) -> Result<Value> {
-        self.api.complete(history, false).await
+}
+impl ApplicationHost<Api, Workspace> for NativeHost<'_> {
+    async fn before_turn(&mut self, services: &Services<Api, Workspace>, messages: &mut Vec<Value>) -> Result<()> {
+        services
+            .provider()
+            .call_async(|api, _| async move {
+                *messages =
+                    checked_history(api.plugins.emit("before_turn", json!({"messages":messages}))?["messages"].take())?;
+                api.plugins.save(self.session, messages)?;
+                api.compact(messages, self.session).await
+            })
+            .await
     }
-    async fn before_tools(&mut self, history: &[Value], pending: usize) -> Result<usize> {
-        let budget = self.api.budget(history, pending, false)?;
-        Ok(number(&budget, "tool_output_bytes", self.workspace.io_limit)?.min(self.workspace.io_limit))
+    async fn complete(&mut self, services: &Services<Api, Workspace>, history: &[Value]) -> Result<Value> {
+        services.provider().call_async(|api, _| async move { api.complete(history, false).await }).await
     }
-    async fn dispatch(&mut self, call: &Value, slots: usize) -> Result<Value> {
-        let invocation = self
-            .api
-            .plugins
-            .emit("before_tool", json!({"name":call["function"]["name"],"arguments":call["function"]["arguments"]}))?;
-        let name = field(&invocation, "name")?;
-        let arguments = field(&invocation, "arguments")?;
-        let result = match serde_json::from_str(arguments).context("invalid tool arguments") {
-            Ok(args) => self.workspace.tool(name, &args, &self.api.plugins, slots).await,
-            Err(error) => Err(error),
-        };
-        let mut result = result.unwrap_or_else(|e| json!({"output":format!("ERROR: {e:#}")}));
-        result["name"] = json!(name);
-        self.api.plugins.emit("after_tool", result)
+    async fn before_tools(
+        &mut self,
+        services: &Services<Api, Workspace>,
+        history: &[Value],
+        pending: usize,
+    ) -> Result<usize> {
+        let budget = services.provider().call(|api, _| api.budget(history, pending, false))??;
+        let limit = services.workspace().call(|workspace, _| workspace.io_limit)?;
+        let limit = number(&budget, "tool_output_bytes", limit)?.min(limit);
+        let assistant = history.last().context("missing assistant tool batch")?.clone();
+        let calls: Vec<_> =
+            tool_calls(&assistant)?.iter().map(|call| json!({"id":call["id"],"status":"pending"})).collect();
+        self.saved = history[..history.len() - 1].to_vec();
+        let journal = json!({"assistant":assistant,"calls":calls});
+        services
+            .workspace()
+            .call(|workspace, _| save_session_state(self.session, &workspace.root, &self.saved, Some(&journal)))??;
+        self.journal = Some(journal);
+        Ok(limit)
     }
-    async fn checkpoint(&mut self, history: &mut Vec<Value>) -> Result<()> {
-        self.api.plugins.save(self.session, history)
+    async fn before_dispatch(&mut self, services: &Services<Api, Workspace>, _: &[Value], call: &Value) -> Result<()> {
+        services.workspace().call(|workspace, _| self.update_journal(&workspace.root, call, "started", None))?
     }
-    async fn finish(&mut self, history: &[Value]) -> Result<()> {
-        self.api.plugins.emit("finish", json!({"messages":history}))?;
+    async fn after_dispatch(
+        &mut self,
+        services: &Services<Api, Workspace>,
+        _: &[Value],
+        call: &Value,
+        result: &Value,
+    ) -> Result<()> {
+        services
+            .workspace()
+            .call(|workspace, _| self.update_journal(&workspace.root, call, "finished", Some(result)))?
+    }
+    async fn dispatch(&mut self, services: &Services<Api, Workspace>, call: &Value, slots: usize) -> Result<Value> {
+        services
+            .provider()
+            .call_async(|provider, _| async move {
+                let api = &*provider;
+                let invocation = api.plugins.emit(
+                    "before_tool",
+                    json!({"name":call["function"]["name"],"arguments":call["function"]["arguments"]}),
+                )?;
+                let name = field(&invocation, "name")?;
+                let arguments = field(&invocation, "arguments")?;
+                let result = match serde_json::from_str(arguments).context("invalid tool arguments") {
+                    Ok(args) => {
+                        services
+                            .workspace()
+                            .call_async(|workspace, _| async move {
+                                workspace.tool(name, &args, &api.plugins, slots, &|| services.is_cancelled()).await
+                            })
+                            .await
+                    }
+                    Err(error) => Err(error),
+                };
+                let mut result = result.unwrap_or_else(|e| json!({"output":format!("ERROR: {e:#}")}));
+                result["name"] = json!(name);
+                api.plugins.emit("after_tool", result)
+            })
+            .await
+    }
+    async fn checkpoint(&mut self, services: &Services<Api, Workspace>, history: &mut Vec<Value>) -> Result<()> {
+        services.provider().call(|api, _| api.plugins.save(self.session, history))??;
+        self.saved = history.clone();
+        self.journal = None;
+        Ok(())
+    }
+    async fn finish(&mut self, services: &Services<Api, Workspace>, history: &[Value]) -> Result<()> {
+        services.provider().call(|api, _| api.plugins.emit("finish", json!({"messages":history})))??;
         Ok(())
     }
     fn emit(&mut self, event: Value) -> Result<()> {
@@ -286,7 +368,11 @@ impl Api {
             "after_response",
             json!({"response":response,"compact":compact,"request_meta":data["request_meta"]}),
         )?;
-        let mut result = self.provider("provider_parse", json!({"response":data["response"]}))?["response"].take();
+        let mut result = self.provider(
+            "provider_parse",
+            json!({"response":data["response"],"adapter_metadata":data["adapter_metadata"]}),
+        )?["response"]
+            .take();
         ensure!(result["choices"][0]["message"].is_object(), "provider returned no assistant message");
         result["choices"][0]["message"]["_usage"] = json!({"tokens":data["response"]["usage"],"anchor":anchor});
         Ok(result)
@@ -486,7 +572,7 @@ impl Api {
 }
 struct Plugins {
     provider: Value,
-    workers: RefCell<HashMap<String, Worker>>,
+    workers: Mutex<HashMap<String, Worker>>,
     io_limit: usize,
     tools: Vec<Value>,
     hooks: Vec<Value>,
@@ -497,7 +583,7 @@ impl Plugins {
     fn call(&self, entry: &Value, event: &str, data: Value) -> Result<Value> {
         let dir = dunce::canonicalize(self.dir.join(entry["cwd"].as_str().unwrap_or("")))?;
         let key = json!([entry["exec"], dir]).to_string();
-        let mut workers = self.workers.borrow_mut();
+        let mut workers = self.workers.lock().map_err(|_| anyhow::anyhow!("worker registry lock poisoned"))?;
         if !workers.contains_key(&key) {
             workers.insert(key.clone(), Worker::start(&entry["exec"], &dir, self.io_limit)?);
         }
@@ -553,8 +639,7 @@ fn load_plugins(path: Option<&Path>) -> Result<Plugins> {
         Some(p) => serde_json::from_str(&read_text(p)?)?,
         None => json!({"tools":[]}),
     };
-    #[cfg(feature = "bundled")]
-    let manifest = i_plugins::resolve_manifest(manifest)?;
+    let manifest = native_bundle::resolve_manifest(manifest)?;
     ensure!(manifest.get("builtin_profile").is_none(), "portable builtins require bundled i");
     let plugins = manifest["tools"].as_array().context("manifest needs tools array")?;
     let hooks = manifest.get("hooks").unwrap_or(&json!([])).as_array().context("invalid hooks")?.clone();
@@ -581,14 +666,10 @@ fn load_plugins(path: Option<&Path>) -> Result<Plugins> {
         ensure!(plugin["parameters"]["type"] == "object", "plugin parameters must be an object schema");
     }
     let executable = env::current_exe()?;
-    let exec = if cfg!(feature = "bundled") {
-        json!([executable, "--runtime", "provider"])
-    } else {
-        json!([executable.with_file_name(format!("i-plugins{}", env::consts::EXE_SUFFIX)), "provider"])
-    };
+    let exec = json!([executable, "--runtime", "provider"]);
     Ok(Plugins {
         provider: manifest.get("provider").cloned().unwrap_or(json!({"exec":exec})),
-        workers: RefCell::default(),
+        workers: Mutex::default(),
         io_limit: 1024 * 1024,
         tools: plugins.clone(),
         hooks,
@@ -651,19 +732,32 @@ impl Workspace {
         }
         Ok(())
     }
-    async fn tool(&self, name: &str, args: &Value, plugins: &Plugins, slots: usize) -> Result<Value> {
+    async fn tool(
+        &self,
+        name: &str,
+        args: &Value,
+        plugins: &Plugins,
+        slots: usize,
+        cancelled: &(dyn Fn() -> bool + Sync),
+    ) -> Result<Value> {
+        ensure!(!cancelled(), "cancelled");
         ensure!(args.is_object(), "tool arguments must be an object");
         let plugin = plugins.tools.iter().find(|p| p["name"] == name);
         let native = tools().as_array().unwrap().iter().any(|t| t["function"]["name"] == name);
         ensure!(plugin.is_some() || native, "unknown tool: {name}");
         let original = if name == "edit" { Some(read_text(&self.path(field(args, "path")?)?)?) } else { None };
-        let decision = if self.yes || matches!(name, "read" | "view_image") { "allow" } else { "ask" };
+        let decision = if self.yes || matches!(name, "read" | "view_image" | "list" | "glob" | "search") {
+            "allow"
+        } else {
+            "ask"
+        };
         let event = json!({"name":name,"arguments":args,"external":plugin.is_some(),"decision":decision});
         let gate = plugins.emit("tool_approval", event)?;
         let decision = field(&gate, "decision")?;
         ensure!(matches!(decision, "allow" | "ask"), "approval denied or invalid: {decision}");
         let description = format!("TOOL {name} (not sandboxed)\nArguments: {args}\nPlugin: {plugin:?}");
         self.approve(&description, decision == "ask")?;
+        ensure!(!cancelled(), "cancelled");
         if let Some(plugin) = plugin {
             return plugins.call(plugin, "tool", json!({"name":name,"arguments":args}));
         }
@@ -684,10 +778,11 @@ impl Workspace {
             }
             let target = shared.fs.archive_target(Path::new(&relative))?;
             self.approve(&format!("OVERWRITE {}", target.display()), target.exists())?;
+            ensure!(!cancelled(), "cancelled");
             shared.fs.write_archive(Path::new(&relative), &archive.bytes)?;
             return Ok(json!({"output":format!("Saved ZIP: {} ({} entries)", target.display(), archive.entries)}));
         }
-        if matches!(name, "read" | "write" | "edit" | "view_image" | "list") {
+        if matches!(name, "read" | "write" | "edit" | "view_image" | "list" | "glob" | "search") {
             if name == "view_image" {
                 ensure!(slots > 0, "at most 8 images per tool batch");
                 shared.limits.file_bytes = 8 * 1024 * 1024;
@@ -701,9 +796,9 @@ impl Workspace {
             return shared.execute(name, args).await;
         }
         ensure!(name == "shell", "unknown tool: {name}");
-        Ok(json!({"output":self.shell(field(args, "command")?)?}))
+        Ok(json!({"output":self.shell(field(args, "command")?, cancelled)?}))
     }
-    fn shell(&self, command: &str) -> Result<String> {
+    fn shell(&self, command: &str, cancelled: &(dyn Fn() -> bool + Sync)) -> Result<String> {
         let mut cmd = Command::new(if cfg!(windows) { "cmd.exe" } else { "/bin/sh" });
         cmd.args(if cfg!(windows) { &["/D", "/C"][..] } else { &["-c"][..] })
             .arg(command)
@@ -715,7 +810,7 @@ impl Workspace {
         let mut child = cmd.group_spawn().context("start shell")?;
         let stdout = drain(child.inner().stdout.take().context("missing stdout")?, self.io_limit);
         let stderr = drain(child.inner().stderr.take().context("missing stderr")?, self.io_limit);
-        let (status, timed_out) = wait_process(child, self.timeout, || Ok(false))?;
+        let (status, timed_out) = wait_process(child, self.timeout, || Ok(cancelled()))?;
         // Detached descendants can retain pipes; never block forever joining reader threads.
         let deadline = Instant::now() + Duration::from_secs(1);
         while !(stdout.is_finished() && stderr.is_finished()) && Instant::now() < deadline {
@@ -741,9 +836,12 @@ fn wait_process(mut child: GroupChild, limit: Duration, full: impl Fn() -> Resul
     }
 }
 fn content_with_images(text: &str, images: &Value) -> Value {
-    let mut parts = vec![json!({"type":"text","text":text})];
+    if images.as_array().is_none_or(Vec::is_empty) {
+        return json!(text);
+    }
+    let mut parts = if text.is_empty() { Vec::new() } else { vec![json!({"type":"text","text":text})] };
     parts.extend(images.as_array().into_iter().flatten().cloned());
-    if parts.len() == 1 { json!(text) } else { json!(parts) }
+    json!(parts)
 }
 fn image_mime(bytes: &[u8]) -> Result<&'static str> {
     i::workspace::text::image_mime(bytes)
@@ -848,16 +946,24 @@ fn load_session(path: Option<&Path>, root: &Path) -> Result<Vec<Value>> {
         let mut session: Value = serde_json::from_slice(&fs::read(path)?).context("parse session")?;
         ensure!(session["version"] == 1, "unsupported session version");
         ensure!(session["workspace"].as_str() == root.to_str(), "session workspace mismatch");
-        return checked_history(session["messages"].take());
+        let history = checked_history(session["messages"].take())?;
+        return i::agent::recovery::recover(&history, session.get("journal").filter(|journal| !journal.is_null()));
     }
     Ok(vec![json!({"role":"system","content":format!("{SYSTEM}\nWorkspace: {}", root.display())})])
 }
 fn save_session(path: Option<&Path>, root: &Path, messages: &[Value]) -> Result<()> {
+    save_session_state(path, root, messages, None)
+}
+fn save_session_state(path: Option<&Path>, root: &Path, messages: &[Value], journal: Option<&Value>) -> Result<()> {
     if let Some(path) = path {
         let parent = path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
         fs::create_dir_all(parent)?;
         let mut file = tempfile::NamedTempFile::new_in(parent)?;
-        serde_json::to_writer_pretty(&mut file, &json!({"version":1,"workspace":root,"messages":messages}))?;
+        let mut state = json!({"version":1,"workspace":root,"messages":messages});
+        if let Some(journal) = journal {
+            state["journal"] = journal.clone();
+        }
+        serde_json::to_writer_pretty(&mut file, &state)?;
         file.as_file().sync_all()?;
         file.persist(path).context("commit session")?;
     }

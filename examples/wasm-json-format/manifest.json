@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "id": "example.json-format",
+  "name": "JSON formatter",
+  "version": "1.0.0",
+  "runtime": "harness-wasm-v1",
+  "entry": "plugin.wasm",
+  "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "permissions": {"workspace": "read-write", "storage": false},
+  "tools": [{"name":"format_json","description":"Read a JSON file and write indented JSON to output_path. File writes require normal host approval.","parameters":{"type":"object","properties":{"path":{"type":"string","minLength":1},"output_path":{"type":"string","minLength":1}},"required":["path","output_path"],"additionalProperties":false}}]
+}

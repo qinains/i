@@ -8,6 +8,8 @@ __pycache__/
 /plugins/*.local.json
 /plugins.local.json
 /web/pkg/
+/web/plugin-pkg/
+/web/plugins/vendor/
 /web/node_modules/
 /web/test-results/
 /web/playwright-report/
@@ -15,3 +17,10 @@ __pycache__/
 /web/service-worker.js
 /web/icons/icon-192.png
 /web/icons/icon-512.png
+/web/downloads/
+.DS_Store
+/.gstack/
+/.superpowers/
+*.pem
+*.key
+.env.*

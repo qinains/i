@@ -15,7 +15,7 @@ mod compaction_cases;
 mod provider_cases;
 mod support;
 fn workspace_store(root: &Path) -> std::path::PathBuf {
-    let mut command = Command::new(plugin_binary());
+    let mut command = plugin_command();
     support::isolate(&mut command, root);
     let output = command.args(["paths", "-C", root.to_str().unwrap()]).output().unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
@@ -135,7 +135,7 @@ fn tool_loop_and_session_resume() {
     assert!(output.status.success());
     let requests = server.join().unwrap();
     assert_eq!(requests[0]["model"], "test-model");
-    assert_eq!(requests[0]["tools"].as_array().unwrap().len(), 7);
+    assert_eq!(requests[0]["tools"].as_array().unwrap().len(), 9);
     assert_eq!(requests[1]["messages"][3]["role"], "tool");
     assert_eq!(requests[1]["messages"][3]["tool_call_id"], "call_1");
     assert_eq!(requests[2]["messages"][5]["content"], "summarize");
@@ -154,6 +154,21 @@ fn denied_write_is_returned_to_model() {
 }
 
 #[test]
+fn native_image_can_be_sent_without_a_caption() {
+    use base64::{Engine, engine::general_purpose::STANDARD};
+    let root = tempfile::tempdir().unwrap();
+    let png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN1cAAAAASUVORK5CYII=";
+    fs::write(root.path().join("image.png"), STANDARD.decode(png).unwrap()).unwrap();
+    let (base, worker) = server(vec![(200, final_reply())]);
+    let output = run(root.path(), &base, &["--image", "image.png", ""]);
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let requests = worker.join().unwrap();
+    let content = &requests[0]["messages"][1]["content"];
+    assert_eq!(content.as_array().unwrap().len(), 1);
+    assert_eq!(content[0]["type"], "image_url");
+}
+
+#[test]
 fn api_failure_exits_nonzero() {
     let dir = tempfile::tempdir().unwrap();
     let (base, server) = server(vec![(401, json!({"error":{"message":"bad key"}}))]);
@@ -167,7 +182,7 @@ fn api_failure_exits_nonzero() {
 fn step_limit_preserves_complete_tool_batch() {
     let dir = tempfile::tempdir().unwrap();
     let session = dir.path().join("session.json");
-    let (base, server) = server(vec![(200, tool_reply("read", json!({"path":"missing"})))]);
+    let (base, server) = server(vec![(200, tool_reply("read", json!({"files":[{"path":"missing"}]})))]);
     let output = run(dir.path(), &base, &["--max-steps", "1", "--session", session.to_str().unwrap(), "inspect"]);
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("step limit"));
@@ -296,7 +311,7 @@ fn plugins_work_on_both_protocols_and_require_approval() {
             assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
             assert!(!dir.path().join("injected").exists());
             let requests = server.join().unwrap();
-            assert_eq!(requests[0]["tools"].as_array().unwrap().len(), 8);
+            assert_eq!(requests[0]["tools"].as_array().unwrap().len(), 10);
             let result = if anthropic {
                 &requests[1]["messages"][2]["content"][0]["content"]
             } else {
@@ -330,17 +345,32 @@ fn config_drives_protocol_and_cli_overrides_connection_and_model() {
     assert_eq!(requests[0]["temperature"], 0.3);
 }
 
-fn responses_manifest() -> String {
-    format!("{}/plugins/responses.json", env!("CARGO_MANIFEST_DIR"))
+fn responses_manifest(root: &Path) -> String {
+    profile_manifest(root, "responses")
+}
+
+fn profile_manifest(root: &Path, profile: &str) -> String {
+    let mut command = plugin_command();
+    support::isolate(&mut command, root);
+    let output = command.args(["manifest", profile]).output().unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let path = root.join(format!("{profile}.manifest.json"));
+    fs::write(&path, output.stdout).unwrap();
+    path.to_string_lossy().into_owned()
 }
 
 fn plugin_binary() -> String {
-    format!("{}/target/debug/i-plugins{}", env!("CARGO_MANIFEST_DIR"), std::env::consts::EXE_SUFFIX)
+    env!("CARGO_BIN_EXE_i").into()
+}
+fn plugin_command() -> Command {
+    let mut command = Command::new(plugin_binary());
+    command.arg("--runtime");
+    command
 }
 
 fn budget_hooks() -> Value {
-    json!([{"events":["context_budget","before_request"],"exec":[plugin_binary(),"budget"]},
-        {"events":["compact_plan","before_compact","after_compact"],"exec":[plugin_binary(),"compact"]}])
+    json!([{"events":["context_budget","before_request"],"exec":[plugin_binary(),"--runtime","budget"]},
+        {"events":["compact_plan","before_compact","after_compact"],"exec":[plugin_binary(),"--runtime","compact"]}])
 }
 
 fn test_budget(images: &str) -> Value {
@@ -349,7 +379,7 @@ fn test_budget(images: &str) -> Value {
 }
 
 fn responses_hooks() -> Value {
-    json!([{"events":["before_request","after_response"],"exec":[plugin_binary(),"responses"]}])
+    json!([{"events":["before_request","after_response"],"exec":[plugin_binary(),"--runtime","responses"]}])
 }
 
 #[test]
@@ -413,7 +443,7 @@ fn responses_incomplete_never_executes_tools() {
         "output":[{"type":"function_call","call_id":"call1","name":"write",
             "arguments":"{\"path\":\"bad.txt\",\"content\":\"bad\"}"}]});
     let (base, server) = server_route(vec![(200, response)], "responses");
-    let output = run(dir.path(), &base, &["--plugins", &responses_manifest(), "--yolo", "test"]);
+    let output = run(dir.path(), &base, &["--plugins", &responses_manifest(dir.path()), "--yolo", "test"]);
     assert!(!output.status.success());
     assert!(!dir.path().join("bad.txt").exists());
     assert!(String::from_utf8_lossy(&output.stderr).contains("max_output_tokens"));
@@ -430,11 +460,7 @@ fn openai_medium_reasoning_examples_match_wire_format() {
         let config = dir.path().join("api.json");
         let mut value: Value = serde_json::from_str(source).unwrap();
         value["api_key_env"] = json!("I_TEST_UNSET_KEY");
-        value["plugins"] = json!(format!(
-            "{}/plugins/{}",
-            env!("CARGO_MANIFEST_DIR"),
-            if responses { "responses-compact.json" } else { "compact.json" }
-        ));
+        value["plugins"] = json!(profile_manifest(dir.path(), if responses { "responses-compact" } else { "compact" }));
         fs::write(&config, value.to_string()).unwrap();
         let reply = if responses {
             json!({"status":"completed","output":[{"type":"message","role":"assistant",
@@ -651,7 +677,7 @@ fn failed_compaction_keeps_full_history_and_can_be_disabled() {
         policy["enabled"] = json!(!disabled);
         fs::write(
             &config,
-            json!({"network_retries":0,"budget":policy,"plugins":format!("{}/plugins/compact.json",env!("CARGO_MANIFEST_DIR"))}).to_string(),
+            json!({"network_retries":0,"budget":policy,"plugins":profile_manifest(dir.path(),"compact")}).to_string(),
         )
         .unwrap();
         let response = if disabled { (200, final_reply()) } else { (500, json!({"error":"summary failed"})) };
@@ -668,6 +694,58 @@ fn failed_compaction_keeps_full_history_and_can_be_disabled() {
         assert!(saved.to_string().contains("data:image/png"));
         let requests = server.join().unwrap();
         assert_eq!(requests[0].get("tools").is_some(), disabled);
+    }
+}
+
+#[test]
+fn native_tool_failure_recovers_durable_outcome_without_replaying_the_write() {
+    for event in ["after_tool", "before_save"] {
+        let dir = tempfile::tempdir().unwrap();
+        let session = dir.path().join("session.json");
+        fs::write(
+            dir.path().join("hook.py"),
+            support::python(&format!(
+                r#"import json,sys
+from pathlib import Path
+e=json.load(sys.stdin); d=e['data']; root=Path(e['workspace'])
+if e['event']=='{event}' and (root/'written.txt').exists(): raise RuntimeError('injected checkpoint boundary failure')
+json.dump(d,sys.stdout)
+"#
+            )),
+        )
+        .unwrap();
+        let manifest = dir.path().join("hooks.json");
+        fs::write(&manifest, json!({"tools":[],"hooks":[{"events":[event],"exec":["python3","hook.py"]}]}).to_string())
+            .unwrap();
+        let (base, first) =
+            server(vec![(200, tool_reply("write", json!({"path":"written.txt","content":"committed"})))]);
+        let output = run(
+            dir.path(),
+            &base,
+            &["--plugins", manifest.to_str().unwrap(), "--session", session.to_str().unwrap(), "--yolo", "write once"],
+        );
+        assert!(!output.status.success());
+        first.join().unwrap();
+        assert_eq!(fs::read_to_string(dir.path().join("written.txt")).unwrap(), "committed");
+        let saved: Value = serde_json::from_slice(&fs::read(&session).unwrap()).unwrap();
+        assert_eq!(saved["journal"]["calls"][0]["status"], if event == "after_tool" { "started" } else { "finished" });
+        fs::write(dir.path().join("written.txt"), "user change after interruption").unwrap();
+        let (base, resumed) = server(vec![(200, final_reply())]);
+        let output = run(
+            dir.path(),
+            &base,
+            &["--session", session.to_str().unwrap(), "--yolo", "inspect outcome, do not repeat"],
+        );
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        let requests = resumed.join().unwrap();
+        let tool =
+            requests[0]["messages"].as_array().unwrap().iter().find(|message| message["role"] == "tool").unwrap();
+        if event == "after_tool" {
+            assert!(tool["content"].as_str().unwrap().contains("outcome unknown"));
+        }
+        assert_eq!(fs::read_to_string(dir.path().join("written.txt")).unwrap(), "user change after interruption");
+        let saved: Value = serde_json::from_slice(&fs::read(&session).unwrap()).unwrap();
+        assert!(saved.get("journal").is_none_or(Value::is_null));
     }
 }
 
@@ -722,7 +800,7 @@ json.dump(d,sys.stdout)
 #[test]
 fn memory_tools_persist_and_inject_only_when_loaded() {
     let dir = tempfile::tempdir().unwrap();
-    let manifest = format!("{}/plugins/memory.json", env!("CARGO_MANIFEST_DIR"));
+    let manifest = profile_manifest(dir.path(), "memory");
     let (base, server) = server(vec![
         (200, tool_reply("memory_set", json!({"key":"language","value":"Prefer Rust"}))),
         (200, final_reply()),
@@ -741,7 +819,7 @@ fn memory_tools_persist_and_inject_only_when_loaded() {
     assert!(requests[2]["messages"][2]["content"].as_str().unwrap().contains("Prefer Rust"));
     assert_eq!(&requests[1]["messages"].as_array().unwrap()[..2], requests[0]["messages"].as_array().unwrap());
     assert!(!requests[3]["messages"].to_string().contains("Prefer Rust"));
-    assert_eq!(requests[0]["tools"].as_array().unwrap().len(), 10);
+    assert_eq!(requests[0]["tools"].as_array().unwrap().len(), 12);
 }
 
 #[test]
@@ -779,7 +857,7 @@ fn malicious_history_and_cross_origin_hook_changes_fail_closed() {
 fn full_manifest_composes_prompts_memory_and_responses() {
     let dir = tempfile::tempdir().unwrap();
     fs::write(workspace_store(dir.path()).join("memory.json"), r#"{"preference":"Prefer offline tests"}"#).unwrap();
-    let manifest = format!("{}/plugins/full.json", env!("CARGO_MANIFEST_DIR"));
+    let manifest = profile_manifest(dir.path(), "full");
     let (base, server) = server_route(vec![(200, answer("responses", "done"))], "responses");
     let config = dir.path().join("api.json");
     fs::write(&config, json!({"budget":test_budget("keep")}).to_string()).unwrap();
@@ -814,8 +892,7 @@ fn compaction_keeps_describes_or_omits_images_without_changing_files() {
         let config = dir.path().join("api.json");
         fs::write(
             &config,
-            json!({"budget":test_budget(mode),"plugins":format!("{}/plugins/compact.json",env!("CARGO_MANIFEST_DIR"))})
-                .to_string(),
+            json!({"budget":test_budget(mode),"plugins":profile_manifest(dir.path(),"compact")}).to_string(),
         )
         .unwrap();
         let (base, server) = server(vec![(200, answer("openai", "Short visual/task summary")), (200, final_reply())]);
@@ -844,18 +921,18 @@ fn compaction_keeps_describes_or_omits_images_without_changing_files() {
 fn missing_budget_metadata_fails_before_http_and_io_limit_is_configurable() {
     let dir = tempfile::tempdir().unwrap();
     let config = dir.path().join("api.json");
-    fs::write(&config, json!({"plugins":format!("{}/plugins/budget.json",env!("CARGO_MANIFEST_DIR"))}).to_string())
-        .unwrap();
+    fs::write(&config, json!({"plugins":profile_manifest(dir.path(),"budget")}).to_string()).unwrap();
     let output = run(dir.path(), "http://127.0.0.1:1", &["--config", config.to_str().unwrap(), "test"]);
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("context_window"));
     fs::write(dir.path().join("long.txt"), "long content ".repeat(5000)).unwrap();
-    fs::write(&config, json!({"io_limit_bytes":128}).to_string()).unwrap();
-    let (base, server) = server(vec![(200, tool_reply("read", json!({"path":"long.txt"}))), (200, final_reply())]);
+    fs::write(&config, json!({"io_limit_bytes":1024}).to_string()).unwrap();
+    let (base, server) =
+        server(vec![(200, tool_reply("read", json!({"files":[{"path":"long.txt"}]}))), (200, final_reply())]);
     assert!(run(dir.path(), &base, &["--config", config.to_str().unwrap(), "read"]).status.success());
     let requests = server.join().unwrap();
     let result = requests[1]["messages"][3]["content"].as_str().unwrap();
-    assert!(result.len() <= 150 && result.contains("truncated"));
+    assert!(result.len() <= 1024 && result.contains("truncated"));
 }
 
 #[test]
@@ -865,7 +942,7 @@ fn console_accepts_steering_during_tools_and_queues_followups() {
     let manifest = dir.path().join("plugins.json");
     fs::write(&manifest, json!({"tools":[{"name":"slow","description":"slow fixture","parameters":{"type":"object"},"exec":["python3","slow.py"]}],"hooks":[]}).to_string()).unwrap();
     let (base, server) = server(vec![(200, tool_reply("slow", json!({}))), (200, final_reply()), (200, final_reply())]);
-    let mut command = Command::new(plugin_binary());
+    let mut command = plugin_command();
     support::isolate(&mut command, dir.path());
     let mut child = command
         .arg("console")
@@ -927,18 +1004,17 @@ fn console_accepts_steering_during_tools_and_queues_followups() {
 }
 
 #[test]
-fn search_plugin_returns_paths_and_lines() {
+fn built_in_search_returns_paths_and_lines_without_a_plugin() {
     let dir = tempfile::tempdir().unwrap();
     fs::write(dir.path().join("main.rs"), "fn main() {}\n// find needle here\n").unwrap();
-    let manifest = format!("{}/plugins/search.json", env!("CARGO_MANIFEST_DIR"));
     let (base, server) =
-        server(vec![(200, tool_reply("search", json!({"query":"needle","glob":"*.rs"}))), (200, final_reply())]);
-    let output = run(dir.path(), &base, &["--plugins", &manifest, "--yolo", "search project"]);
+        server(vec![(200, tool_reply("search", json!({"pattern":"needle","glob":"*.rs"}))), (200, final_reply())]);
+    let output = run(dir.path(), &base, &["search project"]);
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     let requests = server.join().unwrap();
     let result: Value = serde_json::from_str(requests[1]["messages"][3]["content"].as_str().unwrap()).unwrap();
-    assert_eq!(result["matches"][0]["path"], "main.rs");
-    assert_eq!(result["matches"][0]["line"], 2);
+    assert_eq!(result["results"][0]["path"], "main.rs");
+    assert_eq!(result["results"][0]["line"], 2);
 }
 
 #[test]
@@ -949,7 +1025,7 @@ fn skills_are_discovered_loaded_on_demand_and_refreshed_on_resume() {
     let page = skill.join("SKILL.md");
     fs::write(&page, "---\nname: checks\ndescription: first description\n---\nBODY_ONLY_ON_DEMAND\nDo not execute scripts without approval.\n").unwrap();
     fs::write(skill.join("script.sh"), "touch SHOULD_NOT_EXIST").unwrap();
-    let manifest = format!("{}/plugins/skills.json", env!("CARGO_MANIFEST_DIR"));
+    let manifest = profile_manifest(dir.path(), "skills");
     let (base, worker) = server(vec![(200, tool_reply("skill_load", json!({"name":"checks"}))), (200, final_reply())]);
     let result =
         run(dir.path(), &base, &["--plugins", &manifest, "--session-name", "skills", "--yolo", "load relevant skill"]);
@@ -984,7 +1060,7 @@ fn over_budget_summary_is_rejected_before_http() {
     let config = dir.path().join("api.json");
     fs::write(
         &config,
-        json!({"max_tokens":100,"plugins":format!("{}/plugins/compact.json",env!("CARGO_MANIFEST_DIR")),
+        json!({"max_tokens":100,"plugins":profile_manifest(dir.path(),"compact"),
         "budget":{"context_window":5000,"images":"omit"}})
         .to_string(),
     )
@@ -1008,18 +1084,18 @@ fn over_budget_summary_is_rejected_before_http() {
 fn cache_usage_target_does_not_hide_cold_requests() {
     let dir = tempfile::tempdir().unwrap();
     fs::write(dir.path().join("file.txt"), "small new result").unwrap();
-    let mut first = tool_reply("read", json!({"path":"file.txt"}));
+    let mut first = tool_reply("read", json!({"files":[{"path":"file.txt"}]}));
     first["usage"] = json!({"prompt_tokens":100000,"prompt_tokens_details":{"cached_tokens":0}});
     let mut second = final_reply();
     second["usage"] = json!({"prompt_tokens":101000,"prompt_tokens_details":{"cached_tokens":100000}});
     let (base, worker) = server(vec![(200, first), (200, second)]);
-    let manifest = format!("{}/plugins/cache.json", env!("CARGO_MANIFEST_DIR"));
+    let manifest = profile_manifest(dir.path(), "cache");
     let output = run(dir.path(), &base, &["--plugins", &manifest, "read file"]);
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     let requests = worker.join().unwrap();
     assert_eq!(&requests[1]["messages"].as_array().unwrap()[..2], requests[0]["messages"].as_array().unwrap());
     assert!(!requests[1].to_string().contains("_cache_session"));
-    let mut command = Command::new(plugin_binary());
+    let mut command = plugin_command();
     support::isolate(&mut command, dir.path());
     let report = command.args(["cache-report", "-C", dir.path().to_str().unwrap()]).output().unwrap();
     assert!(report.status.success());
@@ -1048,7 +1124,7 @@ fn compaction_restores_reference_snapshots_before_request_and_budget_validation(
     hooks
         .as_array_mut()
         .unwrap()
-        .push(json!({"events":["before_turn","before_compact_commit"],"exec":[plugin_binary(),"memory"]}));
+        .push(json!({"events":["before_turn","before_compact_commit"],"exec":[plugin_binary(),"--runtime","memory"]}));
     fs::write(dir.path().join("hooks.json"), json!({"tools":[],"hooks":hooks}).to_string()).unwrap();
     let config = dir.path().join("api.json");
     fs::write(&config, json!({"budget":test_budget("omit"),"plugins":"hooks.json"}).to_string()).unwrap();
@@ -1073,7 +1149,8 @@ fn global_config_and_plugin_settings_are_resolved_without_changing_model_prefix_
     fs::write(config.join("config.json"),json!({"model":"home-model","base_url":"http://unused.invalid", "plugins":"desktop.json","extra_body":{"temperature":0.25}}).to_string()).unwrap();
     fs::write(
         config.join("desktop.json"),
-        json!({"tools":[],"hooks":[{"events":["system_prompt"],"exec":[plugin_binary(),"prompts"]}]}).to_string(),
+        json!({"tools":[],"hooks":[{"events":["system_prompt"],"exec":[plugin_binary(),"--runtime","prompts"]}]})
+            .to_string(),
     )
     .unwrap();
     fs::write(config.join("prompts.json"), r#"{"system":"system.txt"}"#).unwrap();
@@ -1094,7 +1171,16 @@ fn smoke_profile_removes_tools_caps_cost_and_rejects_unexpected_calls() {
     let repo = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut config: Value =
         serde_json::from_slice(&fs::read(repo.join("examples/deepseek.smoke.json")).unwrap()).unwrap();
-    config["plugins"] = json!(repo.join("plugins/smoke.json"));
+    let mut manifest: Value = serde_json::from_slice(&fs::read(repo.join("plugins/smoke.json")).unwrap()).unwrap();
+    for entry in manifest["hooks"].as_array_mut().unwrap() {
+        let args = entry["exec"].as_array_mut().unwrap();
+        args[0] = json!(plugin_binary());
+        args.insert(1, json!("--runtime"));
+        entry["cwd"] = json!(repo.join("plugins"));
+    }
+    let manifest_path = root.path().join("smoke.manifest.json");
+    fs::write(&manifest_path, manifest.to_string()).unwrap();
+    config["plugins"] = json!(manifest_path);
     let file = root.path().join("api.json");
     fs::write(&file, config.to_string()).unwrap();
     let (base, worker) = server(vec![(200, final_reply())]);

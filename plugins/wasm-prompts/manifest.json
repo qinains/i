@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "id": "builtin.prompts",
+  "name": "Prompt manager",
+  "version": "1.0.0",
+  "runtime": "harness-wasm-v1",
+  "entry": "plugin.wasm",
+  "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "permissions": {"workspace":"none","storage":true},
+  "tools": [{"name":"manage_prompt","description":"Read, replace or reset the browser agent's system prompt in this workspace. Set/reset ALWAYS require user approval, even in auto mode. Changes apply on the next user task, not the current task. The browser currently has only one model prompt: system; titles are computed locally and no compaction model prompt runs here.","parameters":{"type":"object","properties":{"action":{"type":"string","enum":["get","set","reset"]},"prompt":{"type":"string","minLength":1,"maxLength":131072}},"required":["action"],"additionalProperties":false}}]
+}

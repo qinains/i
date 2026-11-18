@@ -11,6 +11,20 @@ async function fixture(options={}) {
     return {server,url:`http://127.0.0.1:${server.address().port}/api/chat/completions`,close:async () => {server.closeAllConnections(); await new Promise(resolve => server.close(resolve));}};
 }
 const headers = {'content-type':'application/json',origin,'x-harness-relay-token':token,'x-harness-upstream':endpoint,authorization:'Bearer MODEL_KEY'};
+test('Anthropic allowlisted targets get only native credentials and fixed version',async()=>{
+    const target='https://api.example/v1/messages';let observed;
+    const upstream=http.createServer(async(req,res)=>{observed=req.headers;for await(const chunk of req){}res.end('{}');});
+    await new Promise(resolve=>upstream.listen(0,'127.0.0.1',resolve));
+    const f=await fixture({endpoints:[endpoint,target],lookup:async()=>[{address:'8.8.8.8',family:4}],connect:(_url,opts,cb)=>http.request(`http://127.0.0.1:${upstream.address().port}`,{...opts,lookup:undefined},cb)});
+    try {
+        const native={...headers,'x-api-key':'ANTHROPIC_KEY','anthropic-version':'evil','anthropic-dangerous-direct-browser-access':'true','x-arbitrary':'bad'};
+        let result=await fetch(f.url,{method:'POST',headers:{...native,'x-harness-upstream':target},body:'{}'});assert.equal(result.status,200);await result.text();
+        assert.equal(observed['x-api-key'],'ANTHROPIC_KEY');assert.equal(observed['anthropic-version'],'2023-06-01');assert.equal(observed.authorization,undefined);assert.equal(observed['anthropic-dangerous-direct-browser-access'],undefined);assert.equal(observed['x-arbitrary'],undefined);
+        result=await fetch(f.url,{method:'POST',headers:native,body:'{}'});assert.equal(result.status,200);await result.text();
+        assert.equal(observed.authorization,'Bearer MODEL_KEY');assert.equal(observed['x-api-key'],undefined);assert.equal(observed['anthropic-version'],undefined);
+        result=await fetch(f.url,{method:'POST',headers:{...native,'x-harness-upstream':'https://api.example/v1/messages/evil'},body:'{}'});assert.equal(result.status,403);
+    } finally {await f.close();upstream.closeAllConnections();await new Promise(resolve=>upstream.close(resolve));}
+});
 test('startup requires strong token, exact origin and HTTPS endpoint allowlist', async () => {
     for (const patch of [{token:''},{origin:'*'},{origin:'ftp://localhost'},{endpoints:['http://api.example/v1/chat/completions']},{endpoints:[endpoint+'?x=1']}]) await assert.rejects(createRelayServer({token,origin,endpoints:[endpoint],...patch}));
 });

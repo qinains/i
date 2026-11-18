@@ -1,0 +1,1 @@
+{"tools":[],"hooks":[{"events":["before_request","after_response"],"exec":["../target/debug/i-plugins","responses"]}]}

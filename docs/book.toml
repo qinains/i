@@ -1,0 +1,22 @@
+[book]
+authors = ["Core Team"]
+language = "zh-CN"
+multilingual = false
+src = "src"
+title = "1kharness 文档"
+
+[build]
+build-dir = "book"
+create-missing = false
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "ayu"
+git-repository-url = "https://github.com/qinains/1kharness"
+edit-url-template = "https://github.com/qinains/1kharness/edit/main/docs/{path}"
+
+[output.html.search]
+enable = true
+limit-results = 30
+teaser-word-count = 30
+use-hierarchical-headings = true

@@ -1,4 +1,5 @@
 pub mod history;
+pub mod recovery;
 use crate::workspace::{
     field,
     text::{clip, image_mime},
@@ -11,7 +12,13 @@ pub trait AgentHost {
     async fn before_turn(&mut self, history: &mut Vec<Value>) -> Result<()>;
     async fn complete(&mut self, history: &[Value]) -> Result<Value>;
     async fn before_tools(&mut self, history: &[Value], pending: usize) -> Result<usize>;
+    async fn before_dispatch(&mut self, _history: &[Value], _call: &Value) -> Result<()> {
+        Ok(())
+    }
     async fn dispatch(&mut self, call: &Value, image_slots: usize) -> Result<Value>;
+    async fn after_dispatch(&mut self, _history: &[Value], _call: &Value, _result: &Value) -> Result<()> {
+        Ok(())
+    }
     async fn checkpoint(&mut self, history: &mut Vec<Value>) -> Result<()>;
     async fn finish(&mut self, history: &[Value]) -> Result<()>;
     fn emit(&mut self, event: Value) -> Result<()>;
@@ -48,12 +55,14 @@ pub async fn run<H: AgentHost>(host: &mut H, messages: &mut Vec<Value>, max_step
         for call in calls {
             let name = field(&call["function"], "name")?;
             host.emit(json!({"type":"tool","name":name,"arguments":call["function"]["arguments"]}))?;
+            host.before_dispatch(messages, &call).await?;
             // Hosts encode ordinary tool failures; hook/transport policy failures remain fatal.
             let result = if host.cancelled() {
                 json!({"output":"ERROR: cancelled"})
             } else {
                 host.dispatch(&call, 8 - images.len() / 2).await?
             };
+            host.after_dispatch(messages, &call, &result).await?;
             for image in result.get("images").unwrap_or(&json!([])).as_array().context("invalid tool images")? {
                 ensure!(images.len() / 2 < 8 && image["type"] == "image_url", "invalid/excessive tool images");
                 let url = field(&image["image_url"], "url")?;

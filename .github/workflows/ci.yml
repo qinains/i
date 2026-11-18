@@ -1,0 +1,118 @@
+name: CI
+on: [push, pull_request]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  browser:
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: cargo install wasm-pack --version 0.15.1 --locked
+      - run: npm ci --prefix web
+      - run: sh scripts/build_web.sh
+      - run: node --test scripts/test_build_cordis.mjs
+      - run: sh scripts/build_plugin_fixtures.sh
+      - run: npm test --prefix web
+      - run: npx playwright install ${{ matrix.browser }}
+        working-directory: web
+      - run: npx playwright test --project=${{ matrix.browser }} --workers=1
+        working-directory: web
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-failures-${{ matrix.browser }}
+          path: web/test-results
+  check:
+    env:
+      # Linux DWARF can push debug executables beyond the installer's 64 MiB cap.
+      # Keep assertions enabled while testing distribution-sized executables.
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      RUSTFLAGS: ${{ startsWith(matrix.os, 'windows-') && '-C target-feature=+crt-static' || '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, macos-15-intel, windows-latest, windows-11-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Provide python3 executable for cross-platform test fixtures
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $python = (Get-Command python).Source
+          $alias = Join-Path (Split-Path $python) 'python3.exe'
+          if (-not (Test-Path $alias)) { Copy-Item $python $alias }
+      - run: python3 scripts/check_globset.py
+      - run: cargo test --manifest-path vendor/globset/Cargo.toml --locked --features serde1
+      - run: cargo fmt --all --check
+      - run: cargo fmt --manifest-path examples/rust-plugin/Cargo.toml --check
+      - name: Install Linux native TLS build prerequisites
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev ca-certificates
+      - name: Build standalone native PTY test helper
+        run: cargo build --locked --manifest-path tools/test-fixtures/Cargo.toml --target-dir target
+      - run: cargo clippy --workspace --locked --all-targets --features bundled -- -D warnings
+      - run: cargo check --locked --features bundled,packaging --bins
+      - run: cargo clippy --locked --features bundled,packaging --bins -- -D warnings
+      - run: cargo build --workspace --locked --features bundled
+      - run: python3 scripts/check_globset.py --graph
+      - run: cargo test --workspace --locked --all-targets
+      - run: cargo test --workspace --locked --all-targets --features bundled,packaging
+      - run: cargo test --workspace --locked --doc
+      - run: cargo test --locked --features packaging --test packaging
+      - run: python3 -m unittest discover -s scripts -p 'test_*.py'
+      - run: cargo check --locked --no-default-features -p i
+      - name: Verify interactive editor with a pseudo-terminal
+        if: runner.os != 'Windows'
+        run: python3 scripts/check_console.py
+      - name: Verify hidden setup input and terminal restoration
+        if: runner.os != 'Windows'
+        run: python3 scripts/check_setup.py target/debug/i
+      - name: Verify native TLS rejection offline
+        if: runner.os != 'Windows'
+        run: python3 scripts/check_tls.py --web
+      - run: python3 -m unittest discover -s examples -p 'test_*.py'
+      - name: Build complete min-size packages in both formats
+        run: python3 scripts/package.py --profile min-size
+      - name: Verify gzip and xz packages offline
+        run: python3 scripts/check_package.py "dist/*.tar.gz" "dist/*.tar.xz"
+      - name: Create native Rust package without publishing
+        run: cargo run --locked --features bundled,packaging --bin i-package --profile min-size -- --skip-build --profile min-size
+      - name: Verify native Rust Windows ZIP offline
+        if: runner.os == 'Windows'
+        run: python3 scripts/check_package.py "dist/*.zip"
+      - name: Verify native Rust Unix package offline
+        if: runner.os != 'Windows'
+        run: python3 scripts/check_package.py "dist/*.tar.gz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-packages-${{ matrix.os }}
+          path: dist/*
+          retention-days: 7

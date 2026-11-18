@@ -1,0 +1,7 @@
+{
+  "images": "files",
+  "account_scope": "my-private-files-pool",
+  "expires_after_seconds": 3600,
+  "auto_refresh": { "enabled": true },
+  "auto_gc": { "enabled": true, "grace_seconds": 3600 }
+}

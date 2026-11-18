@@ -1,0 +1,61 @@
+{
+  "app.name": "i (lninl)",
+  "app.tagline": "小さなコア。あなたのツール。あなたのモデル。",
+
+  "welcome": "i へようこそ！",
+  "welcome.first_run": "初めてのご利用のようです。セットアップを始めましょう。",
+
+  "install.title": "インストール",
+  "install.prompt": "i を {} にインストールしますか？",
+  "install.add_path": "PATH に追加しますか？",
+  "install.success": "{} にインストールしました",
+  "install.skipped": "インストールをスキップしました。",
+
+  "setup.title": "設定",
+  "setup.provider": "AI プロバイダーを選択してください：",
+  "setup.provider.openai": "OpenAI",
+  "setup.provider.deepseek": "DeepSeek",
+  "setup.provider.anthropic": "Anthropic",
+  "setup.base_url": "API ベース URL：",
+  "setup.model": "モデル名：",
+  "setup.api_key": "API キー（スキップする場合は Enter）：",
+  "setup.api_key_env": "または環境変数 {} を設定してください。",
+  "setup.max_tokens": "リクエストあたりの最大トークン数：",
+  "setup.success": "設定を {} に保存しました",
+
+  "error.title": "エラー",
+  "error.no_locale": "言語ファイルが見つかりません。locales/ ディレクトリを確認してください。",
+  "error.no_config": "設定が見つかりません。先にセットアップを実行してください。",
+  "error.invalid_provider": "無効なプロバイダー選択です。",
+  "error.invalid_input": "無効な入力です。もう一度お試しください。",
+  "error.file_not_found": "ファイルが見つかりません：{}",
+  "error.permission_denied": "権限が拒否されました：{}",
+  "error.task_empty": "タスクを空にすることはできません。",
+  "error.images_too_many": "タスクごとに最大 8 枚の画像を添付できます。",
+  "error.step_limit": "ステップ上限に達しました。--session で再開するか、--max-steps を増やしてください。",
+  "error.model_stopped": "モデルが完了せずに停止しました：{}",
+  "error.user_denied": "ユーザーが操作を拒否しました。",
+
+  "status.workspace": "ワークスペース：{} | モデル：{}",
+  "status.warning_auto_approve": "警告：自動承認が有効です。シェルはサンドボックス化されていません",
+  "status.step": "[ステップ {}]",
+  "status.step_of": "[ステップ {}/{}]",
+  "status.tool_call": "ツール：{} {}",
+  "status.auto_compact": "[自動圧縮：{} 件のプレフィックスメッセージ]",
+  "status.provider_cleanup": "プロバイダーCleanup：DELETE が許可されました。再試行されません",
+
+  "prompt.task": "タスク：",
+  "prompt.allow": "許可しますか？[y/N] ",
+
+  "common.yes": "はい",
+  "common.no": "いいえ",
+  "common.cancel": "キャンセル",
+  "common.confirm": "確認",
+  "common.back": "戻る",
+  "common.next": "次へ",
+  "common.done": "完了",
+
+  "lang.switch": "言語を切り替え",
+  "lang.current": "現在の言語：{}",
+  "lang.select": "言語を選択："
+}

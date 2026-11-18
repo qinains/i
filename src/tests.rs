@@ -22,15 +22,16 @@ fn rpc(exec: &Value, input: &Value, dir: &Path, limit: usize) -> Result<Value> {
 enum Protocol {
     Openai,
     Anthropic,
+    Responses,
 }
 fn provider_fixture(protocol: Protocol, event: &str, mut data: Value) -> Result<Value> {
     data["version"] = json!(1);
     data["protocol"] = json!(match protocol {
         Protocol::Openai => "openai",
         Protocol::Anthropic => "anthropic",
+        Protocol::Responses => "responses",
     });
-    let binary = format!("{}/target/debug/i-plugins{}", env!("CARGO_MANIFEST_DIR"), env::consts::EXE_SUFFIX);
-    rpc(&json!([binary, "provider"]), &json!({"event":event,"data":data}), &env::current_dir()?, 24000)
+    native_bundle::provider(&json!({"event":event,"data":data}))
 }
 fn prepared(protocol: Protocol, base: &str, model: &str, history: &[Value], max_tokens: usize) -> Result<Value> {
     provider_fixture(
@@ -131,17 +132,7 @@ fn responses_converts_history_and_does_not_leak_protocol_metadata() {
             "function":{"name":"read","arguments":"{\"path\":\"a\"}"}}]}),
         json!({"role":"tool","tool_call_id":"c1","content":"ERROR: missing"}),
     ];
-    let exec = json!(["../target/debug/i-plugins", "responses"]);
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("plugins");
-    let data = rpc(
-        &exec,
-        &json!({"event":"before_request","data":{
-        "url":"http://localhost/v1/chat/completions", "history":history,"compact":false,
-        "body":request_body(Protocol::Openai,"model",&history,123).unwrap()}}),
-        &dir,
-        24000,
-    )
-    .unwrap();
+    let data = prepared(Protocol::Responses, "http://localhost/v1", "model", &history, 123).unwrap();
     let request = &data["body"];
     assert_eq!(request["input"][2]["type"], "function_call");
     assert_eq!(request["input"][2]["call_id"], "c1");
@@ -150,8 +141,8 @@ fn responses_converts_history_and_does_not_leak_protocol_metadata() {
     assert_eq!(data["url"], "http://localhost/v1/responses");
     let response = json!({"status":"completed","output":[{"type":"message","role":"assistant",
         "content":[{"type":"refusal","refusal":"Cannot do that"}]}]});
-    let data = rpc(&exec, &json!({"event":"after_response","data":{"response":response}}), &dir, 24000).unwrap();
-    let message = data["response"]["choices"][0]["message"].clone();
+    let data = normalize_response(Protocol::Responses, response).unwrap();
+    let message = data["choices"][0]["message"].clone();
     assert_eq!(message["content"], "Cannot do that");
     let request = request_body(Protocol::Openai, "model", &[message], 123).unwrap();
     assert!(request["messages"][0].get("_responses_output").is_none());
@@ -200,13 +191,7 @@ fn history_validator_rejects_orphans_duplicates_and_unfinished_batches() {
 fn transcript_redaction_removes_images_and_private_adapter_state() {
     let mut value = json!([{"role":"user","content":[{"type":"image_url","image_url":{"url":"data:image/png;base64,private"}}]},
         {"role":"assistant","content":"visible result","_responses_output":[{"encrypted_content":"private"}]}]);
-    value = rpc(
-        &json!(["../target/debug/i-plugins", "compact"]),
-        &json!({"event":"before_compact","data":{"prompt":"summary","messages":value,"policy":{"images":"omit"}}}),
-        &Path::new(env!("CARGO_MANIFEST_DIR")).join("plugins"),
-        24000,
-    )
-    .unwrap();
+    value = native_bundle::compact(&json!({"prompt":"summary","messages":value,"policy":{"images":"omit"}})).unwrap();
     assert!(!value.to_string().contains("private"));
     assert!(value.to_string().contains("visible result"));
     assert!(value.to_string().contains("handled separately"));
@@ -259,7 +244,7 @@ fn failed_worker_operations_are_not_replayed_and_next_call_restarts() {
     let entry = json!({"exec":["python3","-c",code]});
     assert!(plugins.call(&entry, "tool", json!({})).is_err());
     assert_eq!(fs::read_to_string(dir.path().join("effects")).unwrap().lines().count(), 1);
-    assert!(plugins.workers.borrow().is_empty());
+    assert!(plugins.workers.lock().unwrap().is_empty());
     assert!(plugins.call(&entry, "tool", json!({})).is_err());
     let lines = fs::read_to_string(dir.path().join("effects")).unwrap();
     let lines: Vec<_> = lines.lines().collect();
@@ -324,11 +309,29 @@ fn replacement_must_be_unique() {
 fn replacement_with_line_number() {
     let text = "line1\napi_key_env: Option<String>,\nline3\napi_key_env: Option<String>,\nline5";
     // Replace on line 2
-    let result = replace_once(text, "api_key_env: Option<String>,", "api_key: Option<String>,\n    api_key_env: Option<String>,", Some(2)).unwrap();
-    assert_eq!(result, "line1\napi_key: Option<String>,\n    api_key_env: Option<String>,\nline3\napi_key_env: Option<String>,\nline5");
+    let result = replace_once(
+        text,
+        "api_key_env: Option<String>,",
+        "api_key: Option<String>,\n    api_key_env: Option<String>,",
+        Some(2),
+    )
+    .unwrap();
+    assert_eq!(
+        result,
+        "line1\napi_key: Option<String>,\n    api_key_env: Option<String>,\nline3\napi_key_env: Option<String>,\nline5"
+    );
     // Replace on line 4
-    let result = replace_once(text, "api_key_env: Option<String>,", "api_key: Option<String>,\n    api_key_env: Option<String>,", Some(4)).unwrap();
-    assert_eq!(result, "line1\napi_key_env: Option<String>,\nline3\napi_key: Option<String>,\n    api_key_env: Option<String>,\nline5");
+    let result = replace_once(
+        text,
+        "api_key_env: Option<String>,",
+        "api_key: Option<String>,\n    api_key_env: Option<String>,",
+        Some(4),
+    )
+    .unwrap();
+    assert_eq!(
+        result,
+        "line1\napi_key_env: Option<String>,\nline3\napi_key: Option<String>,\n    api_key_env: Option<String>,\nline5"
+    );
     // Error: old not found on specified line
     assert!(replace_once(text, "notfound", "x", Some(2)).is_err());
     // Error: line out of range
@@ -341,13 +344,19 @@ fn replacement_with_line_number() {
 async fn file_tools_round_trip() {
     let (_dir, ws) = workspace();
     let plugins = load_plugins(None).unwrap();
-    ws.tool("write", &json!({"path":"sub/a.txt","content":"one\ntwo\nthree\n"}), &plugins, 8).await.unwrap();
-    let output = ws.tool("read", &json!({"path":"sub/a.txt","offset":2,"limit":1}), &plugins, 8).await.unwrap();
-    assert_eq!(output["output"], "3 lines total\n2: two\n");
-    ws.tool("edit", &json!({"path":"sub/a.txt","old":"two","new":"二"}), &plugins, 8).await.unwrap();
+    ws.tool("write", &json!({"path":"sub/a.txt","content":"one\ntwo\nthree\n"}), &plugins, 8, &|| false).await.unwrap();
+    let output = ws
+        .tool("read", &json!({"files":[{"path":"sub/a.txt","start_line":2,"end_line":2}]}), &plugins, 8, &|| false)
+        .await
+        .unwrap();
+    let read: Value = serde_json::from_str(output["output"].as_str().unwrap()).unwrap();
+    assert_eq!(read["results"][0]["content"], "2: two\n");
+    ws.tool("edit", &json!({"path":"sub/a.txt","edits":[{"old":"two","new":"二"}]}), &plugins, 8, &|| false)
+        .await
+        .unwrap();
     assert_eq!(fs::read_to_string(ws.root.join("sub/a.txt")).unwrap(), "one\n二\nthree\n");
-    assert!(ws.tool("read", &json!({"path":"sub/a.txt","offset":0}), &plugins, 8).await.is_err());
-    assert!(ws.tool("unknown", &json!({}), &plugins, 8).await.is_err());
+    assert!(ws.tool("read", &json!({"path":"sub/a.txt","offset":0}), &plugins, 8, &|| false).await.is_err());
+    assert!(ws.tool("unknown", &json!({}), &plugins, 8, &|| false).await.is_err());
 }
 
 #[tokio::test]
@@ -355,11 +364,30 @@ async fn native_write_and_edit_keep_original_output_size_policy() {
     let (_dir, ws) = workspace();
     let plugins = load_plugins(None).unwrap();
     let content = "x".repeat(2_000_001);
-    ws.tool("write", &json!({"path":"large.txt","content":content}), &plugins, 8).await.unwrap();
-    assert_eq!(fs::metadata(ws.root.join("large.txt")).unwrap().len(),2_000_001);
-    fs::write(ws.root.join("small.txt"),"old").unwrap();
-    ws.tool("edit", &json!({"path":"small.txt","old":"old","new":content}), &plugins, 8).await.unwrap();
-    assert_eq!(fs::metadata(ws.root.join("small.txt")).unwrap().len(),2_000_001);
+    ws.tool("write", &json!({"path":"large.txt","content":content}), &plugins, 8, &|| false).await.unwrap();
+    assert_eq!(fs::metadata(ws.root.join("large.txt")).unwrap().len(), 2_000_001);
+    fs::write(ws.root.join("small.txt"), "old").unwrap();
+    ws.tool("edit", &json!({"path":"small.txt","edits":[{"old":"old","new":content}]}), &plugins, 8, &|| false)
+        .await
+        .unwrap();
+    assert_eq!(fs::metadata(ws.root.join("small.txt")).unwrap().len(), 2_000_001);
+}
+
+#[tokio::test]
+async fn cancelled_archive_does_not_commit_after_its_last_approval_boundary() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let (_dir, ws) = workspace();
+    fs::write(ws.root.join("a.txt"), "keep").unwrap();
+    let plugins = load_plugins(None).unwrap();
+    let checkpoints = AtomicUsize::new(0);
+    let result = ws
+        .tool("download", &json!({"paths":["a.txt"],"filename":"cancelled.zip"}), &plugins, 8, &|| {
+            checkpoints.fetch_add(1, Ordering::SeqCst) >= 2
+        })
+        .await;
+    assert!(result.is_err(), "cancelled download committed its archive");
+    assert!(!ws.root.join(".i/downloads/cancelled.zip").exists());
+    assert_eq!(fs::read_to_string(ws.root.join("a.txt")).unwrap(), "keep");
 }
 
 #[test]
@@ -426,7 +454,7 @@ fn sessions_round_trip_and_reject_different_workspace() {
 fn shell_runs_on_native_platform() {
     let (_dir, mut ws) = workspace();
     ws.timeout = Duration::from_secs(5);
-    let output = ws.shell("echo portable").unwrap();
+    let output = ws.shell("echo portable", &|| false).unwrap();
     assert!(output.contains("portable") && output.contains("timed_out: false"), "{output}");
 }
 
@@ -435,7 +463,7 @@ fn shell_runs_on_native_platform() {
 fn windows_shell_times_out_process_tree() {
     let (_dir, ws) = workspace();
     let start = Instant::now();
-    let output = ws.shell("ping -n 30 127.0.0.1 > nul").unwrap();
+    let output = ws.shell("ping -n 30 127.0.0.1 > nul", &|| false).unwrap();
     assert!(output.contains("timed_out: true"));
     assert!(start.elapsed() < Duration::from_secs(5));
 }
@@ -445,7 +473,7 @@ fn windows_shell_times_out_process_tree() {
 fn shell_captures_output_and_exit_status() {
     let (_dir, mut ws) = workspace();
     ws.timeout = Duration::from_secs(5);
-    let output = ws.shell("printf hello; printf error >&2; exit 7").unwrap();
+    let output = ws.shell("printf hello; printf error >&2; exit 7", &|| false).unwrap();
     assert!(output.contains("exit status: 7"), "{output}");
     assert!(output.contains("stdout:\nhello"));
     assert!(output.contains("stderr:\nerror"));
@@ -456,7 +484,7 @@ fn shell_captures_output_and_exit_status() {
 fn shell_times_out_pipelines() {
     let (_dir, ws) = workspace();
     let start = Instant::now();
-    let output = ws.shell("sleep 10 | sleep 10").unwrap();
+    let output = ws.shell("sleep 10 | sleep 10", &|| false).unwrap();
     assert!(output.contains("timed_out: true"), "{output}");
     assert!(start.elapsed() < Duration::from_secs(3));
 }
@@ -466,7 +494,7 @@ fn shell_times_out_pipelines() {
 fn shell_drains_large_output_without_deadlock() {
     let (_dir, mut ws) = workspace();
     ws.timeout = Duration::from_secs(5);
-    let output = ws.shell("head -c 100000 /dev/zero").unwrap();
+    let output = ws.shell("head -c 100000 /dev/zero", &|| false).unwrap();
     assert!(output.contains("timed_out: false"));
     assert!(output.contains("[truncated]"));
     assert!(output.len() < ws.io_limit + 500);

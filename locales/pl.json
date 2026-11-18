@@ -1,0 +1,61 @@
+{
+  "app.name": "i (lninl)",
+  "app.tagline": "Małe rdzenie. Twoje narzędzia. Twój model.",
+
+  "welcome": "Witamy w i!",
+  "welcome.first_run": "Wygląda na to, że to Twój pierwszy raz. Skonfigurujmy Cię.",
+
+  "install.title": "Instalacja",
+  "install.prompt": "Zainstalować i w {}?",
+  "install.add_path": "Dodać do PATH?",
+  "install.success": "Zainstalowano w {}",
+  "install.skipped": "Instalacja pominięta.",
+
+  "setup.title": "Konfiguracja",
+  "setup.provider": "Wybierz dostawcę AI:",
+  "setup.provider.openai": "OpenAI",
+  "setup.provider.deepseek": "DeepSeek",
+  "setup.provider.anthropic": "Anthropic",
+  "setup.base_url": "Podstawowy URL API:",
+  "setup.model": "Nazwa modelu:",
+  "setup.api_key": "Klucz API (lub naciśnij Enter, aby pominąć):",
+  "setup.api_key_env": "Lub ustaw zmienną środowiskową {} zamiast tego.",
+  "setup.max_tokens": "Maksymalna liczba tokenów na żądanie:",
+  "setup.success": "Konfiguracja zapisana w {}",
+
+  "error.title": "Błąd",
+  "error.no_locale": "Nie znaleziono plików językowych. Sprawdź katalog locales/.",
+  "error.no_config": "Nie znaleziono konfiguracji. Najpierw uruchom setup.",
+  "error.invalid_provider": "Nieprawidłowy wybór dostawcy.",
+  "error.invalid_input": "Nieprawidłowe dane wejściowe. Spróbuj ponownie.",
+  "error.file_not_found": "Nie znaleziono pliku: {}",
+  "error.permission_denied": "Odmowa dostępu: {}",
+  "error.task_empty": "Zadanie nie może być puste.",
+  "error.images_too_many": "Dołącz maksymalnie 8 obrazów na zadanie.",
+  "error.step_limit": "Osiągnięto limit kroków; wznów z --session lub zwiększ --max-steps.",
+  "error.model_stopped": "Model zatrzymał się bez ukończenia: {}",
+  "error.user_denied": "Akcja odrzucona przez użytkownika.",
+
+  "status.workspace": "przestrzeń robocza: {} | model: {}",
+  "status.warning_auto_approve": "OSTRZEŻENIE: włączono automatyczne zatwierdzanie; shell nie jest izolowany",
+  "status.step": "[krok {}]",
+  "status.step_of": "[krok {}/{}]",
+  "status.tool_call": "narzędzie: {} {}",
+  "status.auto_compact": "[auto-kompaktuj: {} wiadomości prefiksowych]",
+  "status.provider_cleanup": "czyszczenie dostawcy: DELETE autoryzowany; NIE ponowiono",
+
+  "prompt.task": "Zadanie: ",
+  "prompt.allow": "Zezwolić? [y/N] ",
+
+  "common.yes": "Tak",
+  "common.no": "Nie",
+  "common.cancel": "Anuluj",
+  "common.confirm": "Potwierdź",
+  "common.back": "Wstecz",
+  "common.next": "Dalej",
+  "common.done": "Gotowe",
+
+  "lang.switch": "Zmień język",
+  "lang.current": "Aktualny język: {}",
+  "lang.select": "Wybierz język:"
+}

@@ -1,0 +1,13 @@
+{
+  "tools": [
+    {
+      "name": "rust_word_count",
+      "description": "Count Unicode characters and whitespace-separated words using a Rust plugin.",
+      "parameters": {"type":"object","properties":{"text":{"type":"string"}},"required":["text"],"additionalProperties":false},
+      "exec": ["rust-plugin/target/release/i-plugin-example.exe"]
+    }
+  ],
+  "hooks": [
+    {"events":["system_prompt"],"exec":["rust-plugin/target/release/i-plugin-example.exe"]}
+  ]
+}

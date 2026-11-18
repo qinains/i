@@ -1,0 +1,57 @@
+{
+  "name": "cordis",
+  "description": "Meta-framework of spatiotemporal composability",
+  "version": "4.0.0-rc.13",
+  "sideEffects": false,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "bin": "bin.js",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "bin.js"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cordiverse/cordis.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/cordiverse/cordis/issues"
+  },
+  "homepage": "https://github.com/cordiverse/cordis",
+  "author": "Shigma <shigma10826@gmail.com>",
+  "license": "MIT",
+  "peerDependencies": {
+    "@cordisjs/fs": "^2.0.0-rc.0",
+    "@cordisjs/fs-node": "^0.1.0",
+    "@cordisjs/include": "^2.0.0-rc.0",
+    "@cordisjs/loader": "^1.0.0-rc.10"
+  },
+  "peerDependenciesMeta": {
+    "@cordisjs/fs": {
+      "optional": true
+    },
+    "@cordisjs/fs-node": {
+      "optional": true
+    },
+    "@cordisjs/include": {
+      "optional": true
+    },
+    "@cordisjs/loader": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@standard-schema/spec": "^1.1.0",
+    "cosmokit": "^1.8.1"
+  }
+}

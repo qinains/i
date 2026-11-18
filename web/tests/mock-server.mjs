@@ -10,24 +10,62 @@ const final = content => ({choices: [{finish_reason: 'stop', message: {role: 'as
 let releaseStream;
 let pwaRevision = '', missingAsset = false;
 const relays = new Map();
+function anthropicResponse(body) {
+    const text=body.messages.filter(message=>message.role==='user').flatMap(message=>message.content).filter(block=>block.type==='text').map(block=>block.text).at(-1) ?? '';
+    const results=body.messages.flatMap(message=>message.content).filter(block=>block.type==='tool_result');
+    let content,stop_reason='end_turn';
+    if(text==='ANTHROPIC_MAKE' && !results.length || text==='ANTHROPIC_TRUNCATE' || text==='ANTHROPIC_BAD_BATCH') {
+        content=[{type:'thinking',thinking:'private reasoning',signature:'fixture-signature'}, {type:'tool_use',id:'anthropic_write',name:'write',input:{path:'anthropic.txt',content:'native messages\n'}}];stop_reason='tool_use';
+        if(text==='ANTHROPIC_BAD_BATCH')content.push({type:'tool_use',id:'forbidden',name:'shell',input:{command:'touch forbidden'}});
+    } else content=[{type:'text',text:results.length?'Anthropic done.':'Anthropic connected.'}];
+    return {id:'msg_fixture',type:'message',role:'assistant',model:'fixture',content,stop_reason,stop_sequence:null,usage:{input_tokens:1,output_tokens:2}};
+}
+function sendAnthropic(res,body) {
+    const result=anthropicResponse(body);
+    if(!body.stream){res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify(result));return;}
+    res.writeHead(200,{'content-type':'text/event-stream'});
+    const send=(type,rest={})=>res.write(`event: ${type}\ndata: ${JSON.stringify({type,...rest})}\n\n`);
+    send('message_start',{message:{...result,content:[],stop_reason:null,usage:{input_tokens:1,output_tokens:0}}});
+    for(const [index,block] of result.content.entries()) {
+        const start=block.type==='tool_use'?{...block,input:{}}:block.type==='thinking'?{...block,thinking:'',signature:''}:{...block,text:''};
+        send('content_block_start',{index,content_block:start});
+        if(block.type==='tool_use')send('content_block_delta',{index,delta:{type:'input_json_delta',partial_json:JSON.stringify(block.input)}});
+        else if(block.type==='thinking') {
+            send('content_block_delta',{index,delta:{type:'thinking_delta',thinking:block.thinking}});
+            send('content_block_delta',{index,delta:{type:'signature_delta',signature:block.signature}});
+        } else send('content_block_delta',{index,delta:{type:'text_delta',text:block.text}});
+        send('content_block_stop',{index});
+    }
+    const truncate=JSON.stringify(body.messages).includes('ANTHROPIC_TRUNCATE');
+    if(!truncate){send('message_delta',{delta:{stop_reason:result.stop_reason,stop_sequence:null},usage:{output_tokens:2}});send('message_stop');}
+    res.end();
+}
 http.createServer(async (req, res) => {
     if (req.url === '/api/chat/completions') {
         if (!/^127\.0\.0\.1:\d+$/u.test(req.headers.host ?? '')) {res.writeHead(403); res.end(); return;}
         const origin = `http://${req.headers.host}`;
-        if (!relays.has(origin)) relays.set(origin,await createRelayServer({token:'fixture-relay-token-'.repeat(3),origin,endpoints:['https://api.example/v1/chat/completions'],
-            lookup:async () => [{address:'8.8.8.8',family:4}],connect:(_url,options,callback) => http.request('http://127.0.0.1:4174',{...options,lookup:undefined},callback)}));
+        if (!relays.has(origin)) relays.set(origin,await createRelayServer({token:'fixture-relay-token-'.repeat(3),origin,endpoints:['https://api.example/v1/chat/completions','https://api.example/v1/messages'],
+            lookup:async () => [{address:'8.8.8.8',family:4}],connect:(url,options,callback) => http.request(`http://127.0.0.1:4174${url.pathname}`,{...options,lookup:undefined},callback)}));
         relays.get(origin).emit('request',req,res); return;
     }
     if (/^http:\/\/127\.0\.0\.1:\d+$/u.test(req.headers.origin ?? '')) {
         res.setHeader('access-control-allow-origin',req.headers.origin);
         res.setHeader('access-control-allow-methods','POST, OPTIONS');
-        res.setHeader('access-control-allow-headers','authorization, content-type');
+        res.setHeader('access-control-allow-headers','authorization, content-type, x-api-key, anthropic-version, anthropic-dangerous-direct-browser-access');
     }
     if (req.method === 'OPTIONS') {res.writeHead(204); res.end(); return;}
     if (req.url?.startsWith('/test-pwa-state')) {
         const url = new URL(req.url,'http://localhost'); pwaRevision = url.searchParams.get('version') ?? ''; missingAsset = url.searchParams.get('missing') === '1'; res.end('ok'); return;
     }
     if (req.url === '/release-stream') {releaseStream?.(); res.end('released'); return;}
+    if(req.url==='/mock/v1/messages') {
+        let raw='';for await(const chunk of req)raw+=chunk;
+        const body=JSON.parse(raw);
+        if(req.headers.authorization || req.headers['x-api-key']!=='TEST_ANTHROPIC_KEY' || req.headers['anthropic-version']!=='2023-06-01' || req.headers['anthropic-dangerous-direct-browser-access']!=='true' || !Array.isArray(body.system) || body.tools && !body.tools.every(tool=>tool.input_schema && !tool.function)) {
+            res.writeHead(400);res.end('invalid native Anthropic request');return;
+        }
+        sendAnthropic(res,body);return;
+    }
     if (req.url === '/mock/v1/chat/completions') {
         let raw = ''; for await (const chunk of req) raw += chunk;
         const body = JSON.parse(raw);
@@ -46,7 +84,7 @@ http.createServer(async (req, res) => {
         else if (task === 'TRUNCATE') {
             result = call('write', {path:'bad.txt',content:'bad'}, 'bad'); result.choices[0].finish_reason = 'length';
         } else if (last.role === 'user') result = call('write', {path:'nested/结果.txt',content:'hello\n'}, 'write');
-        else if (last.tool_call_id === 'write') result = call('edit', {path:'nested/结果.txt',old:'hello',new:'world'}, 'edit');
+        else if (last.tool_call_id === 'write') result = call('edit', {path:'nested/结果.txt',edits:[{old:'hello',new:'world'}]}, 'edit');
         else if (last.tool_call_id === 'edit') result = call('download', {}, 'download');
         else result = final('All done. ZIP ready.');
         if (body.stream) {
@@ -74,6 +112,10 @@ http.createServer(async (req, res) => {
 http.createServer(async (req,res) => {
     if (req.method === 'OPTIONS') {res.writeHead(401); res.end(); return;}
     let raw = ''; for await (const chunk of req) raw += chunk;
+    if(req.url==='/v1/messages') {
+        if(req.headers.authorization || req.headers['x-api-key']!=='TEST_ANTHROPIC_KEY' || req.headers['anthropic-version']!=='2023-06-01' || req.headers['anthropic-dangerous-direct-browser-access']) {res.writeHead(400);res.end('invalid native Anthropic relay request');return;}
+        sendAnthropic(res,JSON.parse(raw));return;
+    }
     if (req.headers.authorization === 'Bearer RETURN_401') {res.writeHead(401,{'content-type':'application/json'}); res.end('{"error":"unauthorized"}'); return;}
     if (raw && JSON.parse(raw).stream) {
         res.writeHead(200,{'content-type':'text/event-stream'});

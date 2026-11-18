@@ -17,7 +17,9 @@ node server/main.mjs
 
 Use your own real deployment origin and endpoint, not the placeholders. Store the relay token in your deployment secret manager; do not commit, print, or put it in URLs. It is separate from the model API key. This service listens only on `127.0.0.1:8080`; put an HTTPS reverse proxy in front. For local-only development the exact public origin may be `http://127.0.0.1:8080`.
 
-In the app explicitly select **Own same-origin relay**, keep the provider Base URL/model/key, and enter the independently generated relay access token. The model key passes through your server; it is not persisted there. Direct mode never sends the relay token. No fallback or automatic retry is performed.
+In the app explicitly select **Own same-origin relay**, keep the provider API URL/protocol/model/key, and enter the independently generated relay access token. The model key passes through your server; it is not persisted there. Direct mode never sends the relay token. No fallback or automatic retry is performed.
+
+Both OpenAI-compatible `/chat/completions` and Anthropic `/v1/messages` HTTPS endpoints are supported. Add each complete endpoint to `HARNESS_UPSTREAMS`, for example `https://api.anthropic.com/v1/messages`. The same-origin gateway remains `/api/chat/completions`; it forwards the selected protocol's native JSON/SSE without converting it. Anthropic targets receive `x-api-key` and the fixed `anthropic-version: 2023-06-01`, never Bearer auth or the direct-browser-access header. OpenAI-compatible targets receive Bearer auth, never Anthropic credentials. Arbitrary client headers are not forwarded.
 
 `HARNESS_BASE_PATH` optionally specifies a slash-delimited publishing prefix such as `/harness/`. Keep the prefix intact when forwarding to Node; origin remains the scheme/host/port only. The app computes its relay route relative to its publishing root. The relay can also run without `HARNESS_STATIC_ROOT` if the reverse proxy separately serves the static PWA.
 

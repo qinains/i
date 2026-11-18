@@ -1,0 +1,17 @@
+{
+  "tools": [],
+  "hooks": [],
+  "analyses": [
+    {
+      "name": "reflection",
+      "selection": {
+        "roles": ["user", "assistant", "tool"],
+        "start": 0,
+        "end": null,
+        "max_messages": 40,
+        "max_bytes": 48000
+      },
+      "exec": ["../target/debug/i-plugins", "reflection"]
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "app.name": "i (lninl)",
+  "app.tagline": "แกนเล็ก เครื่องมือของคุณ โมเดลของคุณ",
+
+  "welcome": "ยินดีต้อนรับสู่ i!",
+  "welcome.first_run": "ดูเหมือนว่านี่เป็นครั้งแรกของคุณ มาตั้งค่ากันเถอะ",
+
+  "install.title": "การติดตั้ง",
+  "install.prompt": "ติดตั้ง i ใน {}?",
+  "install.add_path": "เพิ่มใน PATH?",
+  "install.success": "ติดตั้งใน {}",
+  "install.skipped": "ข้ามการติดตั้ง",
+
+  "setup.title": "การตั้งค่า",
+  "setup.provider": "เลือกผู้ให้บริการ AI:",
+  "setup.provider.openai": "OpenAI",
+  "setup.provider.deepseek": "DeepSeek",
+  "setup.provider.anthropic": "Anthropic",
+  "setup.base_url": "URL พื้นฐาน API:",
+  "setup.model": "ชื่อโมเดล:",
+  "setup.api_key": "คีย์ API (หรือกด Enter เพื่อข้าม):",
+  "setup.api_key_env": "หรือตั้งค่าตัวแปรสภาพแวดล้อม {} แทน",
+  "setup.max_tokens": "โทเค็นสูงสุดต่อคำขอ:",
+  "setup.success": "บันทึกการตั้งค่าใน {}",
+
+  "error.title": "ข้อผิดพลาด",
+  "error.no_locale": "ไม่พบไฟล์ภาษา ตรวจสอบไดเรกทอรี locales/",
+  "error.no_config": "ไม่พบการตั้งค่า เรียกใช้ setup ก่อน",
+  "error.invalid_provider": "การเลือกผู้ให้บริการไม่ถูกต้อง",
+  "error.invalid_input": "ข้อมูลเข้าไม่ถูกต้อง โปรดลองอีกครั้ง",
+  "error.file_not_found": "ไม่พบไฟล์: {}",
+  "error.permission_denied": "ปฏิเสธการอนุญาต: {}",
+  "error.task_empty": "งานไม่สามารถเป็นค่าว่างได้",
+  "error.images_too_many": "แนบรูปภาพสูงสุด 8 รูปต่องาน",
+  "error.step_limit": "ถึงขีดจำกัดขั้นตอนแล้ว ดำเนินการต่อด้วย --session หรือเพิ่ม --max-steps",
+  "error.model_stopped": "โมเดลหยุดโดยไม่เสร็จสมบูรณ์: {}",
+  "error.user_denied": "ผู้ใช้ปฏิเสธการดำเนินการ",
+
+  "status.workspace": "พื้นที่ทำงาน: {} | โมเดล: {}",
+  "status.warning_auto_approve": "คำเตือน: เปิดใช้งานการอนุมัติอัตโนมัติ; shell ไม่ได้ถูกแยก",
+  "status.step": "[ขั้นตอน {}]",
+  "status.step_of": "[ขั้นตอน {}/{}]",
+  "status.tool_call": "เครื่องมือ: {} {}",
+  "status.auto_compact": "[อัดอัตโนมัติ: {} ข้อความนำหน้า]",
+  "status.provider_cleanup": "การทำความสะอาดผู้ให้บริการ: DELETE ได้รับอนุญาต; ไม่ได้ลองใหม่",
+
+  "prompt.task": "งาน: ",
+  "prompt.allow": "อนุญาต? [y/N] ",
+
+  "common.yes": "ใช่",
+  "common.no": "ไม่",
+  "common.cancel": "ยกเลิก",
+  "common.confirm": "ยืนยัน",
+  "common.back": "กลับ",
+  "common.next": "ถัดไป",
+  "common.done": "เสร็จสิ้น",
+
+  "lang.switch": "เปลี่ยนภาษา",
+  "lang.current": "ภาษาปัจจุบัน: {}",
+  "lang.select": "เลือกภาษา:"
+}

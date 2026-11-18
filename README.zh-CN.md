@@ -1,16 +1,23 @@
 # i · lninl
 
+[官网与文档](https://i.lninl.com/docs/) · [插件开发教程](docs/plugin-development.md) · [贡献与 PR](CONTRIBUTING.md) · [MIT](LICENSE)
+
 ![lninl：突出中间的 i](assets/lninl.svg)
 
 **Small core. Your tools. Your model.**
 
 插件优先的 Rust 编程 Agent，原生终端与浏览器 WASM 共用核心。内置工具和插件工具走同一执行流程；插件使用有边界、有超时的常驻 worker。扩展后的跨平台实现不再以历史的1024行作为目标。品牌 **lninl** 中间的 **i** 由代码绘制，只用于界面，不进入模型提示词。
 
+文件工具优先减少模型轮次与上下文：内置 `glob/search` 定位，`read.files` 批量读取区间，`edit.edits` 单文件批量修改，默认紧凑输出并提供续查位置。不保留旧参数接口，详见[文件工具](docs/file-tools.md)。
+
+Web/console 支持待发送图片与长文本折叠标记，图片可补充说明或单独发送；Web 草稿支持刷新恢复。操作方式与 console 剪贴板限制见[输入与粘贴](docs/composer.md)。
+
 [English](README.md) · [插件与平台契约](docs/plugins.md)
 
 ## 当前能力
 
-- [浏览器 WASM PWA](docs/wasm.md)：流式模型请求、OPFS 持久化文件操作、审批、ZIP 下载和离线启动；默认直连，缺少 CORS 时可选[自有同源转发](server/README.md)。浏览器禁用 shell/进程插件。执行 `./scripts/build_web.sh` 后通过 HTTPS 发布静态产物，localhost 用于开发。
+- [浏览器 WASM PWA](docs/wasm.md)：隔离工作区、独立会话 Tab、刷新恢复上下文/草稿、流式模型请求、OPFS 文件、审批、ZIP 下载和离线启动；默认直连，缺少 CORS 时可选[自有同源转发](server/README.md)。浏览器禁用 shell/进程插件。先执行 `npm ci --prefix web` 安装锁定的构建依赖，再执行 `./scripts/build_web.sh`，通过 HTTPS 发布静态产物，localhost 用于开发。
+  支持刷新即丢弃的 Scratch 工作区、独立 `/tmp` 和隔离 HTML 快照预览；脚本默认关闭，可信代码可确认开启，非完整后端服务器。
 
 - 可替换的 OpenAI Chat/Responses、DeepSeek、Anthropic provider worker；核心不再包含服务商 wire-format 分支。详见[provider 契约与边界](docs/providers.md)。
 - 可显式启用 [DeepSeek Files 上传和作用域内 file_id 复用](docs/provider-files.md)；密钥与 HTTP 留在核心，上传失败不自动重试，默认仍用 Base64。[远端管理](docs/provider-files-management.md)支持列表、查询、强制确认删除和显式恢复映射，不调用模型。另支持 [OpenAI Responses/Anthropic Files 与可选生命周期管理](docs/files-lifecycle.md)，自动清理需单独授权。
@@ -260,6 +267,14 @@ python3 scripts/check_package.py 'dist/*.tar.gz' 'dist/*.tar.xz'
 ```
 
 打包/检查脚本属于开发工具，发布的 Rust 程序无需 Python。在源码目录设置好 `DEEPSEEK_API_KEY` 后，可用短命令 `./scripts/start.sh [工作区]` 构建并启动，避免长命令粘贴时被换行拆开。
+
+## 当前验证范围
+
+最新本地 bundled/packaging 矩阵：原生 macOS ARM64 为 385 项通过，Windows 11 ARM64 的 x64 模拟执行为 371 项通过，隔离 ARM64 虚拟机内 QEMU 10 执行 Linux x86_64 为 385 项通过，各另有 1 项既有 ignored。较早快照的 macOS x86_64 Rosetta 为 384 项、Linux ARM64 为 384 项、Windows ARM64 为 370 项（默认配置 360 项）；数量差异包含平台条件及后来新增的 socket 回归，不代表同一快照。历史完整 Chromium/WebKit 测试为 288 项通过；Windows 路径修复后重建的资源哈希不变，另复测 17 项关键路径。本轮 Node 单元测试 150 项、Cordis 构建测试 5 项、Python 脚本测试 12 项通过。
+
+Windows 程序由 macOS 交叉编译，再在 Parallels Windows 11 ARM64 中执行；ARM64 ZIP/gzip/xz 包均验证自安装、迁移、工具、Unicode 搜索及预算统计，本轮新增 x64 产物仅为 debug/test 程序，不是优化发布包。真实 Windows ARM64 终端验证覆盖中文编辑与导航、多行粘贴、历史草稿恢复、拒绝/允许审批、Ctrl-C 和终端模式恢复，不代表全部编辑器行为。Linux x64 的 Rust 矩阵、严格 Clippy、最小配置及 TLS 拒绝通过，但 QEMU 改变了执行不存在程序时的 spawn 错误语义，因此独立 PTY 错误恢复场景不计为通过。较早一次本地 HTTP fixture 断言失败在完整重跑中未复现，原因仍未确认。
+
+DeepSeek `deepseek-flash` 已通过限额合成任务实测：原生读写、审批、会话恢复且不重放，以及实际 WASM 浏览器 SSE 显示、刷新和取消。模拟执行不等同于 x64 真机验证。远程 CI、优化 x64 发布包、其他 provider 账户、Developer ID 签名和 Apple 公证仍未验证；不能视为正式发行验收。
 
 ## 行数与验证（历史原生快照）
 

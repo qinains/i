@@ -1,0 +1,22 @@
+{
+  "protocol": "openai",
+  "base_url": "https://api.openai.com/v1",
+  "model": "gpt-5.1",
+  "api_key": "",
+  "api_key_env": "OPENAI_API_KEY",
+  "max_tokens": 25000,
+  "io_limit_bytes": 1048576,
+  "plugins": "../plugins/responses-compact.json",
+  "budget": {
+    "context_window": 400000,
+    "compact_ratio": 0.8,
+    "safety_ratio": 0.02,
+    "tool_output_ratio": 0.02,
+    "image_tokens": 16384,
+    "images": "keep"
+  },
+  "extra_body": {
+    "reasoning": { "effort": "medium" },
+    "include": ["reasoning.encrypted_content"]
+  }
+}

@@ -17,12 +17,11 @@ pub fn replace_once(text: &str, old: &str, new: &str, line_number: Option<usize>
             target.contains(old) && target.find(old) == target.rfind(old),
             "old text not found exactly once on line"
         );
-        let mut lines: Vec<String> = lines.iter().map(|l| l.to_string()).collect();
-        lines[line - 1] = target.replacen(old, new, 1);
-        let mut result = lines.join("\n");
-        if text.ends_with('\n') {
-            result.push('\n');
-        }
+        ensure!(!old.contains(['\r', '\n']), "line_number requires single-line old text");
+        let start = text.split_inclusive('\n').take(line - 1).map(str::len).sum::<usize>()
+            + target.find(old).expect("validated match");
+        let mut result = text.to_owned();
+        result.replace_range(start..start + old.len(), new);
         return Ok(result);
     }
     ensure!(

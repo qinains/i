@@ -1,0 +1,7 @@
+{
+  "tools": [],
+  "hooks": [
+    {"events":["session_load","after_response","request_retry"],"exec":["../target/debug/i-plugins","cache"]},
+    {"events":["before_request"],"exec":["../target/debug/i-plugins","cache"]}
+  ]
+}

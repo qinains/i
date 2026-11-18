@@ -1,0 +1,61 @@
+{
+  "app.name": "i (lninl)",
+  "app.tagline": "Маленькое ядро. Ваши инструменты. Ваша модель.",
+
+  "welcome": "Добро пожаловать в i!",
+  "welcome.first_run": "Похоже, это ваш первый раз. Давайте настроим вас.",
+
+  "install.title": "Установка",
+  "install.prompt": "Установить i в {}?",
+  "install.add_path": "Добавить в PATH?",
+  "install.success": "Установлено в {}",
+  "install.skipped": "Установка пропущена.",
+
+  "setup.title": "Конфигурация",
+  "setup.provider": "Выберите провайдера ИИ:",
+  "setup.provider.openai": "OpenAI",
+  "setup.provider.deepseek": "DeepSeek",
+  "setup.provider.anthropic": "Anthropic",
+  "setup.base_url": "Базовый URL API:",
+  "setup.model": "Имя модели:",
+  "setup.api_key": "Ключ API (или нажмите Enter, чтобы пропустить):",
+  "setup.api_key_env": "Или установите переменную окружения {} вместо этого.",
+  "setup.max_tokens": "Максимум токенов на запрос:",
+  "setup.success": "Конфигурация сохранена в {}",
+
+  "error.title": "Ошибка",
+  "error.no_locale": "Файлы локализации не найдены. Проверьте директорию locales/.",
+  "error.no_config": "Конфигурация не найдена. Сначала запустите setup.",
+  "error.invalid_provider": "Неверный выбор провайдера.",
+  "error.invalid_input": "Неверный ввод. Попробуйте снова.",
+  "error.file_not_found": "Файл не найден: {}",
+  "error.permission_denied": "Доступ запрещен: {}",
+  "error.task_empty": "Задача не может быть пустой.",
+  "error.images_too_many": "Прикрепите не более 8 изображений на задачу.",
+  "error.step_limit": "Достигнут лимит шагов; продолжите с --session или увеличьте --max-steps.",
+  "error.model_stopped": "Модель остановилась без завершения: {}",
+  "error.user_denied": "Действие отклонено пользователем.",
+
+  "status.workspace": "рабочее пространство: {} | модель: {}",
+  "status.warning_auto_approve": "ВНИМАНИЕ: включено автоматическое одобрение; shell не изолирован",
+  "status.step": "[шаг {}]",
+  "status.step_of": "[шаг {}/{}]",
+  "status.tool_call": "инструмент: {} {}",
+  "status.auto_compact": "[авто-сжатие: {} префиксных сообщений]",
+  "status.provider_cleanup": "очистка провайдера: DELETE разрешен; НЕ повторено",
+
+  "prompt.task": "Задача: ",
+  "prompt.allow": "Разрешить? [y/N] ",
+
+  "common.yes": "Да",
+  "common.no": "Нет",
+  "common.cancel": "Отмена",
+  "common.confirm": "Подтвердить",
+  "common.back": "Назад",
+  "common.next": "Далее",
+  "common.done": "Готово",
+
+  "lang.switch": "Сменить язык",
+  "lang.current": "Текущий язык: {}",
+  "lang.select": "Выберите язык:"
+}

@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "id": "transitive-drain",
+  "gates": [],
+  "definitions": {
+    "middle": {"inject": ["foo"], "read": "foo", "load": "middle-load", "unload": "middle-unload", "provide": "bar"},
+    "consumer": {"inject": ["bar"], "read": "bar", "load": "consumer-load", "unload": "consumer-unload"}
+  },
+  "actions": [
+    {"op": "publish", "binding": "binding", "service": "foo", "value": {"version": 1}},
+    {"op": "mount", "definition": "middle", "fiber": "middle", "config": {}},
+    {"op": "settle", "fiber": "middle"},
+    {"op": "mount", "definition": "consumer", "fiber": "consumer", "config": {}},
+    {"op": "settle", "fiber": "consumer"},
+    {"op": "withdraw", "binding": "binding"},
+    {"op": "settle", "fiber": "middle"},
+    {"op": "settle", "fiber": "consumer"}
+  ],
+  "expected": ["middle-load(1)", "consumer-load(1)", "consumer-unload(1)", "middle-unload(1)"],
+  "before": [["consumer-unload(1)", "middle-unload(1)"]]
+}

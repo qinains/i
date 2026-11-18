@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "id": "latest-update-during-setup",
+  "gates": ["setup"],
+  "definitions": {
+    "consumer": {"inject": ["foo"], "read": "foo", "load": "load", "unload": "unload", "load_gate": "setup", "config_label": "version"}
+  },
+  "actions": [
+    {"op": "publish", "binding": "binding", "service": "foo", "value": {"version": 99}},
+    {"op": "mount", "definition": "consumer", "fiber": "consumer", "config": {"version": 1}},
+    {"op": "wait-gate", "gate": "setup"},
+    {"op": "update", "fiber": "consumer", "config": {"version": 2}},
+    {"op": "update", "fiber": "consumer", "config": {"version": 3}},
+    {"op": "open-gate", "gate": "setup"},
+    {"op": "settle", "fiber": "consumer"}
+  ],
+  "expected": ["gate(setup)", "load(1)", "unload(1)", "gate(setup)", "load(3)"],
+  "before": [["unload(1)", "load(3)"]]
+}

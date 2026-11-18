@@ -1,6 +1,9 @@
 import {readFile,writeFile,readdir,mkdir,copyFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {deflateSync} from 'node:zlib';
+import {execFileSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+execFileSync('python3',[fileURLToPath(new URL('./build_cors_extension.py',import.meta.url))]);
 const root = new URL('../web/',import.meta.url);
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 function crc(bytes) {
@@ -37,8 +40,11 @@ async function walk(dir) {
     return found;
 }
 const pkg = await walk('pkg/');
-for (const bridge of pkg.filter(p => p.endsWith('/web/platform.js'))) await copyFile(new URL('sse.js',root),new URL(bridge.replace(/platform.js$/u,'sse.js'),root));
-const assets = ['index.html','app.js','config.js','download.js','platform.js','sse.js','pwa.js','style.css','manifest.webmanifest','icons/icon.svg','icons/icon-192.png','icons/icon-512.png',...await walk('pkg/')].sort();
+for (const bridge of pkg.filter(p => p.endsWith('/web/platform.js'))) for(const dependency of ['sse.js','anthropic-sse.js','transport.js','workspaces.js','memory-fs.js','opfs-locks.js']) await copyFile(new URL(dependency,root),new URL(bridge.replace(/platform.js$/u,dependency),root));
+const modules=(await readdir(root)).filter(name=>name.endsWith('.js')&&!['sw.js','service-worker.js'].includes(name));
+const downloads=(await readdir(new URL('downloads/',root))).filter(name=>/^harness-cors-helper-(chromium|firefox|safari)-[\d.]+\.zip$/u.test(name)||name==='cors-helper.json').map(name=>'downloads/'+name);
+const assets = ['index.html','commands.json','module-lexer.LICENSE','module-lexer.NOTICE','plugins/vendor/NOTICE',...modules,...await walk('state/'),...await walk('plugins/'),...await walk('plugin-pkg/'),'style.css','manifest.webmanifest','icons/icon.svg','icons/icon-192.png','icons/icon-512.png',...await walk('pkg/')].sort();
+assets.push(...downloads);assets.sort();
 const precache = await Promise.all(assets.map(async url => ({url,sha256:hash(await readFile(new URL(url,root)))})));
 const source = await readFile(new URL('sw.js',root),'utf8');
 const version = hash(JSON.stringify(precache)+source).slice(0,24);

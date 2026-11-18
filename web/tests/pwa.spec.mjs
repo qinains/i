@@ -7,15 +7,28 @@ test('PWA caches only static resources; offline WASM, OPFS and ZIP work at a sub
     await ready(page,'/sub/');
     await page.locator('#file-input').setInputFiles({name:'offline.txt',mimeType:'text/plain',buffer:Buffer.from('offline workspace')});
     await expect(page.locator('#file-list')).toContainText('offline.txt');
-    await page.locator('#api-key').fill('PRIVATE_KEY'); await page.locator('#remember-config').check();
+    await page.locator('#settings-btn').click();await page.locator('#base-url').fill('http://127.0.0.1:4173/mock/v1');await page.locator('#model').fill('fixture');await page.locator('#api-key').fill('PRIVATE_KEY'); await page.locator('#remember-config').check();await page.locator('#save-config').click();await page.locator('#close-settings').click();
     const urls = await page.evaluate(async () => (await Promise.all((await caches.keys()).map(async name => (await (await caches.open(name)).keys()).map(r => r.url)))).flat());
     expect(urls.length).toBeGreaterThan(10); expect(urls.every(url => !/api\/|PRIVATE_KEY|test-pwa|mock/u.test(url))).toBeTruthy();
+    for(const path of ['/sub/plugins/vendor/cordis.js','/sub/plugins/vendor/NOTICE'])expect(urls.some(url=>new URL(url).pathname===path)).toBe(true);
     await context.setOffline(true); await page.reload();
     await expect(page.locator('#status')).toHaveText('Ready'); await expect(page.locator('#file-list')).toContainText('offline.txt');
+    const core=await page.evaluate(async()=>{
+        const {Context,Service}=await import('./plugins/vendor/cordis.js');
+        const response=await fetch('./plugins/vendor/NOTICE'),notice=await response.text();
+        const root=new Context();await root.fiber.dispose();
+        return {context:typeof Context,service:typeof Service,notice:response.ok&&notice.includes('911b19dc13d7c48475ac015682be4d6677d31491')&&notice.includes('Permission is hereby granted')};
+    });
+    expect(core).toEqual({context:'function',service:'function',notice:true});
     await expect(page.locator('#pwa-status')).toContainText('Offline');
     const download = page.waitForEvent('download'); await page.locator('#btn-download').click(); await download;
     await page.locator('#input').fill('ask AI'); await page.locator('#input').press('Enter');
-    await expect(page.locator('#output')).toContainText('AI needs a network connection');
+    await expect(page.locator('#global-error')).toContainText('Offline: the unsent message and attachments are retained.');
+    await expect(page.locator('#input')).toHaveValue('ask AI');
+});
+test('offline subpath PWA previews persisted local ES modules without runtime downloads',async({page,context})=>{
+    await ready(page,'/sub/');await page.evaluate(async()=>{const fs=await import('./platform.js'),root=await fs.opfsOpen();for(const [path,text]of Object.entries({'index.html':'<p></p><script type="module" src="js/app.js"></script>','js/app.js':`import {message} from './lib.js'; document.querySelector('p').textContent=message;`,'js/lib.js':`export const message='Offline modules';`}))await fs.opfsWrite(root,path,new TextEncoder().encode(text));});
+    await context.setOffline(true);await page.reload();await expect(page.locator('#status')).toHaveText('Ready');await page.locator('#btn-preview').click();page.once('dialog',dialog=>dialog.accept());await page.locator('#preview-scripts').check();await expect(page.frameLocator('#preview-frame').locator('p')).toHaveText('Offline modules');await expect(page.locator('#preview-frame')).toHaveAttribute('sandbox','allow-scripts');
 });
 test('updates fail safely on missing assets and wait for idle tabs before activation', async ({page,context}) => {
     await ready(page); const original = await page.evaluate(() => navigator.serviceWorker.controller.scriptURL);
@@ -28,7 +41,7 @@ test('updates fail safely on missing assets and wait for idle tabs before activa
         await page.request.get('/test-pwa-state?version=next');
         await page.evaluate(async () => {await (await navigator.serviceWorker.getRegistration()).update();});
         await expect(page.locator('#btn-update')).toBeVisible();
-        await other.locator('#base-url').fill('http://127.0.0.1:4173/mock/v1'); await other.locator('#model').fill('fixture');
+        await other.locator('#btn-new-session').click();await other.locator('#settings-btn').click();await other.locator('#base-url').fill('http://127.0.0.1:4173/mock/v1'); await other.locator('#model').fill('fixture');await other.locator('#save-config').click();await other.locator('#close-settings').click();
         await other.locator('#input').fill('STREAM'); await other.locator('#input').press('Enter'); await expect(other.locator('#output')).toContainText('First visible');
         await page.locator('#btn-update').click(); await expect(page.locator('#pwa-status')).toContainText('postponed');
         await expect(other.locator('#status')).toHaveText('Processing...');

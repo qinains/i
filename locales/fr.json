@@ -1,0 +1,61 @@
+{
+  "app.name": "i (lninl)",
+  "app.tagline": "Petit noyau. Vos outils. Votre modèle.",
+
+  "welcome": "Bienvenue dans i !",
+  "welcome.first_run": "Il semble que ce soit votre première fois. Commençons la configuration.",
+
+  "install.title": "Installation",
+  "install.prompt": "Installer i dans {} ?",
+  "install.add_path": "Ajouter au PATH ?",
+  "install.success": "Installé dans {}",
+  "install.skipped": "Installation ignorée.",
+
+  "setup.title": "Configuration",
+  "setup.provider": "Choisissez votre fournisseur IA :",
+  "setup.provider.openai": "OpenAI",
+  "setup.provider.deepseek": "DeepSeek",
+  "setup.provider.anthropic": "Anthropic",
+  "setup.base_url": "URL de base de l'API :",
+  "setup.model": "Nom du modèle :",
+  "setup.api_key": "Clé API (ou appuyez sur Entrée pour ignorer) :",
+  "setup.api_key_env": "Ou définissez la variable d'environnement {}.",
+  "setup.max_tokens": "Nombre maximum de jetons par requête :",
+  "setup.success": "Configuration sauvegardée dans {}",
+
+  "error.title": "Erreur",
+  "error.no_locale": "Fichiers de langue introuvables. Vérifiez le répertoire locales/.",
+  "error.no_config": "Aucune configuration trouvée. Exécutez d'abord la configuration.",
+  "error.invalid_provider": "Sélection de fournisseur invalide.",
+  "error.invalid_input": "Entrée invalide. Veuillez réessayer.",
+  "error.file_not_found": "Fichier introuvable : {}",
+  "error.permission_denied": "Permission refusée : {}",
+  "error.task_empty": "La tâche ne peut pas être vide.",
+  "error.images_too_many": "Joignez au maximum 8 images par tâche.",
+  "error.step_limit": "Limite d'étapes atteinte ; reprenez avec --session ou augmentez --max-steps.",
+  "error.model_stopped": "Le modèle s'est arrêté sans terminer : {}",
+  "error.user_denied": "Action refusée par l'utilisateur.",
+
+  "status.workspace": "espace de travail : {} | modèle : {}",
+  "status.warning_auto_approve": "AVERTISSEMENT : approbation automatique activée ; le shell n'est pas sandboxé",
+  "status.step": "[étape {}]",
+  "status.step_of": "[étape {}/{}]",
+  "status.tool_call": "outil : {} {}",
+  "status.auto_compact": "[auto-compression : {} messages préfixes]",
+  "status.provider_cleanup": "nettoyage du fournisseur : DELETE autorisé ; NON réessayé",
+
+  "prompt.task": "Tâche : ",
+  "prompt.allow": "Autoriser ? [y/N] ",
+
+  "common.yes": "Oui",
+  "common.no": "Non",
+  "common.cancel": "Annuler",
+  "common.confirm": "Confirmer",
+  "common.back": "Retour",
+  "common.next": "Suivant",
+  "common.done": "Terminé",
+
+  "lang.switch": "Changer de langue",
+  "lang.current": "Langue actuelle : {}",
+  "lang.select": "Sélectionner la langue :"
+}

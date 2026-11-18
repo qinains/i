@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "id": "sibling-retirement",
+  "gates": ["setup"],
+  "definitions": {
+    "consumer": {"inject": ["b"], "read": "b", "load": "load", "unload": "unload", "load_gate": "setup"}
+  },
+  "actions": [
+    {"op": "publish", "binding": "a", "service": "a", "value": {"version": 1}},
+    {"op": "publish", "binding": "b", "service": "b", "value": {"version": 2}},
+    {"op": "mount", "definition": "consumer", "fiber": "consumer", "config": {}},
+    {"op": "wait-gate", "gate": "setup"},
+    {"op": "withdraw", "binding": "a"},
+    {"op": "drain-bindings"},
+    {"op": "state", "fiber": "consumer"},
+    {"op": "open-gate", "gate": "setup"},
+    {"op": "settle", "fiber": "consumer"}
+  ],
+  "expected": ["gate(setup)", "state(consumer,LOADING)", "load(2)"],
+  "before": [["state(consumer,LOADING)", "load(2)"]]
+}

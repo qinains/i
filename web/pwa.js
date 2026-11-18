@@ -1,5 +1,5 @@
-export async function registerPwa({isBusy,onLock,onStatus}) {
-    if (!('serviceWorker' in navigator) || !isSecureContext) {onStatus('PWA requires HTTPS and Service Worker support.'); return;}
+export async function registerPwa({isBusy,onLock,onStatus,beforeUpdate=async()=>{}}) {
+    if (!navigator.serviceWorker || !isSecureContext) {onStatus('PWA requires HTTPS and Service Worker support.'); return;}
     const root = new URL('./',import.meta.url);
     const workerUrl = new URL('service-worker.js',root).href;
     const button = document.getElementById('btn-install');
@@ -10,15 +10,16 @@ export async function registerPwa({isBusy,onLock,onStatus}) {
     button.addEventListener('click',async () => {
         if (prompt) {await prompt.prompt(); prompt = null; button.hidden = true;}
     });
-    navigator.serviceWorker.addEventListener('message',event => {
+    navigator.serviceWorker.addEventListener('message',async event => {
         if (event.data?.type === 'pwa_lock') {
             if (event.source?.scriptURL !== workerUrl) {
                 event.source?.postMessage({type:'pwa_idle',id:event.data.id,idle:true}); return;
             }
             clearTimeout(requestTimer);
-            const idle = !isBusy();
+            let idle = !isBusy();
             if (idle) {
                 locked = true; lockId = event.data.id; onLock(true);
+                try {await beforeUpdate();} catch {idle=false;locked=false;onLock(false);onStatus('Update postponed: state could not be saved.');}
                 clearTimeout(lockTimer);
                 lockTimer = setTimeout(() => {
                     if (!locked || registration?.waiting?.state === 'activating') return;
@@ -33,6 +34,7 @@ export async function registerPwa({isBusy,onLock,onStatus}) {
     });
     navigator.serviceWorker.addEventListener('controllerchange',() => {if (locked) location.reload();});
     registration = await navigator.serviceWorker.register(workerUrl,{scope:root.pathname,updateViaCache:'none'});
+    if(!registration){onStatus('PWA registration unavailable; local workspace remains usable.');return;}
     function waiting() {
         if (registration.waiting) {update.hidden = false; onStatus('Update available. Finish tasks in all tabs, then apply.');}
     }
@@ -42,8 +44,9 @@ export async function registerPwa({isBusy,onLock,onStatus}) {
             if (registration.active && !registration.waiting) onStatus(navigator.onLine ? 'PWA ready; local files are available offline.' : 'Offline: local files only.');
         });
     });
-    update.addEventListener('click',() => {
+    update.addEventListener('click',async () => {
         if (isBusy()) {onStatus('Finish the active task before updating.'); return;}
+        try{await beforeUpdate();}catch{onStatus('Update postponed: state could not be saved.');return;}
         clearTimeout(requestTimer);
         onStatus('Checking open app tabs before updating...');
         requestTimer = setTimeout(() => {

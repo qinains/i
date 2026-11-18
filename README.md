@@ -6,16 +6,18 @@
 
 A plugin-first Rust coding agent with a shared Native/browser WASM core. Native tools and plugin tools share one execution pipeline; plugins run as persistent, bounded JSON-line workers. The expanded cross-platform implementation is no longer subject to the historical 1,024-line target. The central **i** in **lninl** is generated in Rust, not embedded in model prompts.
 
-[简体中文](README.zh-CN.md) · [Plugin and platform contracts](docs/plugins.md)
+[简体中文](README.zh-CN.md) · [Website & docs](https://i.lninl.com/docs/) · [Write a plugin](docs/plugin-development.md) · [Contributing / PR](CONTRIBUTING.md) · [MIT](LICENSE)
 
 ## What is implemented
 
-- [Browser WASM PWA](docs/wasm.md): streaming Chat Completions, persistent OPFS file tools, approvals, ZIP downloads and offline app startup. Direct mode is default; an [own same-origin relay](server/README.md) is optional for APIs without CORS. Shell/process plugins are disabled. Build with `./scripts/build_web.sh`, then publish the static assets over HTTPS (localhost for development).
+- [Browser WASM PWA](docs/wasm.md): isolated workspaces, independent conversation tabs, reload recovery of history/drafts, streaming Chat Completions, persistent OPFS files, approvals, ZIP downloads and offline startup. Direct mode is default; an [own same-origin relay](server/README.md) is optional for APIs without CORS. Shell/process plugins are disabled. Install locked build dependencies with `npm ci --prefix web`, then build with `./scripts/build_web.sh` and publish static assets over HTTPS (localhost for development).
+  Scratch workspaces and a separate `/tmp` mount live only in page memory. Isolated HTML previews disable scripts by default; trusted JavaScript can be explicitly enabled. Install Rust/WASM tool plugins as `.hplugin.zip` packages. This is not a backend server; see the [browser guide](docs/wasm.md) for preview capabilities and limits.
 
 - Replaceable provider workers for OpenAI Chat/Responses, DeepSeek and Anthropic Messages; no vendor wire-format branches in the core. See [provider contracts and limits](docs/providers.md).
 - Opt-in [DeepSeek Files uploads and scoped file_id reuse](docs/provider-files.md), with host-held credentials and no automatic upload retries; Base64 remains the default. [Remote Files management](docs/provider-files-management.md) supports list/get/delete and explicit reconciliation without generating a model response; ordinary DELETE always asks. [OpenAI Responses/Anthropic Files and opt-in lifecycle maintenance](docs/files-lifecycle.md) are also supported; automated cleanup requires a separate host capability.
 - Read, write, exact edit, shell, and image tools; approval gates, validated history, atomic sessions, and bounded I/O.
-- Optional Rust modules for context budgets, compaction, prompts, memory, search, web, Skills, cache accounting, and interactive steering.
+- Built-in recursive `glob`/`search`, batch range reads and same-file batch edits reduce model round trips and irrelevant context; see [file tools](docs/file-tools.md).
+- Optional Rust modules for context budgets, compaction, prompts, memory, web, Skills, cache accounting, and interactive steering.
 - Persistent subprocess workers shared by identical argv + canonical working directory. Failed operations are **never automatically replayed**.
 - Append-only reference snapshots/deltas, stable public tool schemas, and accounting from **actual provider usage**, not guessed cache hits.
 - Desktop configuration under `~/.i/config`, with platform-supplied paths for persistent data, disposable cache, and temporary runtime files.
@@ -24,22 +26,27 @@ There is no core provider/model capacity table. Official runtime plugins and the
 
 ## Install
 
-### Homebrew (macOS/Linux)
+### From source (recommended)
 
-```bash
-brew tap qinains/i
-brew install i
+Requires Rust 1.91+. Build the audited repository rather than assuming a
+same-named crates.io package or Homebrew tap is this project:
+
+```sh
+git clone https://github.com/qinains/i.git
+cd i
+cargo install --path . --locked --features bundled --bin i
+i setup
 ```
 
-### Cargo (Cross-platform)
-
-```bash
-cargo install i
-```
+Homebrew and registry installation are not advertised until those releases have
+actually been published and verified. Browser WASM plugins use a separate SDK;
+see the [plugin tutorial](docs/plugin-development.md).
 
 ### Manual Download
 
-Download from [GitHub Releases](https://github.com/qinains/i/releases):
+When a release is available, download only the matching published artifact from
+[GitHub Releases](https://github.com/qinains/i/releases). The table describes
+packaging targets, not a claim that every target is already published:
 
 | Platform | Architecture | File |
 |----------|--------------|------|
@@ -232,7 +239,7 @@ The same mechanism replaces selected workers such as budget, memory or cache. It
 
 - **Memory:** approved `memory_get/set/delete` tools; locked, atomic workspace state. Store only user-requested facts/preferences, never credentials.
 - **Skills:** discover metadata under `.agents/skills` and `.i/skills`; load bodies/references on demand. Default roots cannot escape through symlinks. External roots require explicit configuration. Scripts are never autoexecuted.
-- **Search:** `search` and `find_files`, with regex/glob/case options, snippets, traversal limits, and skips for hidden/build/symlink/binary/oversized entries.
+- **File search (built in):** `glob` and `search`, with regex/glob/case options, filename-only results, bounded context and continuations. No search plugin required; see [batch file-tool interfaces](docs/file-tools.md).
 - **Web:** configurable JSON GET/POST search and bounded public HTTP(S) text fetch; DNS/address checks, checked redirects, no environment proxy or JavaScript. Private-network access requires explicit trusted configuration.
 - **Prompts:** embedded defaults; `config/prompts.json` selects the system prompt. The default compactor uses `config/compact.json`'s `prompt` path. Explicitly registered prompts hooks can still use `--system` / `--compact`.
 
@@ -279,9 +286,7 @@ To resume, select the same console `--session-name` and workspace, then enter a 
 
 ## Native release packages
 
-**Historical measurements below predate the shared-core/WASM refactor. They are not current build-size claims.** Current build instructions, limitations and inherited network-test failures are recorded in [the WASM report](docs/wasm.md).
-
-Standard and min-size macOS arm64 packages are generated under `dist/`. **The previous 1.91 MiB/0.72 MiB build had an HTTPS feature regression and must be replaced.** With ureq 3.4.2's actual native TLS connector retained, plus Markdown, replaceable approval/provider workers and opt-in Files support, the complete outlined executable is **2.20 MiB**, the **XZ archive is 0.88 MiB**, and gzip is 1.16 MiB. The ordinary min-size build is 2.23 MiB. **Only the XZ download is below 1 MiB; the uncompressed program is not.** Tools, Unicode search, Chinese editing and replaceable workers remain included. Core source is now 1024 lines; provider adapters, deployment and the optional in-process OS credential bridge are counted separately. Both model and web HTTPS now pass a ClientHello/certificate-error/no-panic test; old socket EOF was incorrectly accepted by the earlier test. Re-extract the updated archive and restart, rather than running an older extracted binary. See [corrected measurements and validation](docs/size-report.md).
+Standard and min-size packages are generated under `dist/`. Size depends on the target, enabled features, compiler and compression; measure the actual release artifact rather than relying on historical numbers. The bundled build includes the optional console and workers. See [packaging instructions](docs/packaging.md) and [browser build details](docs/wasm.md).
 
 ```sh
 # AArch64 size optimization; omit --outline on other architectures.
@@ -290,6 +295,14 @@ python3 scripts/check_package.py 'dist/*.tar.gz' 'dist/*.tar.xz'
 ```
 
 Packaging/checking scripts are development utilities; distributed Rust executables do not require Python. For a short source-tree startup command after setting `DEEPSEEK_API_KEY`, use `./scripts/start.sh [workspace]`; it builds the Rust binaries and avoids clipboard line-break errors in long commands.
+
+## Current verification scope
+
+Latest local bundled/packaging matrices pass 385 tests on native macOS ARM64, 371 on Windows x86_64 through Windows 11 ARM64's x64 emulation, and 385 on Linux x86_64 through QEMU 10 in the isolated ARM64 VM. Each retains one existing ignored test. Earlier snapshots passed 384 on macOS x86_64 through Rosetta, 384 on Linux ARM64, and 370 on Windows ARM64 (360 default). Counts reflect platform gates and the subsequently added socket regression, not identical snapshots. The historical full Chromium/WebKit suite passed 288 tests; after the Windows path fix, rebuilt browser assets were byte-identical and 17 critical paths were retested. Fresh Node unit tests pass 150, Cordis build tests 5, and Python script tests 12.
+
+Windows executables are cross-compiled on macOS and run in Parallels Windows 11 ARM64. ARM64 ZIP/gzip/xz checks cover self-installation, relocation, tools, Unicode search and budget accounting; the new x64 artifacts are debug/test programs, not optimized release packages. Real Windows ARM64 TTY checks cover Chinese editing/navigation, bracketed multiline paste, history draft recovery, denied/approved writes, Ctrl-C and console-mode restoration, not complete editor parity. Linux x64's Rust matrix, strict Clippy, minimal build and TLS rejection pass, but QEMU changes missing-executable spawn semantics, so the separate PTY error-restoration scenario is not accepted. An earlier local HTTP-fixture assertion did not reproduce in the complete rerun; its cause remains unresolved.
+
+Bounded synthetic DeepSeek `deepseek-flash` live checks pass native read/write, approvals and session resume without replay, plus browser SSE display/reload/cancellation through actual WASM. Emulation is not physical x64 hardware validation. Remote CI, optimized x64 release packages, other provider accounts, Developer ID signing and Apple notarization remain unverified; these results are not formal release acceptance.
 
 ## Size and verification (historical native snapshot)
 

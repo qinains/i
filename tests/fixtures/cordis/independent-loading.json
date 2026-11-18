@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "id": "independent-loading",
+  "gates": ["slow"],
+  "definitions": {
+    "slow": {"inject": ["foo"], "read": "foo", "load": "slow-load", "unload": "slow-unload", "load_gate": "slow"},
+    "fast": {"inject": ["foo"], "read": "foo", "load": "fast-load", "unload": "fast-unload"}
+  },
+  "actions": [
+    {"op": "publish", "binding": "binding", "service": "foo", "value": {"version": 1}},
+    {"op": "mount", "definition": "slow", "fiber": "slow", "config": {}},
+    {"op": "wait-gate", "gate": "slow"},
+    {"op": "mount", "definition": "fast", "fiber": "fast", "config": {}},
+    {"op": "settle", "fiber": "fast"},
+    {"op": "state", "fiber": "fast"},
+    {"op": "open-gate", "gate": "slow"},
+    {"op": "settle", "fiber": "slow"}
+  ],
+  "expected": ["gate(slow)", "fast-load(1)", "state(fast,ACTIVE)", "slow-load(1)"],
+  "before": [["state(fast,ACTIVE)", "slow-load(1)"]]
+}

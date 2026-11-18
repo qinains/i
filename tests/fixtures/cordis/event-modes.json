@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "id": "event-modes",
+  "gates": [],
+  "definitions": {},
+  "actions": [
+    {"op": "listen", "event": "bail", "listener": "false", "behavior": "false"},
+    {"op": "listen", "event": "bail", "listener": "null", "behavior": "null"},
+    {"op": "listen", "event": "bail", "listener": "undefined", "behavior": "undefined"},
+    {"op": "listen", "event": "bail", "listener": "zero", "behavior": "zero"},
+    {"op": "listen", "event": "bail", "listener": "last", "behavior": "undefined"},
+    {"op": "dispatch", "event": "bail", "mode": "bail"},
+    {"op": "dispatch", "event": "bail", "mode": "serial"},
+    {"op": "dispatch", "event": "bail", "mode": "emit"},
+    {"op": "listen", "event": "empty", "listener": "empty", "behavior": "empty"},
+    {"op": "listen", "event": "empty", "listener": "unused", "behavior": "undefined"},
+    {"op": "dispatch", "event": "empty", "mode": "bail"},
+    {"op": "listen", "event": "removal", "listener": "remover", "behavior": "remove:victim"},
+    {"op": "listen", "event": "removal", "listener": "victim", "behavior": "undefined"},
+    {"op": "dispatch", "event": "removal", "mode": "emit"},
+    {"op": "listen", "event": "parallel", "listener": "first", "behavior": "fail"},
+    {"op": "listen", "event": "parallel", "listener": "second", "behavior": "fail"},
+    {"op": "dispatch", "event": "parallel", "mode": "parallel"},
+    {"op": "listen", "event": "waterfall", "listener": "outer", "behavior": "around"},
+    {"op": "listen", "event": "waterfall", "listener": "short", "behavior": "short"},
+    {"op": "listen", "event": "waterfall", "listener": "unreached", "behavior": "around"},
+    {"op": "dispatch", "event": "waterfall", "mode": "waterfall"},
+    {"op": "listen", "event": "twice", "listener": "twice", "behavior": "twice"},
+    {"op": "dispatch", "event": "twice", "mode": "waterfall"}
+  ],
+  "expected": [
+    "listener(false)", "listener(null)", "listener(undefined)", "listener(zero)", "result(bail,bail,0)",
+    "listener(false)", "listener(null)", "listener(undefined)", "listener(zero)", "result(bail,serial,0)",
+    "listener(false)", "listener(null)", "listener(undefined)", "listener(zero)", "listener(last)", "result(bail,emit,undefined)",
+    "listener(empty)", "result(empty,bail,\"\")",
+    "listener(remover)", "result(removal,emit,undefined)",
+    "listener(first)", "listener(second)", "error(parallel,parallel)",
+    "listener(outer)", "listener(short)", "after(outer)", "result(waterfall,waterfall,\"short\")",
+    "listener(twice)", "tail(twice)", "error(twice,waterfall)"
+  ],
+  "expected_errors": ["failed(first)", "failed(second)", "next() called multiple times"],
+  "before": [["listener(first)", "error(parallel,parallel)"], ["listener(second)", "error(parallel,parallel)"]]
+}

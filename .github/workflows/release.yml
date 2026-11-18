@@ -1,0 +1,168 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+
+    runs-on: ${{ matrix.os }}
+    env:
+      RUSTFLAGS: ${{ startsWith(matrix.os, 'windows-') && '-C target-feature=+crt-static' || '' }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ matrix.target }}
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Validate release tag against package version
+      env:
+        RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
+      run: python scripts/check_release_version.py
+
+    - name: Cache Cargo dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Verify native packaging target
+      shell: bash
+      run: |
+        rustc -vV | grep -F "host: ${{ matrix.target }}"
+
+    - name: Install Linux native TLS build prerequisites
+      if: runner.os == 'Linux'
+      run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev ca-certificates
+
+    - name: Build i and i-package
+      run: >
+        cargo build
+        --features bundled,packaging
+        --bin i
+        --bin i-package
+        --profile min-size
+        --locked
+
+    - name: Create package
+      shell: bash
+      run: |
+        # Set up the package tool path based on OS
+        if [ "${{ runner.os }}" = "Windows" ]; then
+          PACKAGE_TOOL="./target/min-size/i-package.exe"
+        else
+          PACKAGE_TOOL="./target/min-size/i-package"
+        fi
+
+        # Run the package tool
+        $PACKAGE_TOOL --skip-build --profile min-size
+
+    - name: Verify native package offline before upload
+      shell: bash
+      run: |
+        if [ "${{ runner.os }}" = "Windows" ]; then
+          python scripts/check_package.py "dist/*.zip"
+        else
+          python scripts/check_package.py "dist/*.tar.gz"
+        fi
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: packages-${{ matrix.target }}
+        path: dist/*
+        retention-days: 1
+
+  create-release:
+    needs: build-and-package
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Prepare release files
+      run: |
+        mkdir -p release
+        find artifacts -type f -exec cp {} release/ \;
+        ls -la release/
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ github.event.inputs.version || github.ref_name }}
+        target_commitish: ${{ github.sha }}
+        name: ${{ github.event.inputs.version || github.ref_name }}
+        body: |
+          ## Release ${{ github.event.inputs.version || github.ref_name }}
+
+          ### Installation
+
+          **macOS (Homebrew):**
+          ```bash
+          brew tap qinains/i
+          brew install i
+          ```
+
+          **Cargo:**
+          ```bash
+          cargo install i
+          ```
+
+          **Manual Download:**
+          - macOS ARM64: `i-*-aarch64-apple-darwin.tar.gz`
+          - macOS x86_64: `i-*-x86_64-apple-darwin.tar.gz`
+          - Linux x86_64: `i-*-x86_64-unknown-linux-gnu.tar.gz`
+          - Linux ARM64: `i-*-aarch64-unknown-linux-gnu.tar.gz`
+          - Windows x86_64: `i-*-x86_64-pc-windows-msvc.zip`
+          - Windows ARM64: `i-*-aarch64-pc-windows-msvc.zip`
+        files: release/*
+        generate_release_notes: true
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

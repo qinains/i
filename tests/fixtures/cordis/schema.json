@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Cordis semantic scenario v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "id", "gates", "definitions", "actions", "expected", "before"],
+  "properties": {
+    "version": {"const": 1},
+    "id": {"type": "string", "minLength": 1},
+    "gates": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "definitions": {"type": "object", "additionalProperties": {"type": "object", "additionalProperties": false, "required": ["inject", "read", "load", "unload"], "properties": {
+      "inject": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+      "kind": {"enum": ["counter", "metadata", "facade"]},
+      "inject_tags": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}},
+      "use_tags": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}},
+      "read": {"type": "string"}, "load": {"type": "string"}, "unload": {"type": "string"},
+      "load_gate": {"type": "string"}, "unload_gate": {"type": "string"}, "ready_gate": {"type": "string"}, "provide": {"type": "string"}, "config_label": {"type": "string"},
+      "fail_versions": {"type": "array", "items": {}}
+    }}},
+    "actions": {"type": "array", "items": {"oneOf": [
+      {"type": "object", "additionalProperties": false, "required": ["op"], "properties": {"op": {"const": "drain-bindings"}}},
+      {"type": "object", "additionalProperties": false, "required": ["op", "event", "listener", "behavior"], "properties": {"op": {"const": "listen"}, "event": {"type": "string"}, "listener": {"type": "string"}, "behavior": {"type": "string"}}},
+      {"type": "object", "additionalProperties": false, "required": ["op", "event", "mode"], "properties": {"op": {"const": "dispatch"}, "event": {"type": "string"}, "mode": {"enum": ["emit", "bail", "serial", "parallel", "waterfall"]}}},
+      {"type": "object", "additionalProperties": false, "required": ["op", "service"], "properties": {"op": {"enum": ["counter", "count", "tagged"]}, "service": {"type": "string"}}},
+      {"type": "object", "additionalProperties": false, "required": ["op", "parent", "target", "service", "tags"], "properties": {"op": {"const": "intercept"}, "parent": {"type": "string"}, "target": {"type": "string"}, "service": {"type": "string"}, "tags": {"type": "array", "items": {"type": "string"}}}},
+      {"type": "object", "additionalProperties": false, "required": ["op", "parent", "target", "service", "realm"], "properties": {"op": {"const": "isolate"}, "parent": {"type": "string"}, "target": {"type": "string"}, "service": {"type": "string"}, "realm": {"type": "string"}}},
+      {"type": "object", "additionalProperties": false, "required": ["op", "context", "binding", "service", "value"], "properties": {"op": {"const": "publish-in"}, "context": {"type": "string"}, "binding": {"type": "string"}, "service": {"type": "string"}, "value": {}}},
+      {"type": "object", "additionalProperties": false, "required": ["op", "context", "definition", "fiber", "config"], "properties": {"op": {"const": "mount-in"}, "context": {"type": "string"}, "definition": {"type": "string"}, "fiber": {"type": "string"}, "config": {}}},
+      {"type": "object", "additionalProperties": false, "required": ["op", "binding", "service", "value"], "properties": {"op": {"const": "publish"}, "binding": {"type": "string"}, "service": {"type": "string"}, "value": {}}},
+      {"type": "object", "additionalProperties": false, "required": ["op", "definition", "fiber", "config"], "properties": {"op": {"const": "mount"}, "definition": {"type": "string"}, "fiber": {"type": "string"}, "config": {}}},
+      {"type": "object", "additionalProperties": false, "required": ["op", "binding", "replacement", "value"], "properties": {"op": {"const": "replace-binding"}, "binding": {"type": "string"}, "replacement": {"type": "string"}, "value": {}}},
+      {"type": "object", "additionalProperties": false, "required": ["op", "fiber"], "properties": {"op": {"enum": ["settle", "state", "dispose", "identity"]}, "fiber": {"type": "string"}}},
+      {"type": "object", "additionalProperties": false, "required": ["op", "definition", "replacement"], "properties": {"op": {"const": "replace-component"}, "definition": {"type": "string"}, "replacement": {"type": "string"}}},
+      {"type": "object", "additionalProperties": false, "required": ["op", "gate"], "properties": {"op": {"enum": ["wait-gate", "open-gate"]}, "gate": {"type": "string"}}},
+      {"type": "object", "additionalProperties": false, "required": ["op", "fiber", "config"], "properties": {"op": {"const": "update"}, "fiber": {"type": "string"}, "config": {}}},
+      {"type": "object", "additionalProperties": false, "required": ["op", "binding"], "properties": {"op": {"const": "withdraw"}, "binding": {"type": "string"}}},
+      {"type": "object", "additionalProperties": false, "required": ["op", "definition"], "properties": {"op": {"const": "instances"}, "definition": {"type": "string"}}}
+    ]}},
+    "expected": {"type": "array", "items": {"type": "string"}},
+    "expected_errors": {"type": "array", "items": {"type": "string"}},
+    "before": {"type": "array", "items": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "string"}}}
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "repository": "https://github.com/cordiverse/cordis",
+  "commit": "911b19dc13d7c48475ac015682be4d6677d31491",
+  "version": "4.0.0-rc.13",
+  "cosmokit": "1.8.1",
+  "files": [
+    {
+      "path": "LICENSE",
+      "source": "LICENSE",
+      "sha256": "034fb52b1d57360ecbae6cb1632a88f86fd7c3d3f5631a5f082710203dda0be7"
+    },
+    {
+      "path": "packages/core/package.json",
+      "source": "packages/core/package.json",
+      "sha256": "da3939f1925372b6258726f5041c241a38413e39baffa5b852dc207e7d83cd29"
+    },
+    {
+      "path": "packages/core/src/context.ts",
+      "source": "packages/core/src/context.ts",
+      "sha256": "de2a085933307a31fb01bdfee8f666726ff2db22304833b0c90ebb434c935b26"
+    },
+    {
+      "path": "packages/core/src/events.ts",
+      "source": "packages/core/src/events.ts",
+      "sha256": "edecef575cee5b4b426b10412d20806fc6f7ae2866bee072e275a6f3d71d7875"
+    },
+    {
+      "path": "packages/core/src/fiber.ts",
+      "source": "packages/core/src/fiber.ts",
+      "sha256": "6000db28480534857b8de88430a1d7fb0d941c07257f237d57b693bb61f4a0c6"
+    },
+    {
+      "path": "packages/core/src/index.ts",
+      "source": "packages/core/src/index.ts",
+      "sha256": "49df2031dd6590d606813f4d25220ce3ce177163c5fcdbe1084b81a90f605ebf"
+    },
+    {
+      "path": "packages/core/src/logger.ts",
+      "source": "packages/core/src/logger.ts",
+      "sha256": "5b99be04738208b5aa8114ba087b37844dab7d88998d428aa53f8e59e45b71a9"
+    },
+    {
+      "path": "packages/core/src/reflect.ts",
+      "source": "packages/core/src/reflect.ts",
+      "sha256": "31c2314d1bc9e2ee6a245d86ea6a1bd5a518f3b4414a764e9b817f5c63e36323"
+    },
+    {
+      "path": "packages/core/src/registry.ts",
+      "source": "packages/core/src/registry.ts",
+      "sha256": "a7e9c8cba117b5124299897ec34ac269d11a9f8e9d4a19386c8dfc6788429dda"
+    },
+    {
+      "path": "packages/core/src/service.ts",
+      "source": "packages/core/src/service.ts",
+      "sha256": "be7868f4a85a75c95a010470ffa2e39043f90eb7fb9533cddd5986687699279c"
+    },
+    {
+      "path": "packages/core/src/utils.ts",
+      "source": "packages/core/src/utils.ts",
+      "sha256": "28227a8dbf2e4c7ee6b0897dd1113bc05c34fc3252694d22066444a657c761d3"
+    }
+  ]
+}

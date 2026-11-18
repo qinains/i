@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "id": "multiple-instances",
+  "gates": [],
+  "definitions": {"consumer": {"inject": ["foo"], "read": "foo", "load": "load", "unload": "unload"}},
+  "actions": [
+    {"op": "publish", "binding": "foo", "service": "foo", "value": {"version": 1}},
+    {"op": "mount", "definition": "consumer", "fiber": "a", "config": {"id": "a"}},
+    {"op": "mount", "definition": "consumer", "fiber": "b", "config": {"id": "b"}},
+    {"op": "settle", "fiber": "a"},
+    {"op": "settle", "fiber": "b"},
+    {"op": "instances", "definition": "consumer"}
+  ],
+  "expected": ["load(1)", "load(1)", "instances(consumer,2)"],
+  "before": []
+}

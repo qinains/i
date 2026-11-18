@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Harness CORS Helper</title><link rel="stylesheet" href="popup.css">
+<main><h1>Harness CORS Helper</h1><p id="page"></p>
+<label for="endpoint">API 请求完整 URL</label><input id="endpoint" type="url" placeholder="https://api.deepseek.com/chat/completions" autocomplete="off">
+<p>从网页设置中的「请求 URL」复制，必须包含 /chat/completions 或 /v1/messages 等实际路径。不要填写密钥。</p>
+<div class="actions"><button id="enable">授权并启用此标签页</button><button id="disable">关闭此标签页</button></div>
+<p id="status" role="status"></p><details><summary>范围与限制 / Scope</summary>
+<p>默认关闭。只修改本标签页到此 API URL 的 CORS 响应头；不读取请求正文、API key 或回复，不修改真实 HTTP 状态。浏览器重启后需重新启用。</p>
+<p>仅用于可信的 Harness 页面。服务器拒绝 OPTIONS、证书错误、401/403 或额度问题不能靠本扩展修复。保持网页连接方式为「直连」。不支持 file://。</p>
+<p>Only the selected tab and exact API URL are enabled. No API keys are stored. Non-successful OPTIONS, TLS and authentication failures are not repaired.</p>
+</details></main><script type="module" src="popup.js"></script></html>

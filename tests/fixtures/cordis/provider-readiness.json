@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "id": "provider-readiness",
+  "gates": ["ready"],
+  "definitions": {
+    "provider": {"inject": ["foo"], "read": "foo", "load": "provider-load", "unload": "provider-unload", "provide": "bar", "ready_gate": "ready"},
+    "consumer": {"inject": ["bar"], "read": "bar", "load": "consumer-load", "unload": "consumer-unload"}
+  },
+  "actions": [
+    {"op": "publish", "binding": "binding", "service": "foo", "value": {"version": 1}},
+    {"op": "mount", "definition": "provider", "fiber": "provider", "config": {}},
+    {"op": "wait-gate", "gate": "ready"},
+    {"op": "mount", "definition": "consumer", "fiber": "consumer", "config": {}},
+    {"op": "settle", "fiber": "consumer"},
+    {"op": "state", "fiber": "consumer"},
+    {"op": "open-gate", "gate": "ready"},
+    {"op": "settle", "fiber": "provider"},
+    {"op": "settle", "fiber": "consumer"}
+  ],
+  "expected": ["provider-load(1)", "gate(ready)", "state(consumer,PENDING)", "consumer-load(1)"],
+  "before": [["gate(ready)", "consumer-load(1)"]]
+}

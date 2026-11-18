@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "id": "pending-dependency",
+  "gates": [],
+  "definitions": {"consumer": {"inject": ["foo"], "read": "foo", "load": "load", "unload": "unload"}},
+  "actions": [
+    {"op": "mount", "definition": "consumer", "fiber": "consumer", "config": {}},
+    {"op": "settle", "fiber": "consumer"},
+    {"op": "state", "fiber": "consumer"},
+    {"op": "publish", "binding": "foo", "service": "foo", "value": {"version": 1}},
+    {"op": "settle", "fiber": "consumer"},
+    {"op": "state", "fiber": "consumer"},
+    {"op": "withdraw", "binding": "foo"},
+    {"op": "settle", "fiber": "consumer"},
+    {"op": "state", "fiber": "consumer"}
+  ],
+  "expected": ["state(consumer,PENDING)", "load(1)", "state(consumer,ACTIVE)", "unload(1)", "state(consumer,PENDING)"],
+  "before": []
+}

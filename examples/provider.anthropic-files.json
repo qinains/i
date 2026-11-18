@@ -1,0 +1,7 @@
+{
+  "images": "files",
+  "account_scope": "my-private-anthropic-files-pool",
+  "expires_after_seconds": null,
+  "auto_refresh": { "enabled": true, "max_age_seconds": 86400 },
+  "auto_gc": { "enabled": true, "grace_seconds": 3600 }
+}

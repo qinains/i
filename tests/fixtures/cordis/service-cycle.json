@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "id": "service-cycle",
+  "gates": [],
+  "definitions": {
+    "a": {"inject": ["b"], "read": "b", "provide": "a", "load": "a", "unload": "a"},
+    "b": {"inject": ["a"], "read": "a", "provide": "b", "load": "b", "unload": "b"}
+  },
+  "actions": [
+    {"op": "mount", "definition": "a", "fiber": "a", "config": {}},
+    {"op": "mount", "definition": "b", "fiber": "b", "config": {}},
+    {"op": "settle", "fiber": "a"},
+    {"op": "settle", "fiber": "b"},
+    {"op": "state", "fiber": "a"},
+    {"op": "state", "fiber": "b"}
+  ],
+  "expected": ["state(a,PENDING)", "state(b,PENDING)"],
+  "before": []
+}

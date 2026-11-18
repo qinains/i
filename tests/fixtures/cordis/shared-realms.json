@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "id": "shared-realms",
+  "gates": [],
+  "definitions": {
+    "consumer": {"inject": ["foo"], "read": "foo", "load": "load", "unload": "unload"}
+  },
+  "actions": [
+    {"op": "isolate", "parent": "root", "target": "a", "service": "foo", "realm": "shared"},
+    {"op": "isolate", "parent": "root", "target": "b", "service": "foo", "realm": "shared"},
+    {"op": "isolate", "parent": "root", "target": "c", "service": "foo", "realm": "separate"},
+    {"op": "publish", "binding": "root", "service": "foo", "value": {"version": 0}},
+    {"op": "publish-in", "context": "a", "binding": "shared", "service": "foo", "value": {"version": 1}},
+    {"op": "publish-in", "context": "c", "binding": "separate", "service": "foo", "value": {"version": 2}},
+    {"op": "mount-in", "context": "a", "definition": "consumer", "fiber": "a", "config": {}},
+    {"op": "settle", "fiber": "a"},
+    {"op": "mount-in", "context": "b", "definition": "consumer", "fiber": "b", "config": {}},
+    {"op": "settle", "fiber": "b"},
+    {"op": "mount-in", "context": "c", "definition": "consumer", "fiber": "c", "config": {}},
+    {"op": "settle", "fiber": "c"},
+    {"op": "mount", "definition": "consumer", "fiber": "root", "config": {}},
+    {"op": "settle", "fiber": "root"},
+    {"op": "instances", "definition": "consumer"}
+  ],
+  "expected": ["load(1)", "load(1)", "load(2)", "load(0)", "instances(consumer,4)"],
+  "before": []
+}

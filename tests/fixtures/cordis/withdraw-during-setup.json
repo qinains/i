@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "id": "withdraw-during-setup",
+  "gates": ["setup"],
+  "definitions": {
+    "consumer": {"inject": ["foo"], "read": "foo", "load": "load", "unload": "unload", "load_gate": "setup"}
+  },
+  "actions": [
+    {"op": "publish", "binding": "old", "service": "foo", "value": {"version": 1}},
+    {"op": "mount", "definition": "consumer", "fiber": "consumer", "config": {}},
+    {"op": "wait-gate", "gate": "setup"},
+    {"op": "replace-binding", "binding": "old", "replacement": "new", "value": {"version": 2}},
+    {"op": "open-gate", "gate": "setup"},
+    {"op": "settle", "fiber": "consumer"}
+  ],
+  "expected": ["gate(setup)", "load(1)", "unload(1)", "gate(setup)", "load(2)"],
+  "before": [["unload(1)", "load(2)"]]
+}

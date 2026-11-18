@@ -4,7 +4,7 @@ test('phone layout has no horizontal overflow and task, approval, cancel and ZIP
     await page.goto('/'); await expect(page.locator('#status')).toHaveText('Ready');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
     expect(await page.locator('#input').evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
-    await page.locator('#base-url').fill('http://127.0.0.1:4173/mock/v1'); await page.locator('#model').fill('fixture');
+    await page.locator('#settings-btn').click();await page.locator('#base-url').fill('http://127.0.0.1:4173/mock/v1'); await page.locator('#model').fill('fixture');await page.locator('#save-config').click();await page.locator('#close-settings').click();
     await page.locator('#input').fill('MAKE'); await page.locator('#input').press('Enter');
     await expect(page.locator('#approval-panel')).toBeVisible(); await page.locator('#approve').click();
     await expect(page.locator('#approval-panel')).toBeVisible(); await page.locator('#approve').click();

@@ -10,6 +10,101 @@ use std::{
     path::Path,
 };
 
+struct MountedFs {
+    workspace: NativeFs,
+    scratch: NativeFs,
+}
+impl MountedFs {
+    fn mount<'a>(&'a self, p: &'a Path) -> (&'a NativeFs, &'a Path) {
+        if let Ok(relative) = p.strip_prefix("/tmp") { (&self.scratch, relative) } else { (&self.workspace, p) }
+    }
+}
+impl FileSystem for MountedFs {
+    fn resolve_path(&self, p: &str, root: bool) -> anyhow::Result<std::path::PathBuf> {
+        i::browser::session::browser_path(p, root)
+    }
+    async fn read_file_limited(&self, p: &Path, limit: usize) -> anyhow::Result<Vec<u8>> {
+        let (fs, p) = self.mount(p);
+        fs.read_file_limited(p, limit).await
+    }
+    async fn write_file(&self, p: &Path, bytes: &[u8]) -> anyhow::Result<()> {
+        let (fs, p) = self.mount(p);
+        fs.write_file(p, bytes).await
+    }
+    async fn create_dir_all(&self, p: &Path) -> anyhow::Result<()> {
+        let (fs, p) = self.mount(p);
+        fs.create_dir_all(p).await
+    }
+    async fn remove_file(&self, p: &Path) -> anyhow::Result<()> {
+        let (fs, p) = self.mount(p);
+        fs.remove_file(p).await
+    }
+    async fn read_dir(&self, p: &Path) -> anyhow::Result<Vec<std::path::PathBuf>> {
+        let (fs, relative) = self.mount(p);
+        let paths = fs.read_dir(relative).await?;
+        Ok(paths
+            .into_iter()
+            .map(|child| if p.starts_with("/tmp") { Path::new("/tmp").join(child) } else { child })
+            .collect())
+    }
+    async fn metadata(&self, p: &Path) -> anyhow::Result<Option<i::platform::FileMetadata>> {
+        let (fs, p) = self.mount(p);
+        fs.metadata(p).await
+    }
+    async fn canonicalize(&self, p: &Path) -> anyhow::Result<std::path::PathBuf> {
+        let (fs, relative) = self.mount(p);
+        let canonical = fs.canonicalize(relative).await?;
+        Ok(if p.starts_with("/tmp") { Path::new("/tmp").join(canonical) } else { canonical })
+    }
+}
+
+#[tokio::test]
+async fn mounted_archive_excludes_scratch_unless_selected_and_rejects_zip_collisions() {
+    let root = tempfile::tempdir().unwrap();
+    let scratch = tempfile::tempdir().unwrap();
+    let ws = Workspace::new(
+        MountedFs {
+            workspace: NativeFs::new(root.path().into()).unwrap(),
+            scratch: NativeFs::new(scratch.path().into()).unwrap(),
+        },
+        Limits::browser(),
+    );
+    ws.fs.write_file(Path::new("tmp/a"), b"persistent").await.unwrap();
+    ws.fs.write_file(Path::new("/tmp/a"), b"scratch").await.unwrap();
+    let archive = ws.archive(&DownloadRequest::default()).await.unwrap();
+    let mut reader = zip::ZipArchive::new(Cursor::new(archive.bytes)).unwrap();
+    let mut text = String::new();
+    reader.by_name("tmp/a").unwrap().read_to_string(&mut text).unwrap();
+    assert_eq!(text, "persistent");
+    let archive = ws.archive(&DownloadRequest { paths: Some(vec!["/tmp".into()]), filename: None }).await.unwrap();
+    let mut reader = zip::ZipArchive::new(Cursor::new(archive.bytes)).unwrap();
+    assert!(reader.by_name("tmp/").unwrap().is_dir());
+    text.clear();
+    reader.by_name("tmp/a").unwrap().read_to_string(&mut text).unwrap();
+    assert_eq!(text, "scratch");
+    let error = ws
+        .archive(&DownloadRequest { paths: Some(vec!["tmp/a".into(), "/tmp/a".into()]), filename: None })
+        .await
+        .err()
+        .unwrap();
+    assert!(error.to_string().contains("collide"));
+    assert!(ws.archive(&DownloadRequest { paths: Some(vec!["/tmp/../a".into()]), filename: None }).await.is_err());
+    let archive = ws
+        .archive(&DownloadRequest { paths: Some(vec!["/workspace/tmp/a".into(), "tmp/a".into()]), filename: None })
+        .await
+        .unwrap();
+    assert_eq!(archive.entries, 1);
+}
+
+#[tokio::test]
+#[cfg(unix)]
+async fn literal_backslash_filename_is_not_reinterpreted_as_an_archive_directory() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("a\\b"), b"literal filename").unwrap();
+    let ws = Workspace::new(NativeFs::new(root.path().into()).unwrap(), Limits::browser());
+    assert!(ws.archive(&DownloadRequest::default()).await.is_err());
+}
+
 #[tokio::test]
 async fn zip_roundtrip() {
     let root = tempfile::tempdir().unwrap();
@@ -51,11 +146,13 @@ async fn native_default_excludes_generated_archives() {
     let mut ws = Workspace::new(NativeFs::new(root.path().into()).unwrap(), Limits::browser());
     ws.exclude_downloads = true;
     ws.fs.write_file(Path::new(".i/downloads/old.zip"), b"old").await.unwrap();
+    ws.fs.write_file(Path::new(".i/attachments/pasted.png"), b"private input").await.unwrap();
     ws.fs.write_file(Path::new("result.txt"), b"yes").await.unwrap();
     let zip = ws.archive(&DownloadRequest::default()).await.unwrap();
     let mut reader = zip::ZipArchive::new(Cursor::new(zip.bytes)).unwrap();
     assert!(reader.by_name("result.txt").is_ok());
     assert!(reader.by_name(".i/downloads/old.zip").is_err());
+    assert!(reader.by_name(".i/attachments/pasted.png").is_err());
 }
 
 #[tokio::test]

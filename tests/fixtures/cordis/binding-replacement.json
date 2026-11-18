@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "id": "binding-replacement",
+  "gates": [],
+  "definitions": {
+    "consumer": {"inject": ["foo"], "read": "foo", "load": "load", "unload": "unload"}
+  },
+  "actions": [
+    {"op": "publish", "binding": "old", "service": "foo", "value": {"version": 1}},
+    {"op": "mount", "definition": "consumer", "fiber": "consumer", "config": {}},
+    {"op": "settle", "fiber": "consumer"},
+    {"op": "replace-binding", "binding": "old", "replacement": "new", "value": {"version": 2}},
+    {"op": "settle", "fiber": "consumer"}
+  ],
+  "expected": ["load(1)", "unload(1)", "load(2)"],
+  "before": [["load(1)", "unload(1)"], ["unload(1)", "load(2)"]]
+}

@@ -8,6 +8,19 @@ use wasm_bindgen_futures::JsFuture;
 extern "C" {
     #[wasm_bindgen(catch, js_name = opfsOpen)]
     async fn open() -> std::result::Result<JsValue, JsValue>;
+    #[wasm_bindgen(catch, js_name = opfsOpenWorkspace)]
+    async fn open_workspace(id: &str) -> std::result::Result<JsValue, JsValue>;
+    #[wasm_bindgen(catch, js_name = opfsBegin)]
+    async fn begin(root: &JsValue, mode: &str, signal: &JsValue) -> std::result::Result<JsValue, JsValue>;
+    #[wasm_bindgen(catch, js_name = opfsRelease)]
+    async fn release(root: &JsValue) -> std::result::Result<(), JsValue>;
+    #[wasm_bindgen(catch, js_name = opfsWriteIfVersion)]
+    async fn write_if_version(
+        root: &JsValue,
+        path: &str,
+        bytes: &[u8],
+        expected: &JsValue,
+    ) -> std::result::Result<(), JsValue>;
     #[wasm_bindgen(catch, js_name = opfsRead)]
     async fn read(root: &JsValue, path: &str, limit: usize) -> std::result::Result<JsValue, JsValue>;
     #[wasm_bindgen(catch, js_name = opfsWrite)]
@@ -43,8 +56,24 @@ impl OpfsFileSystem {
     pub async fn open() -> Result<Self> {
         Ok(Self { root: open().await.map_err(js_error)? })
     }
+    pub async fn open_workspace(id: &str) -> Result<Self> {
+        crate::browser::session::workspace_id(id)?;
+        Ok(Self { root: open_workspace(id).await.map_err(js_error)? })
+    }
+    pub async fn transaction(&self, mode: &str, signal: &JsValue) -> Result<Self> {
+        Ok(Self { root: begin(&self.root, mode, signal).await.map_err(js_error)? })
+    }
+    pub async fn release(&self) -> Result<()> {
+        release(&self.root).await.map_err(js_error)
+    }
+    pub async fn write_if_version(&self, path: &Path, bytes: &[u8], expected: &JsValue) -> Result<()> {
+        write_if_version(&self.root, name(path)?, bytes, expected).await.map_err(js_error)
+    }
 }
 impl FileSystem for OpfsFileSystem {
+    fn resolve_path(&self, value: &str, allow_root: bool) -> Result<PathBuf> {
+        crate::browser::session::browser_path(value, allow_root)
+    }
     async fn read_file_limited(&self, path: &Path, limit: usize) -> Result<Vec<u8>> {
         Ok(Uint8Array::new(&read(&self.root, name(path)?, limit).await.map_err(js_error)?).to_vec())
     }
@@ -62,13 +91,13 @@ impl FileSystem for OpfsFileSystem {
     }
     async fn read_dir(&self, path: &Path) -> Result<Vec<PathBuf>> {
         let paths: Vec<String> = from_js(&list(&self.root, name(path)?).await.map_err(js_error)?)?;
-        paths.iter().map(|p| crate::workspace::path::validate(p, false)).collect()
+        paths.iter().map(|p| self.resolve_path(p, false)).collect()
     }
     async fn metadata(&self, path: &Path) -> Result<Option<FileMetadata>> {
         from_js(&metadata(&self.root, name(path)?).await.map_err(js_error)?)
     }
     async fn canonicalize(&self, path: &Path) -> Result<PathBuf> {
-        let p = crate::workspace::path::validate(name(path)?, true)?;
+        let p = self.resolve_path(name(path)?, true)?;
         anyhow::ensure!(self.metadata(&p).await?.is_some(), "path not found");
         Ok(p)
     }

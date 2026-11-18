@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "id": "latest-update-during-unload",
+  "gates": ["cleanup"],
+  "definitions": {
+    "consumer": {"inject": ["foo"], "read": "foo", "load": "load", "unload": "unload", "unload_gate": "cleanup", "config_label": "version"}
+  },
+  "actions": [
+    {"op": "publish", "binding": "binding", "service": "foo", "value": {"version": 99}},
+    {"op": "mount", "definition": "consumer", "fiber": "consumer", "config": {"version": 1}},
+    {"op": "settle", "fiber": "consumer"},
+    {"op": "update", "fiber": "consumer", "config": {"version": 2}},
+    {"op": "wait-gate", "gate": "cleanup"},
+    {"op": "update", "fiber": "consumer", "config": {"version": 3}},
+    {"op": "update", "fiber": "consumer", "config": {"version": 4}},
+    {"op": "open-gate", "gate": "cleanup"},
+    {"op": "settle", "fiber": "consumer"}
+  ],
+  "expected": ["load(1)", "gate(cleanup)", "unload(1)", "load(4)"],
+  "before": [["unload(1)", "load(4)"]]
+}

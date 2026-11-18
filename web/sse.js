@@ -1,6 +1,16 @@
 const LIMIT = 48 * 1024 * 1024;
+function finishError(value){
+    const reason=typeof value==='string'&&/^[a-z0-9_.-]{1,80}$/iu.test(value)?value:'invalid';
+    const hints=new Map([
+        ['length','Output token or context limit reached (some models include reasoning in this budget). Check Maximum output tokens in Settings > Model connection, or split the task. Streaming does not increase this limit.'],
+        ['content_filter','The upstream content filter stopped the response.'],
+        ['insufficient_system_resource','The upstream model ran out of resources. Retry manually when ready.'],
+        ['aborted','The upstream generation was interrupted.'],
+    ]);
+    return new Error(`Incomplete model response (finish_reason=${reason}): ${hints.get(reason)??'Unsupported upstream finish reason; check provider compatibility.'} Pending tool calls were not executed.`);
+}
 
-export async function readChatCompletion(reader, {signal,onDelta = () => {},maxBytes = LIMIT} = {}) {
+export async function readChatCompletion(reader, {signal,onDelta = () => {},onReasoning = () => {},onProgress = () => {},maxBytes = LIMIT} = {}) {
     const decoder = new TextDecoder('utf-8',{fatal:true});
     let pending = '', data = [], size = 0, done = false, finish = null, usage;
     const message = {role:'assistant',content:''};
@@ -25,6 +35,8 @@ export async function readChatCompletion(reader, {signal,onDelta = () => {},maxB
             if (typeof delta[field] !== 'string') throw new Error('Invalid stream text');
             message[field] = (message[field] ?? '') + delta[field];
             if (field === 'content') onDelta(delta[field]);
+            if (field === 'reasoning_content' && delta[field]) onReasoning(delta[field]);
+            if(delta[field] && field!=='refusal')onProgress({phase:field==='content'?'text':'reasoning',characters:message[field].length});
         }
         if (delta.tool_calls != null) {
             if (!Array.isArray(delta.tool_calls)) throw new Error('Invalid tool fragments');
@@ -42,11 +54,12 @@ export async function readChatCompletion(reader, {signal,onDelta = () => {},maxB
                         if (typeof fragment.function[field] !== 'string') throw new Error('Invalid tool fragment');
                         tool.function[field] += fragment.function[field];
                     }
+                    onProgress({phase:'tool',name:tool.function.name,characters:tool.function.arguments.length});
                 }
             }
         }
         if (choice.finish_reason != null) {
-            if (!['stop','tool_calls'].includes(choice.finish_reason)) throw new Error('incomplete tool response: unsupported finish_reason');
+            if (!['stop','tool_calls'].includes(choice.finish_reason)) throw finishError(choice.finish_reason);
             finish = choice.finish_reason;
         }
     }

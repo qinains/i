@@ -1,0 +1,61 @@
+{
+  "app.name": "i (lninl)",
+  "app.tagline": "Small core. Your tools. Your model.",
+
+  "welcome": "Welcome to i!",
+  "welcome.first_run": "Looks like this is your first time. Let's get you set up.",
+
+  "install.title": "Installation",
+  "install.prompt": "Install i to {}?",
+  "install.add_path": "Add to PATH?",
+  "install.success": "Installed to {}",
+  "install.skipped": "Install skipped.",
+
+  "setup.title": "Configuration",
+  "setup.provider": "Choose your AI provider:",
+  "setup.provider.openai": "OpenAI",
+  "setup.provider.deepseek": "DeepSeek",
+  "setup.provider.anthropic": "Anthropic",
+  "setup.base_url": "API Base URL:",
+  "setup.model": "Model name:",
+  "setup.api_key": "API Key (or press Enter to skip):",
+  "setup.api_key_env": "Or set environment variable {} instead.",
+  "setup.max_tokens": "Max tokens per request:",
+  "setup.success": "Configuration saved to {}",
+
+  "error.title": "Error",
+  "error.no_locale": "Language files not found. Check locales/ directory.",
+  "error.no_config": "No configuration found. Run setup first.",
+  "error.invalid_provider": "Invalid provider selection.",
+  "error.invalid_input": "Invalid input. Please try again.",
+  "error.file_not_found": "File not found: {}",
+  "error.permission_denied": "Permission denied: {}",
+  "error.task_empty": "Task cannot be empty.",
+  "error.images_too_many": "Attach at most 8 images per task.",
+  "error.step_limit": "Step limit reached; resume with --session or increase --max-steps.",
+  "error.model_stopped": "Model stopped without completing: {}",
+  "error.user_denied": "User denied action.",
+
+  "status.workspace": "workspace: {} | model: {}",
+  "status.warning_auto_approve": "WARNING: automatic approval enabled; shell is not sandboxed",
+  "status.step": "[step {}]",
+  "status.step_of": "[step {}/{}]",
+  "status.tool_call": "tool: {} {}",
+  "status.auto_compact": "[auto-compact: {} prefix messages]",
+  "status.provider_cleanup": "provider cleanup: DELETE authorized; NOT retried",
+
+  "prompt.task": "Task: ",
+  "prompt.allow": "Allow? [y/N] ",
+
+  "common.yes": "Yes",
+  "common.no": "No",
+  "common.cancel": "Cancel",
+  "common.confirm": "Confirm",
+  "common.back": "Back",
+  "common.next": "Next",
+  "common.done": "Done",
+
+  "lang.switch": "Switch language",
+  "lang.current": "Current language: {}",
+  "lang.select": "Select language:"
+}

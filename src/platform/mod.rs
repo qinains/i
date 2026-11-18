@@ -33,6 +33,9 @@ pub struct FileMetadata {
     pub is_dir: bool,
 }
 pub trait FileSystem {
+    fn resolve_path(&self, name: &str, allow_root: bool) -> Result<PathBuf> {
+        crate::workspace::path::validate(name, allow_root)
+    }
     async fn read_file_limited(&self, path: &Path, limit: usize) -> Result<Vec<u8>>;
     async fn read_file(&self, path: &Path) -> Result<Vec<u8>> {
         self.read_file_limited(path, 64 * 1024 * 1024).await

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "id": "scoped-interception",
+  "gates": [],
+  "definitions": {
+    "provider": {"kind": "facade", "inject": ["tagged"], "inject_tags": {"tagged": ["definition"]}, "read": "tagged", "provide": "facade", "load": "provider", "unload": "provider"},
+    "consumer": {"kind": "metadata", "inject": ["facade", "tagged"], "inject_tags": {"tagged": ["wrong-caller-injection"]}, "use_tags": {"tagged": ["inner"]}, "read": "facade", "load": "consumer", "unload": "consumer"}
+  },
+  "actions": [
+    {"op": "tagged", "service": "tagged"},
+    {"op": "intercept", "parent": "root", "target": "caller", "service": "tagged", "tags": ["outer"]},
+    {"op": "mount", "definition": "provider", "fiber": "provider", "config": {}},
+    {"op": "settle", "fiber": "provider"},
+    {"op": "mount-in", "context": "caller", "definition": "consumer", "fiber": "consumer", "config": {}},
+    {"op": "settle", "fiber": "consumer"}
+  ],
+  "expected": ["tags(definition,outer,inner)"],
+  "before": []
+}

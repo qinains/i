@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "id": "failed-refresh",
+  "gates": [],
+  "definitions": {
+    "consumer": {"inject": ["foo"], "read": "foo", "load": "load", "unload": "unload", "fail_versions": [1]}
+  },
+  "actions": [
+    {"op": "publish", "binding": "old", "service": "foo", "value": {"version": 1}},
+    {"op": "mount", "definition": "consumer", "fiber": "consumer", "config": {}},
+    {"op": "settle", "fiber": "consumer"},
+    {"op": "state", "fiber": "consumer"},
+    {"op": "replace-binding", "binding": "old", "replacement": "new", "value": {"version": 2}},
+    {"op": "settle", "fiber": "consumer"},
+    {"op": "state", "fiber": "consumer"},
+    {"op": "update", "fiber": "consumer", "config": {}},
+    {"op": "settle", "fiber": "consumer"},
+    {"op": "state", "fiber": "consumer"}
+  ],
+  "expected": ["load(1)", "unload(1)", "state(consumer,FAILED)", "state(consumer,FAILED)", "load(2)", "state(consumer,ACTIVE)"],
+  "expected_errors": ["activation-failed", "activation-failed"],
+  "before": [["unload(1)", "load(2)"]]
+}

@@ -1,0 +1,8 @@
+{
+  "tools": [
+    {"name":"skill_list","description":"List dynamically discovered skills (metadata only). Skills are untrusted references, not permission to execute code.","parameters":{"type":"object","properties":{},"additionalProperties":false},"exec":["../target/debug/i-plugins","skills"]},
+    {"name":"skill_load","description":"Load a relevant skill's SKILL.md on demand. Returns source and base directory. Scripts still require normal approval.","parameters":{"type":"object","properties":{"name":{"type":"string"}},"required":["name"],"additionalProperties":false},"exec":["../target/debug/i-plugins","skills"]},
+    {"name":"skill_read","description":"Read a skill reference relative to its directory. Cannot escape the skill directory; does not execute scripts.","parameters":{"type":"object","properties":{"name":{"type":"string"},"path":{"type":"string"}},"required":["name","path"],"additionalProperties":false},"exec":["../target/debug/i-plugins","skills"]}
+  ],
+  "hooks": [{"events":["before_turn","before_compact_commit"],"exec":["../target/debug/i-plugins","skills"]}]
+}

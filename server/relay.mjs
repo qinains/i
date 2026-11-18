@@ -9,7 +9,7 @@ import {resolvePublic} from './addresses.mjs';
 const LIMIT = 48 * 1024 * 1024;
 function endpoint(value) {
     const url = new URL(value);
-    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || !url.pathname.endsWith('/chat/completions') || (url.port && url.port !== '443')) throw new Error('Invalid HTTPS model endpoint');
+    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || !(url.pathname.endsWith('/chat/completions') || url.pathname.endsWith('/v1/messages')) || (url.port && url.port !== '443')) throw new Error('Invalid HTTPS model endpoint');
     return url.href;
 }
 function authorized(actual,expected) {
@@ -78,7 +78,10 @@ export async function createRelayServer({token,origin,endpoints,staticRoot,baseP
             const record = await Promise.race([resolvePublic(url.hostname,lookup),new Promise((_,reject) => controller.signal.addEventListener('abort',() => reject(new Error('Deadline exceeded')),{once:true}))]);
             controller.signal.throwIfAborted();
             const headers = {'content-type':'application/json',accept:'text/event-stream, application/json','accept-encoding':'identity','content-length':body.length};
-            if (req.headers.authorization) headers.authorization = req.headers.authorization;
+            if(url.pathname.endsWith('/v1/messages')) {
+                if(req.headers['x-api-key']) headers['x-api-key']=req.headers['x-api-key'];
+                headers['anthropic-version']='2023-06-01';
+            } else if (req.headers.authorization) headers.authorization = req.headers.authorization;
             await new Promise((resolve,reject) => {
                 const upstream = connect(url,{method:'POST',headers,signal:controller.signal,agent:false,
                     lookup:(_host,opts,cb) => opts?.all ? cb(null,[record]) : cb(null,record.address,record.family)},async response => {

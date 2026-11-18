@@ -26,15 +26,26 @@ name = "i-completions"
 path = "src/bin/completions.rs"
 required-features = ["native"]
 
+[[bench]]
+name = "benchmarks"
+harness = false
+required-features = ["native"]
+
+[[bench]]
+name = "performance"
+harness = false
+required-features = ["native"]
+
 [dependencies]
 anyhow = "1"
 base64 = "0.23"
-http = "1"
 url = "2"
-httpdate = "1"
 serde_json = "1"
-sha2 = "0.10"
+sha2 = { version = "0.10", optional = true }
 serde = { version = "1", features = ["derive"] }
+globset = { version = "0.4", default-features = false }
+regex = { version = "1", default-features = false, features = ["std", "unicode-case", "unicode-perl"] }
+i-wasm-protocol = { path = "plugins/wasm-protocol", optional = true }
 
 
 # Packaging dependencies (optional)
@@ -43,16 +54,24 @@ flate2 = { version = "1", optional = true }
 zip = { version = "2", default-features = false }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-command-group = "5"
-dunce = "1"
-clap = { version = "4", features = ["derive"] }
-clap_complete = "4.5"
-rustyline = "17"
-dirs-next = "2"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "socks"] }
-tokio = { version = "1", features = ["full"] }
+http = { version = "1", optional = true }
+httpdate = { version = "1", optional = true }
+tracing = "0.1"
 i-plugins = { path = "plugins/runtime", optional = true }
+command-group = { version = "5", optional = true }
+dunce = "1"
+clap = { version = "4", features = ["derive"], optional = true }
+clap_complete = { version = "4.5", optional = true }
+rustyline = { version = "17", optional = true }
+dirs-next = { version = "2", optional = true }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "socks"], optional = true }
+rustls = { version = "0.23", default-features = false, optional = true }
+tokio = { version = "1", features = ["full"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
 tempfile = "3"
+
+[dev-dependencies]
+criterion = "0.5"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 
@@ -60,35 +79,18 @@ tempfile = "3"
 wasm-bindgen = { version = "0.2", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
 js-sys = { version = "0.3", optional = true }
-web-sys = { version = "0.3", optional = true, features = [
-    "Window",
-    "Document",
-    "Element",
-    "HtmlElement",
-    "HtmlAnchorElement",
-    "Blob",
-    "BlobPropertyBag",
-    "Url",
-    "console",
-    "Storage",
-    "HtmlInputElement",
-    "HtmlTextAreaElement",
-    "Event",
-    "KeyboardEvent",
-    "MouseEvent",
-] }
 
 [features]
 default = ["native"]
-native = []
-bundled = ["native", "dep:i-plugins"]
+native = ["dep:sha2", "dep:http", "dep:httpdate", "dep:i-plugins", "dep:command-group", "dep:clap", "dep:clap_complete", "dep:rustyline", "dep:dirs-next", "dep:reqwest", "dep:rustls"]
+bundled = ["native"]
 packaging = ["native", "dep:tar", "dep:flate2", "zip/deflate"]
-wasm = ["dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "dep:web-sys"]
+wasm = ["dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "dep:i-wasm-protocol"]
 
 [workspace]
-members = ["plugins/runtime"]
+members = ["plugins/runtime", "plugins/wasm-protocol", "plugins/wasm-package", "plugins/wasm-sdk"]
 default-members = ["."]
-exclude = ["examples/rust-plugin", "vendor/globset"]
+exclude = ["examples/rust-plugin", "examples/wasm-word-count", "examples/wasm-json-format", "vendor/globset"]
 resolver = "2"
 
 # Upstream Rust sources unchanged; narrow globset's regex backend features only.

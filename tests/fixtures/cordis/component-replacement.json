@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "id": "component-replacement",
+  "gates": [],
+  "definitions": {
+    "old": {"inject": ["foo"], "read": "foo", "load": "old-load", "unload": "old-unload", "config_label": "version"},
+    "new": {"inject": ["bar"], "read": "bar", "load": "new-load", "unload": "new-unload", "config_label": "version"}
+  },
+  "actions": [
+    {"op": "publish", "binding": "foo", "service": "foo", "value": {"version": 1}},
+    {"op": "mount", "definition": "old", "fiber": "first", "config": {"version": 7}},
+    {"op": "settle", "fiber": "first"},
+    {"op": "replace-component", "definition": "old", "replacement": "new"},
+    {"op": "settle", "fiber": "first"},
+    {"op": "state", "fiber": "first"},
+    {"op": "publish", "binding": "bar", "service": "bar", "value": {"version": 2}},
+    {"op": "settle", "fiber": "first"},
+    {"op": "identity", "fiber": "first"},
+    {"op": "instances", "definition": "new"},
+    {"op": "mount", "definition": "old", "fiber": "second", "config": {"version": 8}},
+    {"op": "settle", "fiber": "second"}
+  ],
+  "expected": ["old-load(7)", "old-unload(7)", "state(first,PENDING)", "new-load(7)", "identity(first,true)", "instances(new,1)", "new-load(8)"],
+  "before": [["old-unload(7)", "new-load(7)"]]
+}

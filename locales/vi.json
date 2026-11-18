@@ -1,0 +1,61 @@
+{
+  "app.name": "i (lninl)",
+  "app.tagline": "Nhân nhỏ. Công cụ của bạn. Mô hình của bạn.",
+
+  "welcome": "Chào mừng đến với i!",
+  "welcome.first_run": "Có vẻ như đây là lần đầu tiên của bạn. Hãy thiết lập bạn.",
+
+  "install.title": "Cài đặt",
+  "install.prompt": "Cài đặt i vào {}?",
+  "install.add_path": "Thêm vào PATH?",
+  "install.success": "Đã cài đặt vào {}",
+  "install.skipped": "Bỏ qua cài đặt.",
+
+  "setup.title": "Cấu hình",
+  "setup.provider": "Chọn nhà cung cấp AI của bạn:",
+  "setup.provider.openai": "OpenAI",
+  "setup.provider.deepseek": "DeepSeek",
+  "setup.provider.anthropic": "Anthropic",
+  "setup.base_url": "URL cơ sở API:",
+  "setup.model": "Tên mô hình:",
+  "setup.api_key": "Khóa API (hoặc nhấn Enter để bỏ qua):",
+  "setup.api_key_env": "Hoặc đặt biến môi trường {} thay thế.",
+  "setup.max_tokens": "Token tối đa mỗi yêu cầu:",
+  "setup.success": "Cấu hình đã lưu vào {}",
+
+  "error.title": "Lỗi",
+  "error.no_locale": "Không tìm thấy tệp ngôn ngữ. Kiểm tra thư mục locales/.",
+  "error.no_config": "Không tìm thấy cấu hình. Chạy setup trước.",
+  "error.invalid_provider": "Lựa chọn nhà cung cấp không hợp lệ.",
+  "error.invalid_input": "Đầu vào không hợp lệ. Vui lòng thử lại.",
+  "error.file_not_found": "Không tìm thấy tệp: {}",
+  "error.permission_denied": "Quyền bị từ chối: {}",
+  "error.task_empty": "Nhiệm vụ không được để trống.",
+  "error.images_too_many": "Đính kèm tối đa 8 hình ảnh mỗi nhiệm vụ.",
+  "error.step_limit": "Đã đạt giới hạn bước; tiếp tục với --session hoặc tăng --max-steps.",
+  "error.model_stopped": "Mô hình đã dừng mà không hoàn thành: {}",
+  "error.user_denied": "Người dùng từ chối hành động.",
+
+  "status.workspace": "không gian làm việc: {} | mô hình: {}",
+  "status.warning_auto_approve": "CẢNH BÁO: đã bật phê duyệt tự động; shell không được cách ly",
+  "status.step": "[bước {}]",
+  "status.step_of": "[bước {}/{}]",
+  "status.tool_call": "công cụ: {} {}",
+  "status.auto_compact": "[tự động nén: {} tin nhắn tiền tố]",
+  "status.provider_cleanup": "dọn dẹp nhà cung cấp: DELETE được ủy quyền; KHÔNG thử lại",
+
+  "prompt.task": "Nhiệm vụ: ",
+  "prompt.allow": "Cho phép? [y/N] ",
+
+  "common.yes": "Có",
+  "common.no": "Không",
+  "common.cancel": "Hủy",
+  "common.confirm": "Xác nhận",
+  "common.back": "Quay lại",
+  "common.next": "Tiếp theo",
+  "common.done": "Xong",
+
+  "lang.switch": "Đổi ngôn ngữ",
+  "lang.current": "Ngôn ngữ hiện tại: {}",
+  "lang.select": "Chọn ngôn ngữ:"
+}

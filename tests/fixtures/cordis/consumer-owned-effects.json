@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "id": "consumer-owned-effects",
+  "gates": [],
+  "definitions": {
+    "consumer": {"kind": "counter", "inject": ["counter"], "read": "counter", "load": "load", "unload": "unload"}
+  },
+  "actions": [
+    {"op": "counter", "service": "counter"},
+    {"op": "mount", "definition": "consumer", "fiber": "consumer", "config": {}},
+    {"op": "settle", "fiber": "consumer"},
+    {"op": "count", "service": "counter"},
+    {"op": "dispose", "fiber": "consumer"},
+    {"op": "settle", "fiber": "consumer"},
+    {"op": "count", "service": "counter"}
+  ],
+  "expected": ["load()", "count(counter,2)", "unload()", "release(second)", "release(first)", "count(counter,0)"],
+  "before": [["release(second)", "release(first)"]]
+}

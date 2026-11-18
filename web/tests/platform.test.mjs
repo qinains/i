@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import {validatePath, opfsWrite, opfsMetadata, fetchModel} from '../platform.js';
 
-test('streaming reaches UI before completion and never retries a JSON response', async () => {
+test('streaming reaches UI before completion and never retries a JSON response', {timeout:10000}, async t => {
     let release, hits = 0;
     const gate = new Promise(resolve => {release = resolve;});
     const server = http.createServer(async (req,res) => {
@@ -19,12 +19,12 @@ test('streaming reaches UI before completion and never retries a JSON response',
     try {
         let first;
         const seen = new Promise(resolve => {first = resolve;});
-        const pending = fetchModel(url,JSON.stringify({stream:true}),'',new AbortController(),{},event => {
+        const pending = fetchModel(url,JSON.stringify({stream:true}),'',t.signal,{},event => {
             if (event.type === 'assistant_delta') first(event.text);
         });
-        const text = await Promise.race([seen,new Promise(resolve => setTimeout(() => resolve('TIMEOUT'),300))]);
-        release(); await pending;
+        const text = await Promise.race([seen,pending.then(()=>{throw new Error('Response completed before its first streamed delta.');})]);
         assert.equal(text,'first');
+        release(); await pending;
         await assert.rejects(fetchModel(url+'/json','{"stream":true}','',new AbortController(),{}),/SSE/i);
         assert.equal(hits,2);
     } finally {release(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve));}
