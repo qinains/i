@@ -13,6 +13,7 @@ import sys
 import tarfile
 import tempfile
 import threading
+import time
 import zipfile
 
 
@@ -37,6 +38,18 @@ def extract_package(archive, root):
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with package.open(entry) as source, target.open('xb') as destination:
                     shutil.copyfileobj(source, destination)
+
+
+def relocate_bundle(source, target):
+    deadline = time.monotonic() + 3
+    while True:
+        try:
+            source.rename(target)
+            return
+        except OSError as error:
+            if getattr(error, 'winerror', None) not in (5, 32, 33) or time.monotonic() >= deadline:
+                raise
+            time.sleep(0.05)
 
 
 def check(archive):
@@ -74,7 +87,7 @@ def check(archive):
         run([*helper, 'init'])
         installed = root / 'installed/bin'
         run([core, 'install', '--bin-dir', installed])
-        bundle.rename(root / 'source-moved-away')
+        relocate_bundle(bundle, root / 'source-moved-away')
         core = installed / ('i' + suffix)
         helper = [core, '--runtime']
         manifest = json.loads(run([*helper, 'manifest']).stdout)
