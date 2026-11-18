@@ -104,7 +104,9 @@ jobs:
       - name: Verify gzip and xz packages offline
         run: python3 scripts/check_package.py "dist/*.tar.gz" "dist/*.tar.xz"
       - name: Create native Rust package without publishing
-        run: cargo run --locked --features bundled,packaging --bin i-package --profile min-size -- --skip-build --profile min-size
+        run: |
+          cargo build --locked --features bundled,packaging --bin i --bin i-package --profile min-size
+          cargo run --locked --features bundled,packaging --bin i-package --profile min-size -- --skip-build --profile min-size
       - name: Verify native Rust Windows ZIP offline
         if: runner.os == 'Windows'
         run: python3 scripts/check_package.py "dist/*.zip"
