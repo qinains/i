@@ -249,18 +249,32 @@ mod tests {
     }
     #[test]
     fn command_settings_override_both_cases_and_preserve_parent_environment() {
+        fn assert_override(command: &Command, name: &str, expected: Option<&str>) {
+            let mut values = command
+                .get_envs()
+                .filter(|(key, _)| if cfg!(windows) { key.eq_ignore_ascii_case(name) } else { *key == name })
+                .map(|(_, value)| value.and_then(|value| value.to_str()));
+            assert_eq!(values.next(), Some(expected), "{name}");
+            assert_eq!(values.next(), None, "duplicate override for {name}");
+        }
+        let keys = KEYS.into_iter().chain(["NO_PROXY", "no_proxy"]);
+        let before: Vec<_> = keys.clone().map(std::env::var_os).collect();
         let mut command = std::process::Command::new("fixture");
         Setting::Direct.apply(&mut command);
-        let env: std::collections::HashMap<_, _> =
-            command.get_envs().map(|(k, v)| (k.to_str().unwrap(), v.and_then(|v| v.to_str()))).collect();
-        assert_eq!(env["NO_PROXY"], Some("*"));
-        assert_eq!(env["https_proxy"], None);
-        assert_eq!(env["ALL_PROXY"], None);
+        for name in KEYS {
+            assert_override(&command, name, None);
+        }
+        for name in ["NO_PROXY", "no_proxy"] {
+            assert_override(&command, name, Some("*"));
+        }
         let mut command = std::process::Command::new("fixture");
         Setting::parse("3067").unwrap().apply(&mut command);
-        let env: std::collections::HashMap<_, _> =
-            command.get_envs().map(|(k, v)| (k.to_str().unwrap(), v.and_then(|v| v.to_str()))).collect();
-        assert_eq!(env["HTTPS_PROXY"], Some("http://127.0.0.1:3067"));
-        assert_eq!(env["NO_PROXY"], Some("localhost,127.0.0.1,::1"));
+        for name in KEYS {
+            assert_override(&command, name, Some("http://127.0.0.1:3067"));
+        }
+        for name in ["NO_PROXY", "no_proxy"] {
+            assert_override(&command, name, Some("localhost,127.0.0.1,::1"));
+        }
+        assert!(keys.map(std::env::var_os).eq(before), "parent proxy environment changed");
     }
 }
