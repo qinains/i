@@ -18,14 +18,19 @@ test('session save failure still allows a read-only ZIP backup',async({page})=>{
 test('a one-time IndexedDB abort keeps the draft and the next save succeeds',async({page})=>{
     await page.goto('/');await expect(page.locator('#status')).toHaveText('Ready');
     await page.evaluate(()=>{
-        const put=IDBObjectStore.prototype.put;let abortNext=true;
+        const put=IDBObjectStore.prototype.put;
+        window.testDraftAborts=0;
         IDBObjectStore.prototype.put=function(value,...args){
-            if(this.name==='sessions'&&abortNext){abortNext=false;this.transaction.abort();}
+            if(this.name==='sessions'&&value.draft==='retain on failure'&&!window.testDraftAborts){
+                window.testDraftAborts++;this.transaction.abort();
+            }
             else return put.call(this,value,...args);
         };
     });
-    await page.locator('#input').fill('retain on failure');await expect(page.locator('#save-status')).toHaveText('Save failed');
-    await expect(page.locator('#export-unsent')).toBeVisible();
+    await page.locator('#input').fill('retain on failure');
+    await expect.poll(()=>page.evaluate(()=>window.testDraftAborts)).toBe(1);
+    await expect(page.locator('#input')).toHaveValue('retain on failure');
+    await expect(page.locator('#global-error')).toBeVisible();
     await page.locator('#input').fill('retain after retry');await expect(page.locator('#save-status')).toHaveText('Saved');
     await expect(page.locator('#export-unsent')).toBeHidden();
     await page.reload();await expect(page.locator('#input')).toHaveValue('retain after retry');
