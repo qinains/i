@@ -270,9 +270,9 @@ python3 scripts/check_package.py 'dist/*.tar.gz' 'dist/*.tar.xz'
 
 ## 当前验证范围
 
-GitHub CI 已通过 Linux、macOS、Windows 各自 ARM64/x86_64 的六平台原生矩阵：bundled/packaging 每个 Unix 目标 386 项、Windows 目标 372 项通过（默认配置分别为 373/360 项），各保留 1 项既有 ignored。六个平台的优化安装包构建及离线集成检查通过，另独立下载审计了全部 14 个归档。Node 单元测试 150 项、Cordis 构建测试 5 项、Python 脚本测试 17 项通过。具体提交、CI 链接和边界见[验证记录](docs/verification.md)。
+GitHub CI 已通过 Linux、macOS、Windows 各自 ARM64/x86_64 的六平台原生矩阵：bundled/packaging 每个 Unix 目标 386 项、Windows 目标 372 项通过（默认配置分别为 373/360 项），各保留 1 项既有 ignored。六个平台的优化安装包构建及离线集成检查通过，另独立下载审计了全部 14 个归档。Node 单元测试 151 项、Cordis 构建测试 5 项、Python 脚本测试 17 项通过。具体提交、CI 链接和边界见[验证记录](docs/verification.md)。
 
-CI 从源码重建浏览器 WASM，Chromium 的 144 项测试通过。WebKit 两次均为 143/144：首次双插件任务报告 JSON 插件不可用；未改代码复测时该用例通过，但另一个文件预览用例在创建 context/page 时失败。整体 CI 尚未全绿，不声称已修复这两个偶发失败，详情及本地重复对照见验证记录。原生 Unix CI 的 PTY、setup 恢复和 TLS 拒绝检查已通过，补上先前本地 QEMU 的覆盖缺口。真实 Windows ARM64 终端验证覆盖中文编辑导航、多行粘贴、历史草稿、审批、Ctrl-C 和模式恢复，不代表完整编辑器一致性。较早一次本地 HTTP fixture 断言失败虽未在重跑中复现，原因仍未确认。
+CI 从源码重建浏览器 WASM，最新验收中 Chromium 和 WebKit 均通过 144 项测试。已复现并修复损坏会话测试准备阶段的启动竞态；较早的两个 WebKit 偶发失败未再出现，但原因仍未确认。原生 Unix CI 的 PTY、setup 恢复和 TLS 拒绝检查已通过，补上先前本地 QEMU 的覆盖缺口。真实 Windows ARM64 终端验证覆盖中文编辑导航、多行粘贴、历史草稿、审批、Ctrl-C 和模式恢复，不代表完整编辑器一致性。较早一次本地 HTTP fixture 断言失败虽未在重跑中复现，原因仍未确认。
 
 DeepSeek `deepseek-flash` 已通过限额合成任务实测：原生读写、审批、会话恢复且不重放，以及实际 WASM 浏览器 SSE 显示、刷新和取消。本轮 CI 未新增付费模型请求。其他 provider 账户、Developer ID 签名和 Apple 公证仍未验证；没有发布 Release，这些结果不等同于正式签名发行验收。
 

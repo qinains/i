@@ -1,12 +1,15 @@
 # Cross-platform verification
 
-Verified source commit: `e409fc665d37724ea193bc37b8d73d78ad36e69c`.
+Latest [acceptance CI](https://github.com/qinains/i/actions/runs/44225806048)
+passed all eight jobs on `f233dbcfc30ae7cbeba233284bfba49e1faaa3f1`:
+six native targets plus 144/144 tests each in Chromium and WebKit.
+
+Independently audited package source commit: `e409fc665d37724ea193bc37b8d73d78ad36e69c`.
 
 GitHub Actions: [six-platform acceptance run](https://github.com/qinains/i/actions/runs/44214997537).
 The verification branch is `ci/cordis-acceptance-20261118T003215Z`.
-Documentation-only descendants do not change the tested executable sources.
-The overall run is **not green**: all native jobs and Chromium passed, but
-both WebKit attempts failed one test each.
+That run was red overall: all native jobs and Chromium passed, but both
+WebKit attempts failed one test each. See the browser section for follow-up runs.
 
 ## Native matrix
 
@@ -87,6 +90,13 @@ and a real workspace file survives. This is a test precondition fix, not a
 shared explanation for the other intermittent WebKit failures.
 The local full diagnostic WebKit suite passed 144/144 before the fixture
 change, and the strengthened test passed five local WebKit repetitions.
+A local probe reproduced the fixture race by delaying the startup UI write:
+corruption injected before `Ready` was overwritten, while corruption injected
+after `Ready` was isolated on reload. The complete Chromium security spec
+passed three local repetitions (15 tests).
+Both browser suites passed 144/144 in the acceptance rerun after the fixture
+fix, and 151 Node tests passed. Neither of the two original WebKit failures
+recurred, but their causes remain unconfirmed.
 
 ## Remaining boundaries
 
