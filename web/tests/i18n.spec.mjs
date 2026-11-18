@@ -43,8 +43,8 @@ test.describe('Arabic system locale',()=>{
     test('queued English messages and their editors keep their own direction in Arabic UI',async({page})=>{
         await page.goto('/');await expect(page.locator('#status')).toHaveText(copy.ar.Ready);await page.locator('#settings-btn').click();await page.locator('#base-url').fill('http://127.0.0.1:4173/mock/v1');await page.locator('#model').fill('fixture');await page.locator('#save-config').click();await page.locator('#close-settings').click();
         await page.locator('#input').fill('STREAM');await page.locator('#input').press('Enter');await expect(page.locator('#output')).toContainText('First visible');await page.locator('#input').fill('Keep this English task');await page.locator('#btn-send').click();
-        const content=page.locator('.pending-message p');await expect(content).toHaveText('Keep this English task');expect(await content.evaluate(element=>getComputedStyle(element).direction)).toBe('ltr');
-        await page.locator('.pending-message button').first().click();const editor=page.locator('.pending-message textarea');await expect(editor).toHaveValue('Keep this English task');expect(await editor.evaluate(element=>getComputedStyle(element).direction)).toBe('ltr');
+        const content=page.locator('.pending-message p');await expect(content).toHaveText('Keep this English task');await expect(content).toHaveCSS('direction','ltr');
+        await page.locator('.pending-message button').first().click();const editor=page.locator('.pending-message textarea');await expect(editor).toHaveValue('Keep this English task');await expect(editor).toHaveCSS('direction','ltr');
         await page.locator('#btn-cancel').click();await expect(page.locator('#status')).toHaveText(copy.ar.Ready);
     });
 });
