@@ -255,7 +255,7 @@ function onEvent(id,event){
     }
     if(event.type==='assistant'&&streams.get(id)?.text===event.text){streams.delete(id);return;}
     if(event.type==='step'){record.step=`[step ${event.step}]`;if(id===activeId)$('step-counter').textContent=record.step;return;}
-    if(event.type==='cancelled'){tasks.cancel(id,{cancelAgent:false});return;}
+    if(event.type==='cancelled'){tasks.adapterCancelled(id);return;}
     if(event.type==='tool'){append(record,`tool: ${event.name} ${event.arguments.slice(0,1000)}`,'tool');return;}
     append(record,event.text ?? '',event.type==='assistant'?'assistant':'tool');
 }

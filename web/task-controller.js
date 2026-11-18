@@ -20,12 +20,12 @@ export class TaskController {
 
     async approve(id,description){
         const task=this.#current;
-        if(!task||task.record.id!==id||task.signal.aborted||task.phase==='approval')return false;
+        if(!task||task.record.id!==id||task.signal.aborted||task.pluginAbort?.signal.aborted||task.phase==='approval')return false;
         const {record}=task,sessions=this.#view.sessions();
-        if(record.mode==='auto'){await sessions.save(record);return !task.signal.aborted;}
+        if(record.mode==='auto'){await sessions.save(record);return !task.signal.aborted&&!task.pluginAbort?.signal.aborted;}
         record.status='approval';task.phase='approval';
         await sessions.save(record);
-        if(task.signal.aborted)return false;
+        if(task.signal.aborted||task.pluginAbort?.signal.aborted)return false;
         return new Promise(resolve=>{this.#approval={id,description,resolve};this.#view.changed();});
     }
     settleApproval(allowed,id){
@@ -36,11 +36,17 @@ export class TaskController {
         if(task?.record.id===approval.id){task.record.status='running';task.phase='running';}
         approval.resolve(allowed&&!task?.signal.aborted);this.#view.changed();
     }
-    cancel(id,{pause=false,cancelAgent=true}={}){
+    adapterCancelled(id){
+        const task=this.#current;
+        if(task?.record.id!==id||!task?.pluginAbort)return;
+        // Adapter retirement also emits this event; only cancel the current plugin invocation.
+        task.pluginAbort.abort();this.settleApproval(false,id);
+    }
+    cancel(id,{pause=false}={}){
         const task=this.#current;
         if(!task||task.record.id!==id||task.signal.aborted)return;
         task.abort.abort();
-        if(cancelAgent)task.agent?.cancel();
+        task.agent?.cancel();
         if(pause){task.record.queuePaused=true;this.#view.sessions().later(task.record);}
         this.settleApproval(false,id);this.#view.changed();
     }
@@ -142,7 +148,9 @@ export class TaskController {
             this.#current.phase='running';
             if(!entry)view.draftCleared(record);
             view.transcriptChanged(record);view.title(record,composed.text||'Image');view.changed();signal.throwIfAborted();
-            await runPluginTask({agent,manager,store,record,text:composed.text,images,signal,approve:description=>this.approve(record.id,description),beforeEffect:()=>sessions.flush(record.id),onUnavailable:id=>view.append(record,`Plugin unavailable: ${id}`,'error')});
+            const task=this.#current,pluginAbort=new AbortController();task.pluginAbort=pluginAbort;
+            try{await runPluginTask({agent,manager,store,record,text:composed.text,images,signal:AbortSignal.any([signal,pluginAbort.signal]),approve:description=>this.approve(record.id,description),beforeEffect:()=>sessions.flush(record.id),onUnavailable:id=>view.append(record,`Plugin unavailable: ${id}`,'error')});}
+            finally{pluginAbort.abort();task.pluginAbort=null;}
         },{runQueue:true,message:true,preparing:true});
     }
 }

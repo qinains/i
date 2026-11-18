@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import {TaskController} from '../task-controller.js';
 import {connectionIdentity} from '../sessions.js';
 
-function fixture(save=async()=>{}){
+function fixture(save=async()=>{},view={}){
     const record={id:'one',workspaceId:'default',mode:'ask',status:'idle',draft:'keep draft',composerBlocks:[],transcript:[]};
     const agent={cancel(){}};
     const config={base_url:'http://127.0.0.1:4173/mock/v1',protocol:'openai',model:'fixture',transport:'direct'};
     const sessions={conflicts:new Map(),save,flush:async()=>{},later(){},agent:async()=>agent,configure:async()=>agent};
     const tasks=new TaskController({sessions:()=>sessions,blocked:()=>false,changed(){},focus(){},append(){},report(){},refresh:async()=>{},
-        online:()=>true,redact:text=>text,connection:()=>({id:'fixture',config}),plugins:async()=>({}),draftCleared(){assert.fail('no durable message was admitted');}},async(_id,fn)=>fn());
+        online:()=>true,redact:text=>text,connection:()=>({id:'fixture',config}),plugins:async()=>({}),draftCleared(){assert.fail('no durable message was admitted');},...view},async(_id,fn)=>fn());
     return {tasks,record,sessions,config};
 }
 
@@ -52,4 +52,15 @@ test('a failed dispatch save retains the draft or queued item without starting a
         assert.equal(record.draft,'keep draft');assert.deepEqual(record.transcript,[]);assert.equal(requests,0);
         if(queued)assert.deepEqual(record.pendingMessages,[entry]);
     }
+});
+
+test('adapter retirement during configuration or run disposal does not cancel the whole task',async()=>{
+    const {tasks,record,sessions}=fixture(undefined,{draftCleared(){},transcriptChanged(){},title(){}});
+    let requests=0;
+    sessions.configure=async()=>{
+        tasks.adapterCancelled(record.id);
+        return {set_plugin_tools(){},async run(){requests++;tasks.adapterCancelled(record.id);}};
+    };
+    assert.equal(await tasks.send(record,record.draft,[]),true);
+    assert.equal(requests,1);assert.equal(record.draft,'');assert.equal(record.queuePaused,false);
 });
