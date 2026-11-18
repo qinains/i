@@ -15,7 +15,8 @@ test('the production application bundles only the pinned upstream composition co
     const inputs=Object.keys(result.metafile.inputs).map(path=>path.replaceAll('\\','/'));
     assert.ok(inputs.some(path=>path.endsWith('/plugins/vendor/cordis.js')));
     for(const name of obsolete)assert.ok(!inputs.some(path=>path.endsWith(`/plugins/${name}.js`)),name);
-    for(const name of ['application','session-scope','plugins/application','plugins/manager']){
+    for(const name of ['application','session-scope','task-controller','plugins/application','plugins/manager']){
         assert.ok(inputs.some(path=>path.endsWith(`/web/${name}.js`)||path===`web/${name}.js`),name);
     }
+    assert.ok(!inputs.some(path=>path.endsWith('/state/recovery.js')));
 });

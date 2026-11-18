@@ -3,7 +3,7 @@ import {DEFAULT_CONFIGURATION,saveConfiguration,clearConfiguration,deleteProfile
 import {loadConnections,saveConnection} from './connections.js';
 import {registerPwa} from './pwa.js';
 import {requestCompletion,normalizeEndpoint,validateCustomHeaders} from './transport.js';
-import {openStateStore,withWorkspaceLock} from './state/store.js';
+import {openStateStore} from './state/store.js';
 import {displayName,listWorkspaceDirectories,isTemporaryWorkspace} from './workspaces.js';
 import {opfsOpenWorkspace,opfsClearTmp,opfsFileVersion} from './platform.js';
 import {FileRefresh} from './file-refresh.js';
@@ -12,38 +12,40 @@ import {mountPreview} from './preview.js';
 import {renderFileTree,viewState,persistentView} from './file-browser.js';
 import {mountCommands} from './commands.js';
 import {updateTitle,compactTitleFromHistory} from './titles.js';
-import {connectionIdentity} from './sessions.js';
+import {TaskController} from './task-controller.js';
 import {createBrowserApplication} from './application.js';
 import {node,renderMessage} from './render.js';
 import {legacyWorkspace} from './state/migration.js';
 import {applyWorkspaceTranslations,uiText} from './i18n.js';
 import {openPluginStore} from './plugins/store.js';
 import {inspectPluginPackage} from './plugins/runner.js';
-import {runPluginTask} from './plugins/agent.js';
 import {mountPluginSettings} from './plugins/ui.js';
-import {mountComposer,composeDraft,imageDataUrls} from './composer.js';
-import {enqueueMessage,editMessage,removeMessage} from './pending.js';
+import {mountComposer} from './composer.js';
+import {editMessage,removeMessage} from './pending.js';
 import {theme} from './theme.js';
 
 const $=id=>document.getElementById(id);
 function setText(id,key){const element=$(id);element.dataset.i18n=key;element.textContent=uiText(key);}
-let store,controller,workspaces=new Map(),ui={key:'main',openedSessionIds:[],panels:{},scrollPositions:{}},activeId,runningId,updateLocked=false,ready=false;
-let pendingApproval,testController,selectedConnection='',uiQueue=Promise.resolve();
-let preparingId=null,drainingId=null,queueSending=null,messageTaskId=null;
-const stoppedTasks=new Set();
+let store,controller,workspaces=new Map(),ui={key:'main',openedSessionIds:[],panels:{},scrollPositions:{}},activeId,updateLocked=false,ready=false;
+let testController,selectedConnection='',uiQueue=Promise.resolve();
 let preview,composerUi;
-let pluginStore,pluginManager,pluginUi,pluginBusy=false;
+let pluginUi,pluginBusy=false;
 let application;
-const pluginControllers=new Map();
-const operationControllers=new Map();
 const fileRefresh=new FileRefresh();
 async function ensurePluginManager(){
-    if(pluginManager)return pluginManager;
     if(!application)throw new Error('Application is not ready.');
-    const plugins=await application.plugins();
-    pluginStore=plugins.store;pluginManager=plugins.manager;
-    return pluginManager;
+    return (await application.plugins()).manager;
 }
+const tasks=new TaskController({
+    sessions:()=>controller,blocked:()=>updateLocked||!!testController||pluginBusy||!ready,
+    plugins:()=>application.plugins(),online:()=>navigator.onLine,
+    connection:()=>({id:selectedConnection,config:agentConfiguration()}),
+    changed:()=>{renderTabs();updateControls();},append,report,refresh,redact:text=>redact(text),
+    transcriptChanged:record=>{if(record.id===activeId)renderTerminal(true);},
+    focus:record=>{if(record.id===activeId)$('input').focus();},
+    draftCleared:record=>{if(record.id===activeId){$('input').value='';composerUi.refresh();commandMenu?.hide();}},
+    title:(record,title)=>{if(updateTitle(record,'first',redact(title))){controller.later(record);renderTabs();}},
+});
 let commandCatalog=[],commandMenu;
 let viewQueue=Promise.resolve(),listedFiles=[];
 const views=new Map();
@@ -94,12 +96,12 @@ function renderTabs(){
         const item=controller.records.get(id);if(!item || item.workspaceId!==record.workspaceId)continue;
         const group=node('div','','session-tab');group.setAttribute('role','presentation');group.dataset.active=String(id===activeId);
         const tab=node('button','','tab-main');
-        tab.append(node('span',`${item.status==='approval'?'● ':runningId===id?'◌ ':''}${item.name}`,'tab-label'));
+        tab.append(node('span',`${item.status==='approval'?'● ':tasks.runningId===id?'◌ ':''}${item.name}`,'tab-label'));
         tab.type='button';tab.role='tab';tab.dataset.sessionId=id;tab.setAttribute('aria-selected',String(id===activeId));
         tab.title=`${workspaces.get(item.workspaceId)?.name} · ${item.titleText??item.name}. Double-click to rename.`;
         tab.addEventListener('click',safe(()=>selectSession(id)));
-        tab.addEventListener('dblclick',safe(async()=>{if(runningId===id)return;const name=prompt(uiText('Conversation name:'),item.name);if(name){item.name=displayName(name);item.titleText=item.name;item.titleSource='manual';await controller.save(item);renderTabs();}}));
-        const close=node('button','','tab-close');close.type='button';close.setAttribute('aria-label',uiText('Close {name}',{name:item.name}));close.title=close.getAttribute('aria-label');close.disabled=runningId===id;
+        tab.addEventListener('dblclick',safe(async()=>{if(tasks.runningId===id)return;const name=prompt(uiText('Conversation name:'),item.name);if(name){item.name=displayName(name);item.titleText=item.name;item.titleSource='manual';await controller.save(item);renderTabs();}}));
+        const close=node('button','','tab-close');close.type='button';close.setAttribute('aria-label',uiText('Close {name}',{name:item.name}));close.title=close.getAttribute('aria-label');close.disabled=tasks.runningId===id;
         const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');
         for(const [name,value]of Object.entries({width:'12',height:'12',viewBox:'0 0 16 16','aria-hidden':'true'}))icon.setAttribute(name,value);
         const path=document.createElementNS('http://www.w3.org/2000/svg','path');
@@ -115,7 +117,7 @@ function renderTabs(){
     updateControls();
 }
 function updateComposerAction(){
-    const running=!!runningId&&runningId===activeId;
+    const running=!!tasks.runningId&&tasks.runningId===activeId;
     const queueDraft=running&&!$('input').disabled&&!!$('input').value.trim();
     $('btn-send').hidden=running&&!queueDraft;
     setText('btn-send',running||active()?.pendingMessages?.length?'Queue message':'Send');
@@ -123,23 +125,23 @@ function updateComposerAction(){
 }
 function updateControls(){
     renderStreamStatus();
-    const record=active(),blocked=!!runningId||!!testController||pluginBusy||updateLocked||!ready;
-    const preparing=preparingId===activeId||runningId===activeId&&messageTaskId!==activeId;
+    const record=active(),blocked=!!tasks.runningId||!!testController||pluginBusy||updateLocked||!ready;
+    const preparing=tasks.composerBlocked(activeId);
     $('input').disabled=!record||updateLocked||pluginBusy||!!testController||!ready||preparing;
     for(const id of ['btn-download','btn-upload','file-input','btn-new-session','btn-reset','btn-clear-tmp','btn-download-tmp','upload-target','btn-preview','refresh-preview','preview-scripts','preview-entry','preview-mode']){const el=$(id);if(el)el.disabled=blocked;}
     $('execution-mode').value=record?.mode??'ask';$('execution-mode').disabled=!record||updateLocked||pluginBusy||!!testController||!ready;
     $('mode-control').dataset.mode=record?.mode??'ask';setText('mode-hint',record?.mode==='auto'?'File changes without asking · Shift+Tab':'Shift+Tab to switch');
-    $('btn-clear').disabled=!record||updateLocked||runningId===activeId;
-    $('btn-send').disabled=!record||updateLocked||pluginBusy||!!testController||!ready||preparing||!!runningId&&runningId!==activeId;
+    $('btn-clear').disabled=!record||updateLocked||tasks.runningId===activeId;
+    $('btn-send').disabled=!record||updateLocked||pluginBusy||!!testController||!ready||preparing||!!tasks.runningId&&tasks.runningId!==activeId;
     updateComposerAction();
-    setText('status',!ready?'Unavailable':runningId?'Processing...':'Ready');
+    setText('status',!ready?'Unavailable':tasks.runningId?'Processing...':'Ready');
     setText('save-status',saveStates.get(activeId) ?? (ready?'Saved':'Opening storage…'));
     $('model-name').textContent=applied.model||uiText('No model');
-    $('running-notice').hidden=!runningId||runningId===activeId;
-    if(runningId)$('running-notice').querySelector('span').textContent=`${controller.records.get(runningId)?.name} is running. `;
-    const owned=!!pendingApproval && pendingApproval.id===activeId;
+    $('running-notice').hidden=!tasks.runningId||tasks.runningId===activeId;
+    if(tasks.runningId)$('running-notice').querySelector('span').textContent=`${controller.records.get(tasks.runningId)?.name} is running. `;
+    const owned=!!tasks.pendingApproval && tasks.pendingApproval.id===activeId;
     $('approval-panel').hidden=!owned;
-    if(owned){$('approval-owner').textContent=`${workspaces.get(record.workspaceId)?.name} · ${record.name}`;$('approval-description').textContent=redact(pendingApproval.description);}
+    if(owned){$('approval-owner').textContent=`${workspaces.get(record.workspaceId)?.name} · ${record.name}`;$('approval-description').textContent=redact(tasks.pendingApproval.description);}
     for(const el of $('settings-modal').querySelectorAll('input,select,textarea,button')){
         if(!['close-settings','cancel-test','theme-select'].includes(el.id) && !el.dataset.settingsTab)el.disabled=blocked;
     }
@@ -156,11 +158,11 @@ function renderPending(){
     setText('queue-state',failed?'Queue not saved — copy messages before reloading.':record.queuePaused?'Queue paused':'Sends after the current task');
     const blocked=updateLocked||pluginBusy||!!testController||!ready;
     $('queue-resume').hidden=!record.queuePaused;$('queue-pause').hidden=!!record.queuePaused;
-    $('queue-resume').disabled=failed||blocked||!!runningId&&runningId!==record.id||entries.some(entry=>entry.editDraft!=null);
+    $('queue-resume').disabled=controller.conflicts.has(record.id)||blocked||!!tasks.runningId&&tasks.runningId!==record.id||entries.some(entry=>entry.editDraft!=null);
     $('queue-pause').disabled=blocked;
     const rows=entries.map(entry=>{
         const row=node('div','','pending-message');row.dataset.pendingId=entry.id;
-        const sending=queueSending?.id===record.id&&queueSending.messageId===entry.id;
+        const sending=tasks.queueSending?.id===record.id&&tasks.queueSending.messageId===entry.id;
         const button=(label,fn)=>{const el=node('button',uiText(label));el.type='button';el.disabled=blocked||sending;el.addEventListener('click',safe(async()=>{try{await fn();await controller.save(record);}finally{updateControls();}}));return el;};
         const actions=node('div','','pending-actions');
         if(entry.editDraft!=null){
@@ -213,17 +215,10 @@ async function newSession(workspaceId=active()?.workspaceId ?? 'default'){
     await selectSession(record.id);return record;
 }
 async function closeSession(id){
-    if(runningId===id)throw new Error('Stop the running task before closing its tab.');
+    if(tasks.runningId===id)throw new Error('Stop the running task before closing its tab.');
     await controller.flush(id);ui.openedSessionIds=ui.openedSessionIds.filter(item=>item!==id);
     if(activeId===id){const old=active();const next=ui.openedSessionIds.find(key=>controller.records.get(key)?.workspaceId===old.workspaceId);if(next)await selectSession(next);else await newSession(old.workspaceId);}
     renderTabs();await persistUi();
-}
-function settleApproval(allowed){
-    const approval=pendingApproval;pendingApproval=null;if(approval){const record=controller.records.get(approval.id);record.status='running';approval.resolve(allowed);}updateControls();
-}
-async function approve(id,description){
-    const record=controller.records.get(id);if(record.mode==='auto'){await controller.save(record);return true;}record.status='approval';await controller.save(record);renderTabs();
-    return new Promise(resolve=>{pendingApproval={id,description,resolve};updateControls();});
 }
 function publish(id,archive){
     const record=controller.records.get(id);let list=downloads.get(id);if(!list){list=new Map();downloads.set(id,list);}
@@ -260,84 +255,13 @@ function onEvent(id,event){
     }
     if(event.type==='assistant'&&streams.get(id)?.text===event.text){streams.delete(id);return;}
     if(event.type==='step'){record.step=`[step ${event.step}]`;if(id===activeId)$('step-counter').textContent=record.step;return;}
-    if(event.type==='cancelled'){pluginControllers.get(id)?.abort();if(pendingApproval?.id===id)settleApproval(false);return;}
+    if(event.type==='cancelled'){tasks.adapterCancelled(id);return;}
     if(event.type==='tool'){append(record,`tool: ${event.name} ${event.arguments.slice(0,1000)}`,'tool');return;}
     append(record,event.text ?? '',event.type==='assistant'?'assistant':'tool');
 }
-async function operation(record,fn,{readOnly=false,runQueue=false}={}){
-    if(runningId||updateLocked||testController||pluginBusy)throw new Error('Finish or stop the current task first.');
-    if(controller.failed.has(record.id)&&!readOnly)throw new Error('Saving failed. Download a ZIP backup, then reload before running more tools.');
-    runningId=record.id;stoppedTasks.delete(record.id);record.status='running';updateControls();renderTabs();let succeeded=false;
-    const cancellation=new AbortController();operationControllers.set(record.id,cancellation);
-    try{if(!readOnly)await controller.save(record);await withWorkspaceLock(record.workspaceId,async()=>{if(!readOnly)await controller.flush(record.id);await fn(await controller.agent(record),cancellation.signal);});succeeded=!stoppedTasks.has(record.id);}
-    catch(error){record.queuePaused=true;cancellation.abort();append(record,`Error: ${error.message ?? error}`,'error');}
-    finally{
-        if(pendingApproval?.id===record.id)settleApproval(false);record.status='idle';
-        if(!readOnly)try{await controller.save(record);}catch(error){succeeded=false;record.queuePaused=true;report(error);}
-        if(!cancellation.signal.aborted)try{await refresh(cancellation.signal);}catch(error){report(error);}
-        const backgroundRefresh=cancellation.signal.aborted;
-        cancellation.abort();operationControllers.delete(record.id);
-        runningId=null;renderTabs();updateControls();if(record.id===activeId)$('input').focus();
-        if(backgroundRefresh)refresh().catch(report);
-        if(runQueue&&succeeded&&!record.queuePaused)setTimeout(()=>drainQueue(record).catch(report),0);
-    }
-    return succeeded;
-}
-async function drainQueue(record){
-    if(drainingId||runningId||updateLocked||testController||pluginBusy||!ready)return;
-    drainingId=record.id;
-    try{
-        while(!record.queuePaused&&record.pendingMessages?.length&&!runningId){
-            const entry=record.pendingMessages[0];
-            if(entry.editDraft!=null){record.queuePaused=true;await controller.save(record);break;}
-            queueSending={id:record.id,messageId:entry.id};if(record.id===activeId)renderPending();
-            let succeeded=false;
-            try{succeeded=await sendMessage(record,entry.visible,entry.blocks,entry);}
-            catch(error){record.queuePaused=true;append(record,`Error: ${error.message??error}`,'error');await controller.save(record);}
-            finally{queueSending=null;}
-            if(!succeeded){record.queuePaused=true;await controller.save(record);break;}
-        }
-    }finally{drainingId=null;queueSending=null;updateControls();}
-}
-async function sendMessage(record,visible,blocks,entry=null){
-    const composed=composeDraft({composerBlocks:blocks},visible);
-    if(!entry&&updateTitle(record,'first',redact(composed.text||'Image'))){controller.later(record);renderTabs();}
-    if(!navigator.onLine)throw new Error('Offline: the unsent message and attachments are retained.');
-    messageTaskId=record.id;
-    if(!entry){preparingId=record.id;record.queuePaused=false;}
-    try{return await operation(record,async()=>{
-        if(entry&&(entry.connectionId!==selectedConnection||entry.connectionIdentity!==connectionIdentity(agentConfiguration())))throw new Error('Queued message belongs to another connection/model. Select its original connection before continuing.');
-        const agent=await controller.configure(record,agentConfiguration(),selectedConnection);record.connectionId=selectedConnection;
-        const images=await imageDataUrls(composed.images);
-        let manager;try{manager=await ensurePluginManager();}catch{append(record,'Plugin storage is unavailable; installed plugin tools are disabled.','error');}
-        if(stoppedTasks.has(record.id))throw new Error('Cancelled before sending.');
-        if(entry)removeMessage(record,entry.id);
-        else{
-            record.draft='';record.composerBlocks=[];
-            if(record.id===activeId){$('input').value='';composerUi.refresh();commandMenu?.hide();}
-            preparingId=null;
-        }
-        append(record,`> ${visible}`,'user');if(updateTitle(record,'first',redact(composed.text||'Image'))){controller.later(record);renderTabs();}
-        await controller.save(record);updateControls();
-        if(stoppedTasks.has(record.id))throw new Error('Cancelled before sending.');
-        const abort=new AbortController();pluginControllers.set(record.id,abort);
-        try{await runPluginTask({agent,manager,store:pluginStore,record,text:composed.text,images,signal:abort.signal,approve:description=>approve(record.id,description),beforeEffect:()=>controller.flush(record.id),onUnavailable:id=>append(record,`Plugin unavailable: ${id}`,'error')});}
-        finally{abort.abort();pluginControllers.delete(record.id);}
-    },{runQueue:true});}
-    finally{if(preparingId===record.id)preparingId=null;if(messageTaskId===record.id)messageTaskId=null;updateControls();}
-}
 async function submit(text){
     const record=active();if(!record||!text.trim())return;
-    if(updateLocked||pluginBusy||testController||preparingId===record.id)throw new Error('Wait for the active operation.');
-    if(runningId&&runningId!==record.id)throw new Error('Another conversation is running.');
-    if(runningId||record.pendingMessages?.length){
-        enqueueMessage(record,text,{connectionId:selectedConnection,connectionIdentity:connectionIdentity(agentConfiguration())});
-        record.draft='';record.composerBlocks=[];$('input').value='';composerUi.refresh();commandMenu?.hide();
-        updateComposerAction();
-        try{await controller.save(record);}catch(error){record.queuePaused=true;throw error;}finally{updateControls();}
-        return;
-    }
-    if(!/^[\/!]/u.test(text.trimStart()))return sendMessage(record,text,structuredClone(record.composerBlocks??[]));
+    if(await tasks.submit(record,text))return;
     text=text.trim();record.draft='';$('input').value='';append(record,`> ${text}`,'user');
     commandMenu?.hide();
     if(text.startsWith('!')){append(record,'Shell commands are disabled in browser mode.','error');return;}
@@ -346,8 +270,8 @@ async function submit(text){
     if(text==='/clear'){record.transcript=[];renderTerminal();await controller.save(record);return;}
     if(text==='/new'){await newSession();return;}
     if(text==='/files'){await refresh();await showFiles(true);return;}
-    if(text==='/download'){await operation(record,async(agent,signal)=>{const zip=await agent.export_zip('{}',signal);signal.throwIfAborted();publish(record.id,zip);},{readOnly:true});return;}
-    if(text.startsWith('/download ')){await operation(record,async(agent,signal)=>{const zip=await agent.export_zip(JSON.stringify({paths:[text.slice(10).trim()]}),signal);signal.throwIfAborted();publish(record.id,zip);},{readOnly:true});return;}
+    if(text==='/download'){await tasks.run(record,async(agent,signal)=>{const zip=await agent.export_zip('{}',signal);signal.throwIfAborted();publish(record.id,zip);},{readOnly:true});return;}
+    if(text.startsWith('/download ')){await tasks.run(record,async(agent,signal)=>{const zip=await agent.export_zip(JSON.stringify({paths:[text.slice(10).trim()]}),signal);signal.throwIfAborted();publish(record.id,zip);},{readOnly:true});return;}
     if(text==='/resume'){showHistory();return;}
     if(text.startsWith('/resume ')){const value=text.slice(8).trim(),matches=[...controller.records.values()].filter(item=>item.workspaceId===record.workspaceId&&(item.id===value||item.name===value));if(matches.length!==1)throw new Error(uiText('Choose a unique conversation from /resume.'));await selectSession(matches[0].id);return;}
     if(text==='/config'){openSettings();return;}
@@ -359,14 +283,14 @@ async function changeMode(mode){
 }
 async function upload(files){
     const record=active();if(!record)return;
-    await operation(record,async(agent,signal)=>{
+    await tasks.run(record,async(agent,signal)=>{
         for(const file of files){
             signal.throwIfAborted();
             if(file.size>8*1024*1024)throw new Error(`${file.name} exceeds 8 MiB`);
             const path=$('upload-target').value+(file.webkitRelativePath||file.name);
             const expected=await opfsFileVersion(await opfsOpenWorkspace(record.workspaceId),path,signal);
             signal.throwIfAborted();
-            if(expected!==null&&!await approve(record.id,`Overwrite uploaded file ${path}?`)){append(record,`Skipped ${path}`);continue;}
+            if(expected!==null&&!await tasks.approve(record.id,`Overwrite uploaded file ${path}?`)){append(record,`Skipped ${path}`);continue;}
             const bytes=new Uint8Array(await file.arrayBuffer());signal.throwIfAborted();
             await agent.upload(path,bytes,signal,expected);append(record,`Uploaded: ${path} (${file.size} bytes)`,'success');
         }
@@ -407,7 +331,7 @@ function updateProfiles(){
     $('profile-select').value=selectedConnection;
 }
 function saveConfig(){
-    if(runningId||testController||updateLocked)throw new Error('Finish the active request first.');
+    if(tasks.runningId||testController||updateLocked)throw new Error('Finish the active request first.');
     const config=currentConfiguration();validateConfig(config);
     if((config.api_key!==applied.api_key||config.custom_headers!==applied.custom_headers) && [...controller.records.values()].some(record=>record.connectionId===selectedConnection&&record.history.some(message=>message.role==='user')) && !confirm(uiText('Changing this account or tenant may send existing conversation history to a different recipient. Apply this credential change?')))return;
     if($('remember-config').checked){
@@ -429,18 +353,18 @@ function showHistory(){
 function bind(){
     theme.subscribe(mode=>{$('theme-select').value=mode;});
     $('theme-select').addEventListener('change',()=>{const saved=theme.setMode($('theme-select').value);setText('config-status',saved?'Theme saved locally; connection changes still require Save.':'Theme applied for this page; browser storage is unavailable.');});
-    composerUi=mountComposer({input:$('input'),list:$('composer-attachments'),getRecord:active,isDisabled:()=>preparingId===activeId||runningId===activeId&&messageTaskId!==activeId||!!testController||pluginBusy||updateLocked||!ready,onError:report,onChange:(record,value)=>{record.draft=value;controller.later(record);commandMenu?.hide();updateComposerAction();}});
-    pluginUi=mountPluginSettings({manager:ensurePluginManager,currentWorkspace:()=>active()?.workspaceId,isBusy:()=>!!runningId||!!testController||updateLocked||!ready,onError:report,onBusy:value=>{pluginBusy=value;updateControls();}});
-    preview=mountPreview({owner:active,isBusy:()=>!!runningId||!!testController||updateLocked,onError:report,onChange:patch=>{const record=active();if(!record)return;Object.assign(fileView(),patch);saveFileView(record.workspaceId);renderFiles();if(patch.open&&matchMedia('(max-width:700px)').matches)showFiles(false);},onBack:()=>showFiles(true)});
+    composerUi=mountComposer({input:$('input'),list:$('composer-attachments'),getRecord:active,isDisabled:()=>tasks.composerBlocked(activeId)||!!testController||pluginBusy||updateLocked||!ready,onError:report,onChange:(record,value)=>{record.draft=value;controller.later(record);commandMenu?.hide();updateComposerAction();}});
+    pluginUi=mountPluginSettings({manager:ensurePluginManager,currentWorkspace:()=>active()?.workspaceId,isBusy:()=>!!tasks.runningId||!!testController||updateLocked||!ready,onError:report,onBusy:value=>{pluginBusy=value;updateControls();}});
+    preview=mountPreview({owner:active,isBusy:()=>!!tasks.runningId||!!testController||updateLocked,onError:report,onChange:patch=>{const record=active();if(!record)return;Object.assign(fileView(),patch);saveFileView(record.workspaceId);renderFiles();if(patch.open&&matchMedia('(max-width:700px)').matches)showFiles(false);},onBack:()=>showFiles(true)});
     mountScratchControls({
-        create:safe(async()=>{if(runningId||updateLocked)return;const name=prompt(uiText('Temporary workspace name (all files are lost on reload; download first):'));if(!name)return;const id=`temp-${crypto.randomUUID()}`;await opfsOpenWorkspace(id);workspaces.set(id,{id,name:displayName(name),storageKind:'temporary'});renderWorkspaces();await newSession(id);}),
-        clear:safe(async()=>{if(!confirm('Clear /tmp in this workspace? Normal workspace files and conversations are retained.'))return;const record=active();await operation(record,async(_agent,signal)=>{await opfsClearTmp(record.workspaceId,signal);append(record,'Cleared /tmp. Workspace files retained.');});}),
-        download:safe(()=>{const record=active();return operation(record,async(agent,signal)=>{const zip=await agent.export_zip('{"paths":["/tmp"],"filename":"tmp.zip"}',signal);signal.throwIfAborted();publish(record.id,zip).link.click();},{readOnly:true});}),
+        create:safe(async()=>{if(tasks.runningId||updateLocked)return;const name=prompt(uiText('Temporary workspace name (all files are lost on reload; download first):'));if(!name)return;const id=`temp-${crypto.randomUUID()}`;await opfsOpenWorkspace(id);workspaces.set(id,{id,name:displayName(name),storageKind:'temporary'});renderWorkspaces();await newSession(id);}),
+        clear:safe(async()=>{if(!confirm('Clear /tmp in this workspace? Normal workspace files and conversations are retained.'))return;const record=active();await tasks.run(record,async(_agent,signal)=>{await opfsClearTmp(record.workspaceId,signal);append(record,'Cleared /tmp. Workspace files retained.');});}),
+        download:safe(()=>{const record=active();return tasks.run(record,async(agent,signal)=>{const zip=await agent.export_zip('{"paths":["/tmp"],"filename":"tmp.zip"}',signal);signal.throwIfAborted();publish(record.id,zip).link.click();},{readOnly:true});}),
     });
     const attach=node('button','Attach selected connection to this conversation…');attach.id='attach-connection';attach.dataset.i18n='Attach selected connection to this conversation…';
     $('settings').append(attach);
     attach.addEventListener('click',safe(async()=>{
-        const record=active();if(!record||runningId)return;
+        const record=active();if(!record||tasks.runningId)return;
         validateConfig(applied);
         if(!confirm(uiText('Attach the selected connection? Future requests will send this conversation history to its API account and tenant. No request is sent now.')))return;
         record.connectionId=selectedConnection;record.connectionIdentity='';await controller.save(record);
@@ -452,21 +376,21 @@ function bind(){
     $('input').addEventListener('input',()=>{const record=active();if(record){record.draft=$('input').value;controller.later(record);}updateComposerAction();});
     $('output').addEventListener('scroll',()=>{const record=active();if(record){record.scroll=$('output').scrollTop;controller.later(record);}});
     $('btn-new-session').addEventListener('click',safe(()=>newSession()));
-    $('btn-clear').addEventListener('click',safe(async()=>{if(runningId===activeId)return;const record=active();record.transcript=[];await controller.save(record);renderTerminal();}));
-    $('btn-reset').addEventListener('click',safe(async()=>{if(runningId)return;if(!confirm('Reset this conversation context? Workspace files are retained.'))return;const record=active(),agent=await controller.agent(record);agent.new_session();record.history=JSON.parse(agent.export_history());record.connectionIdentity='';record.journal=null;append(record,'Conversation context reset. Workspace files retained.');await controller.save(record);}));
-    $('btn-cancel').addEventListener('click',()=>{if(runningId===activeId){const record=active();record.queuePaused=true;stoppedTasks.add(record.id);operationControllers.get(record.id)?.abort();fileRefresh.cancel();pluginControllers.get(record.id)?.abort();controller.agents.get(runningId)?.cancel();settleApproval(false);controller.later(record);updateControls();}});
-    $('queue-pause').addEventListener('click',safe(async()=>{const record=active();record.queuePaused=true;await controller.save(record);updateControls();}));
-    $('queue-resume').addEventListener('click',safe(async()=>{const record=active();if(controller.failed.has(record.id)||record.pendingMessages?.some(entry=>entry.editDraft!=null))return;record.queuePaused=false;await controller.save(record);updateControls();if(!runningId)await drainQueue(record);}));
-    $('jump-running').addEventListener('click',safe(()=>selectSession(runningId)));
-    $('approve').addEventListener('click',()=>{if(pendingApproval?.id===activeId)settleApproval(true);});$('deny').addEventListener('click',()=>settleApproval(false));
-    $('btn-download').addEventListener('click',safe(()=>{const record=active();return operation(record,async(agent,signal)=>{const zip=await agent.export_zip('{}',signal);signal.throwIfAborted();publish(record.id,zip).link.click();},{readOnly:true});}));
+    $('btn-clear').addEventListener('click',safe(async()=>{if(tasks.runningId===activeId)return;const record=active();record.transcript=[];await controller.save(record);renderTerminal();}));
+    $('btn-reset').addEventListener('click',safe(async()=>{if(tasks.runningId)return;if(!confirm('Reset this conversation context? Workspace files are retained.'))return;const record=active(),agent=await controller.agent(record);agent.new_session();record.history=JSON.parse(agent.export_history());record.connectionIdentity='';record.journal=null;append(record,'Conversation context reset. Workspace files retained.');await controller.save(record);}));
+    $('btn-cancel').addEventListener('click',()=>{if(tasks.runningId===activeId){fileRefresh.cancel();tasks.cancel(activeId,{pause:true});}});
+    $('queue-pause').addEventListener('click',safe(()=>tasks.pause(active())));
+    $('queue-resume').addEventListener('click',safe(()=>tasks.resume(active())));
+    $('jump-running').addEventListener('click',safe(()=>selectSession(tasks.runningId)));
+    $('approve').addEventListener('click',()=>tasks.settleApproval(true,activeId));$('deny').addEventListener('click',()=>tasks.settleApproval(false));
+    $('btn-download').addEventListener('click',safe(()=>{const record=active();return tasks.run(record,async(agent,signal)=>{const zip=await agent.export_zip('{}',signal);signal.throwIfAborted();publish(record.id,zip).link.click();},{readOnly:true});}));
     $('btn-upload').addEventListener('click',()=>$('file-input').click());
     $('file-input').addEventListener('change',safe(async()=>{const files=[...$('file-input').files];$('file-input').value='';await upload(files);}));
     $('btn-files').addEventListener('click',safe(()=>showFiles($('file-panel').hidden)));
     $('close-files').addEventListener('click',safe(()=>showFiles(false)));
     $('execution-mode').addEventListener('change',safe(async()=>{const mode=$('execution-mode').value;if(mode==='auto'&&!confirm(uiText('Automatically approve file changes in this conversation? Shell remains disabled. Pending approvals still require your decision.'))){updateControls();return;}await changeMode(mode);}));
-    $('output').addEventListener('dragover',event=>event.preventDefault());$('output').addEventListener('drop',event=>{event.preventDefault();if(!runningId)safe(()=>upload([...event.dataTransfer.files]))();});
-    $('workspace-select').addEventListener('change',safe(async()=>{const value=$('workspace-select').value;if(value==='__new__'){const name=prompt(uiText('New workspace name:'));if(!name)return;$('workspace-select').value='';const record={id:crypto.randomUUID(),name:displayName(name),createdAt:Date.now(),storageKind:'persistent'};await opfsOpenWorkspace(record.id);await store.createWorkspace(record);workspaces.set(record.id,record);renderWorkspaces();await newSession(record.id);return;}if(value==='__scratch__'){$('workspace-select').value='';if(runningId||updateLocked)return;const name=prompt(uiText('Temporary workspace name (all files are lost on reload; download first):'));if(!name)return;const id=`temp-${crypto.randomUUID()}`;await opfsOpenWorkspace(id);workspaces.set(id,{id,name:displayName(name),storageKind:'temporary'});renderWorkspaces();await newSession(id);return;}const found=ui.openedSessionIds.map(id=>controller.records.get(id)).find(record=>record?.workspaceId===value)??[...controller.records.values()].find(record=>record.workspaceId===value);if(found)await selectSession(found.id);else await newSession(value);}));
+    $('output').addEventListener('dragover',event=>event.preventDefault());$('output').addEventListener('drop',event=>{event.preventDefault();if(!tasks.runningId)safe(()=>upload([...event.dataTransfer.files]))();});
+    $('workspace-select').addEventListener('change',safe(async()=>{const value=$('workspace-select').value;if(value==='__new__'){const name=prompt(uiText('New workspace name:'));if(!name)return;$('workspace-select').value='';const record={id:crypto.randomUUID(),name:displayName(name),createdAt:Date.now(),storageKind:'persistent'};await opfsOpenWorkspace(record.id);await store.createWorkspace(record);workspaces.set(record.id,record);renderWorkspaces();await newSession(record.id);return;}if(value==='__scratch__'){$('workspace-select').value='';if(tasks.runningId||updateLocked)return;const name=prompt(uiText('Temporary workspace name (all files are lost on reload; download first):'));if(!name)return;const id=`temp-${crypto.randomUUID()}`;await opfsOpenWorkspace(id);workspaces.set(id,{id,name:displayName(name),storageKind:'temporary'});renderWorkspaces();await newSession(id);return;}const found=ui.openedSessionIds.map(id=>controller.records.get(id)).find(record=>record?.workspaceId===value)??[...controller.records.values()].find(record=>record.workspaceId===value);if(found)await selectSession(found.id);else await newSession(value);}));
     $('btn-history').addEventListener('click',showHistory);$('close-history').addEventListener('click',()=>$('history-modal').close());
     $('settings-btn').addEventListener('click',openSettings);$('close-settings').addEventListener('click',()=>$('settings-modal').close());
     $('settings-modal').addEventListener('close',()=>{const focused=document.activeElement;if(focused===document.body||$('settings-modal').contains(focused))$('settings-btn').focus();});
@@ -484,17 +408,17 @@ function bind(){
     $('save-as-profile').addEventListener('click',safe(()=>{const name=prompt(uiText('Connection name:'));if(!name)return;const config=currentConfiguration();validateConfig(config);selectedConnection=crypto.randomUUID();let names={};try{names=JSON.parse(localStorage.getItem('i_harness_connection_names')??'{}');}catch{}names[selectedConnection]=displayName(name);localStorage.setItem('i_harness_connection_names',JSON.stringify(names));$('remember-config').checked=true;saveConfig();updateProfiles();}));
     $('profile-select').addEventListener('change',safe(()=>{const found=loadConnections(localStorage).records.find(item=>item.id===$('profile-select').value);selectedConnection=found?.id??'';if(found){restoreConfiguration(found.settings);applied={...found.settings};$('remember-config').checked=true;$('model-name').textContent=applied.model;setText('config-status','Saved connection selected. Existing conversations keep their context.');updateControls();}}));
     $('delete-profile').addEventListener('click',safe(()=>{if(!selectedConnection||!confirm(uiText('Delete this saved connection? Files and conversation history are retained.')))return;deleteProfile(localStorage,selectedConnection);selectedConnection='';updateProfiles();setText('config-status','Connection deleted; current values remain in memory.');}));
-    $('clear-config').addEventListener('click',safe(()=>{if(runningId||!confirm(uiText('Clear ALL saved model and relay credentials? Files and conversations will remain.')))return;clearConfiguration(localStorage);for(const agent of controller.agents.values())agent.forget_credentials();applied={...DEFAULT_CONFIGURATION,language:applied.language};restoreConfiguration(applied);selectedConnection='';$('remember-config').checked=false;updateProfiles();$('model-name').textContent=uiText('No model');setText('config-status','Saved and active credentials cleared; files and conversations retained.');}));
-    $('btn-clear-history').addEventListener('click',safe(async()=>{if(runningId||!confirm(uiText('Delete ALL saved conversations on this device? Workspace files and credentials are retained.')))return;const reports=await Promise.all([...new Set([...controller.records.keys(),...controller.agents.keys(),...controller.agentStarts.keys()])].map(id=>controller.close(id)));if(reports.some(report=>!report.closed||report.errors.length))throw new Error('Conversation cleanup failed; saved conversations were retained.');for(const id of controller.records.keys())await store.deleteSession(id);controller.records.clear();ui.openedSessionIds=[];activeId=null;await newSession(ui.activeWorkspaceId??'default');}));
+    $('clear-config').addEventListener('click',safe(()=>{if(tasks.runningId||!confirm(uiText('Clear ALL saved model and relay credentials? Files and conversations will remain.')))return;clearConfiguration(localStorage);for(const agent of controller.agents.values())agent.forget_credentials();applied={...DEFAULT_CONFIGURATION,language:applied.language};restoreConfiguration(applied);selectedConnection='';$('remember-config').checked=false;updateProfiles();$('model-name').textContent=uiText('No model');setText('config-status','Saved and active credentials cleared; files and conversations retained.');}));
+    $('btn-clear-history').addEventListener('click',safe(async()=>{if(tasks.runningId||!confirm(uiText('Delete ALL saved conversations on this device? Workspace files and credentials are retained.')))return;const reports=await Promise.all([...new Set([...controller.records.keys(),...controller.agents.keys(),...controller.agentStarts.keys()])].map(id=>controller.close(id)));if(reports.some(report=>!report.closed||report.errors.length))throw new Error('Conversation cleanup failed; saved conversations were retained.');for(const id of controller.records.keys())await store.deleteSession(id);controller.records.clear();ui.openedSessionIds=[];activeId=null;await newSession(ui.activeWorkspaceId??'default');}));
     $('test-connection').addEventListener('click',safe(async()=>{
-        if(runningId||testController)return;const config=currentConfiguration();validateConfig(config);testController=new AbortController();$('cancel-test').hidden=false;updateControls();setText('test-result','Testing…');
+        if(tasks.runningId||testController)return;const config=currentConfiguration();validateConfig(config);testController=new AbortController();$('cancel-test').hidden=false;updateControls();setText('test-result','Testing…');
         const body={model:config.model,messages:[{role:'user',content:'Hi'}],stream:false,[config.protocol==='anthropic'||config.use_max_tokens?'max_tokens':'max_completion_tokens']:5};
         if(config.protocol==='anthropic'){body.system=[];body.messages[0].content=[{type:'text',text:'Hi'}];}
         try{const result=JSON.parse(await requestCompletion({endpoint:config.base_url,protocol:config.protocol,body,apiKey:config.api_key,transport:config.transport,relayToken:config.relay_token,customHeaders:config.custom_headers,controller:testController}));if(config.protocol==='anthropic'?result.type!=='message'||result.role!=='assistant'||!Array.isArray(result.content):!result.choices?.[0]?.message)throw new Error(uiText('Unexpected response; model connection not verified.'));setText('test-result','Connection verified.');}
         catch(error){delete $('test-result').dataset.i18n;$('test-result').textContent=redact(error.message??error);}finally{testController=null;$('cancel-test').hidden=true;updateControls();}
     }));
     $('cancel-test').addEventListener('click',()=>testController?.abort());
-    window.addEventListener('pagehide',event=>{controller?.cancelAll();for(const abort of pluginControllers.values())abort.abort();testController?.abort();for(const map of downloads.values())for(const artifact of map.values())artifact.dispose();if(!event.persisted){settleApproval(false);application?.requestShutdown();}});
+    window.addEventListener('pagehide',event=>{tasks.cancel(tasks.runningId);controller?.cancelAll();testController?.abort();for(const map of downloads.values())for(const artifact of map.values())artifact.dispose();if(!event.persisted)application?.requestShutdown();});
 }
 function renderWorkspaces(){
     const options=[...workspaces.values()].map(record=>{const option=node('option',record.name+(isTemporaryWorkspace(record.id)?' [Temporary]':''));option.value=record.id;return option;});
@@ -521,7 +445,7 @@ async function main(){
         const response=await fetch(new URL('./commands.json',import.meta.url),{credentials:'omit'});if(!response.ok)throw new Error('Cannot load command catalog.');commandCatalog=await response.json();
         commandMenu=mountCommands($('input'),commandCatalog,()=>({files:listedFiles,sessions:[...controller.records.values()].filter(item=>item.workspaceId===active()?.workspaceId)}));
         const {default:init,BrowserAgent}=await import('./pkg/i.js');await init();
-        application=createBrowserApplication({Agent:BrowserAgent,store,openPluginStore,inspectPackage:inspectPluginPackage,hooks:{event:onEvent,approve,download:publish,error:report,committed:record=>{if(updateTitle(record,'compact',redact(compactTitleFromHistory(record.history))))renderTabs();},saving:(id,state)=>{saveStates.set(id,state);if(id===activeId)setText('save-status',state);}}});
+        application=createBrowserApplication({Agent:BrowserAgent,store,openPluginStore,inspectPackage:inspectPluginPackage,hooks:{event:onEvent,approve:(id,description)=>tasks.approve(id,description),download:publish,error:report,committed:record=>{if(updateTitle(record,'compact',redact(compactTitleFromHistory(record.history))))renderTabs();},saving:(id,state)=>{saveStates.set(id,state);if(id===activeId)setText('save-status',state);}}});
         controller=application.controller;
         const connections=loadConnections(localStorage);for(const warning of connections.warnings)report(new Error(warning));
         const selected=connections.records.find(record=>record.id===connections.current);if(selected){selectedConnection=selected.id;applied={...selected.settings};restoreConfiguration(applied);$('remember-config').checked=true;$('model-name').textContent=applied.model;}
@@ -536,7 +460,7 @@ async function main(){
         if(chosen){await selectSession(chosen.id);}else{await newSession('default');append(active(),'i — browser workspace. Shell is disabled; file tools use persistent OPFS.\nConversations save automatically. Use /help for commands.');}
         await controller.flush();ready=true;
         $('file-panel').hidden=!ui.panels.files;$('btn-files').setAttribute('aria-expanded',String(!!ui.panels.files));updateControls();
-        registerPwa({isBusy:()=>!!runningId||!!testController||pluginBusy,onLock:value=>{updateLocked=value;updateControls();},onStatus:text=>{$('pwa-status').textContent=text;},beforeUpdate:async()=>{await controller.flush();await uiQueue;await viewQueue;}}).catch(error=>report(new Error(`PWA unavailable: ${error.message}`)));
+        registerPwa({isBusy:()=>!!tasks.runningId||!!testController||pluginBusy,onLock:value=>{updateLocked=value;updateControls();},onStatus:text=>{$('pwa-status').textContent=text;},beforeUpdate:async()=>{await controller.flush();await uiQueue;await viewQueue;}}).catch(error=>report(new Error(`PWA unavailable: ${error.message}`)));
     }catch(error){ready=false;updateControls();report(error);$('status').textContent='Unavailable';$('output').append(node('div',`Initialization failed: ${redact(error.message)}. Build with scripts/build_web.sh and serve over localhost/HTTPS.`,'line error'));}
 }
 main();

@@ -14,6 +14,34 @@ test('session save failure still allows a read-only ZIP backup',async({page})=>{
     await page.evaluate(()=>{const original=IDBObjectStore.prototype.put;IDBObjectStore.prototype.put=function(value,...args){if(this.name==='sessions'){this.transaction.abort();throw new DOMException('Injected quota failure','QuotaExceededError');}return original.call(this,value,...args);};});
     await page.locator('#input').fill('unsaved draft');await expect(page.locator('#save-status')).toHaveText('Save failed');const download=page.waitForEvent('download');await page.locator('#btn-download').click();expect((await download).suggestedFilename()).toMatch(/\.zip$/);
 });
+test('a later draft save succeeds after a one-time IndexedDB abort',async({page})=>{
+    await page.goto('/');await expect(page.locator('#status')).toHaveText('Ready');
+    await page.evaluate(()=>{
+        const put=IDBObjectStore.prototype.put;let abortNext=true;
+        IDBObjectStore.prototype.put=function(value,...args){
+            if(this.name==='sessions'&&abortNext){abortNext=false;this.transaction.abort();}
+            else return put.call(this,value,...args);
+        };
+    });
+    await page.locator('#input').fill('draft remains');await expect(page.locator('#save-status')).toHaveText('Save failed');
+    await expect(page.locator('#input')).toHaveValue('draft remains');
+    await page.locator('#input').fill('draft remains after retry');await expect(page.locator('#save-status')).toHaveText('Saved');
+    await page.reload();await expect(page.locator('#input')).toHaveValue('draft remains after retry');
+});
+test('the actual WASM recovery bridge reconstructs finished, started and pending calls',async({page})=>{
+    await page.goto('/');await expect(page.locator('#status')).toHaveText('Ready');
+    const history=await page.evaluate(async()=>{
+        const {BrowserAgent}=await import('/pkg/i.js');
+        const base=[{role:'system',content:'test'}];
+        const calls=['a','b','c'].map(id=>({id,type:'function',function:{name:'view_image',arguments:'{}'}}));
+        const image={type:'image_url',image_url:{url:'data:image/png;base64,iVBORw0KGgo='}};
+        const journal={assistant:{role:'assistant',tool_calls:calls},calls:[{id:'a',status:'finished',result:{output:'Image attached.',images:[image]}},{id:'b',status:'started'},{id:'c',status:'pending'}]};
+        return JSON.parse(BrowserAgent.recover_history(JSON.stringify(base),JSON.stringify(journal)));
+    });
+    expect(history.map(message=>message.role)).toEqual(['system','assistant','tool','tool','tool','user']);
+    expect(history[2].content).toBe('Image attached.');expect(history[3].content).toContain('outcome unknown');expect(history[4].content).toContain('not executed');
+    expect(history[5].content[0].text).toBe('Image from tool "a"');
+});
 async function configure(page){await page.goto('/');await expect(page.locator('#status')).toHaveText('Ready');await page.locator('#settings-btn').click();await page.locator('#base-url').fill('http://127.0.0.1:4173/mock/v1');await page.locator('#model').fill('fixture');await page.locator('#remember-config').check();await page.locator('#close-settings').click();}
 test('refresh during approval restores a valid interrupted batch without executing or repeating it',async({page})=>{
     await configure(page);await page.locator('#input').fill('MAKE');await page.locator('#input').press('Enter');await expect(page.locator('#approval-panel')).toBeVisible();

@@ -21,6 +21,7 @@ use std::{
 mod native_bundle;
 mod net;
 mod readline;
+mod session_lock;
 mod worker;
 use worker::Worker;
 const SYSTEM: &str = "You are a coding agent. Inspect before editing; report tests honestly. Paths are workspace-relative. \
@@ -167,7 +168,9 @@ async fn main() -> Result<()> {
         )?;
         return Ok(());
     }
-    let mut messages = load_session(args.session.as_deref(), &workspace.root)?;
+    let session = args.session.as_deref().map(session_lock::SessionLock::acquire).transpose()?;
+    let session_path = session.as_ref().map(session_lock::SessionLock::path);
+    let mut messages = load_session(session_path, &workspace.root)?;
     messages = checked_history(api.plugins.emit("session_load", json!({"messages":messages}))?["messages"].take())?;
     let default_prompt = format!("{SYSTEM}\nWorkspace: {}", workspace.root.display());
     messages[0]["content"] =
@@ -184,14 +187,14 @@ async fn main() -> Result<()> {
     let content = content_with_images(&task, &json!(images));
     let input = api.plugins.emit("user_input", json!({"content":content}))?;
     messages.push(json!({"role": "user", "content": input["content"]}));
-    api.plugins.save(args.session.as_deref(), &mut messages)?;
+    api.plugins.save(session_path, &mut messages)?;
     eprintln!("{}", i18n.tf("status.workspace", &[&workspace.root.display().to_string(), &model]));
     if workspace.yes {
         eprintln!("{}", i18n.t("status.warning_auto_approve"));
     }
     let application = i::application::AgentApplication::new(api, Arc::new(workspace))?;
     let mut conversation = application.attach_conversation(messages)?;
-    let mut host = NativeHost { session: args.session.as_deref(), i18n: &i18n, saved: Vec::new(), journal: None };
+    let mut host = NativeHost { session: session_path, i18n: &i18n, saved: Vec::new(), journal: None };
     let result = application.run(&mut host, &mut conversation, args.max_steps).await;
     let report = application.shutdown().await;
     ensure!(
@@ -563,7 +566,8 @@ impl Api {
         let after = after["content_estimate_tokens"].as_u64().context("missing compaction estimate")?;
         ensure!(after < before, "compaction did not reduce estimated tokens");
         if let Some(path) = path {
-            save_session(Some(&path.with_extension("precompact.json")), &self.plugins.root, messages)?;
+            let backup = session_lock::SessionLock::acquire(&path.with_extension("precompact.json"))?;
+            save_session(Some(backup.path()), &self.plugins.root, messages)?;
         }
         self.plugins.save(path, &mut next)?;
         *messages = next;
@@ -933,8 +937,9 @@ fn manage_sessions(action: &str, path: Option<&Path>, ws: &Workspace) -> Result<
         if action == "show" {
             serde_json::to_writer_pretty(io::stdout().lock(), &load_session(Some(path), &ws.root)?)?;
         } else {
-            ws.approve(&format!("DELETE session {}", path.display()), !ws.yes)?;
-            fs::remove_file(path)?;
+            let session = session_lock::SessionLock::acquire(path)?;
+            ws.approve(&format!("DELETE session {}", session.path().display()), !ws.yes)?;
+            fs::remove_file(session.path())?;
         }
     }
     Ok(())

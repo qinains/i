@@ -41,6 +41,8 @@ checks prohibit implicitly switching API accounts, connections or models.
 
 The WASM adapter executes the shared Agent loop and domain tools, not a second Rust composition graph.
 Successful file writes and durable history are emissions: unloading does not undo them.
+`web/task-controller.js` owns task admission and phases, the approval and cancellation state, and
+queue dispatch. The DOM calls it and renders its state; session persistence remains with `SessionController`.
 
 ## Native ownership
 
@@ -51,7 +53,8 @@ through those services. Each run is an instance of one component definition.
 Configured native sessions atomically save a tool-batch journal before dispatch, mark calls started
 before entering hooks/approval/tools, and persist finished results before the batch checkpoint.
 Interrupted started calls recover as unknown outcomes, never automatic replays. Browser and native
-adapters share the domain recovery implementation in `src/agent/recovery.rs`. Journals bypass mutable
+adapters and browser startup all use `src/agent/recovery.rs`; browser startup enters through the WASM
+bridge. Native CLI runs hold a stable per-session file lock across reads and checkpoints. Journals bypass mutable
 save hooks; normal complete-history checkpoints retain the existing hook contract.
 
 `ServiceAccess.call` and `call_async` retain committed bindings without exposing raw Arc handles to
