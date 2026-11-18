@@ -219,7 +219,9 @@ fn full_site_preserves_public_pages_localization_security_and_asset_allowlist() 
     }
     let tutorial = fs::read_to_string(output.join("docs/plugin-development/index.html")).unwrap();
     for text in [
-        "<article lang=\"zh-CN\">",
+        "<article lang=\"zh-CN\" dir=\"ltr\">",
+        "data-docs-source=\"zh-CN\"",
+        "data-site-i18n=\"docs.edit\"",
         "build_wasm_plugin.sh",
         "hplugin.zip",
         "https://i.lninl.com/docs/plugin-development/",
@@ -228,8 +230,22 @@ fn full_site_preserves_public_pages_localization_security_and_asset_allowlist() 
     }
     assert!(!tutorial.contains("href=\"javascript:"));
     for name in ["docs/overview/index.html", "license/index.html"] {
-        assert!(fs::read_to_string(output.join(name)).unwrap().contains("<article lang=\"en\">"));
+        assert!(fs::read_to_string(output.join(name)).unwrap().contains("<article lang=\"en\" dir=\"ltr\">"));
     }
+    let docs_index = fs::read_to_string(output.join("docs/index.html")).unwrap();
+    for marker in [
+        "/assets/docs.css",
+        "data-docs-title",
+        "data-site-i18n=\"docs.intro\"",
+        "data-site-i18n=\"docs.navigation\"",
+        "data-site-i18n=\"docs.toc\"",
+        "href=\"#运维-边界与贡献\"",
+        "id=\"运维-边界与贡献\"",
+        "href=\"/docs/plugin-publishing/\" data-site-i18n=\"docs.page.plugin-publishing\"",
+    ] {
+        assert!(docs_index.contains(marker), "{marker}");
+    }
+    assert!(!docs_index.contains("data-docs-source"));
     site::build(root, "https://i.lninl.com", &output).unwrap();
     fs::write(root.join("web/app.js"), "stale").unwrap();
     assert!(

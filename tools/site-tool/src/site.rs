@@ -50,6 +50,29 @@ const ENGLISH: &[&str] = &[
     "network.md",
     "wasm-size.md",
 ];
+const DOC_GROUPS: &[(&str, &str, &[&str])] = &[
+    ("start", "开始使用", &["connect-model", "system-overview", "wasm", "deployment", "console", "file-tools"]),
+    (
+        "develop",
+        "为系统开发插件",
+        &[
+            "plugin-development",
+            "plugin-publishing",
+            "wasm-plugin-reference",
+            "plugins",
+            "conversation-analysis",
+            "providers",
+            "approval",
+            "compaction",
+            "cache",
+        ],
+    ),
+    (
+        "maintain",
+        "运维-边界与贡献",
+        &["opfs-concurrency", "cors-extension", "site-deployment", "contributing", "security", "license"],
+    ),
+];
 pub fn escape(text: &str) -> String {
     text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&#x27;")
 }
@@ -429,6 +452,56 @@ struct Page {
     url: String,
     text: String,
 }
+impl Page {
+    fn language(&self) -> &'static str {
+        if ENGLISH.contains(&self.source.file_name().unwrap().to_str().unwrap()) { "en" } else { "zh-CN" }
+    }
+
+    fn label_key(&self) -> String {
+        let slug = self.url.strip_prefix("/docs/").unwrap_or(&self.url).trim_matches('/');
+        format!("docs.page.{}", if slug.is_empty() { "index" } else { slug })
+    }
+}
+
+fn docs_label(messages: &Value, key: &str) -> Result<String> {
+    Ok(format!("<span data-site-i18n=\"{key}\">{}</span>", escape(text(messages, key)?)))
+}
+
+fn docs_link(page: &Page, messages: &Value) -> String {
+    let key = page.label_key();
+    if let Some(label) = messages[&key].as_str() {
+        format!("<a href=\"{}\" data-site-i18n=\"{key}\">{}</a>", page.url, escape(label))
+    } else {
+        format!("<a href=\"{}\" lang=\"{}\" dir=\"auto\">{}</a>", page.url, page.language(), escape(&page.title))
+    }
+}
+
+fn docs_index(pages: &[Page], messages: &Value) -> Result<(String, String)> {
+    let mut body = format!(
+        "<article><h1 data-docs-title>{}</h1><p>{}</p>",
+        docs_label(messages, "docs.page.index")?,
+        docs_label(messages, "docs.intro")?
+    );
+    let mut toc = String::new();
+    for (group, id, slugs) in DOC_GROUPS {
+        let key = format!("docs.group.{group}");
+        let label = docs_label(messages, &key)?;
+        body.push_str(&format!(
+            "<h2 id=\"{id}\">{label}</h2><p>{}</p><ul>",
+            docs_label(messages, &format!("{key}.detail"))?
+        ));
+        toc.push_str(&format!("<a class=\"level-2\" href=\"#{id}\">{label}</a>"));
+        for slug in *slugs {
+            let url = if *slug == "license" { "/license/".into() } else { format!("/docs/{slug}/") };
+            let page = pages.iter().find(|page| page.url == url).with_context(|| format!("Missing doc: {url}"))?;
+            text(messages, &page.label_key())?;
+            body.push_str(&format!("<li>{}</li>", docs_link(page, messages)));
+        }
+        body.push_str("</ul>");
+    }
+    body.push_str("</article>");
+    Ok((body, toc))
+}
 struct Renderer<'a> {
     staging: &'a Path,
     origin: &'a str,
@@ -445,6 +518,8 @@ impl Renderer<'_> {
             "<link rel=\"stylesheet\" href=\"/assets/home.css\">"
         } else if plugins {
             "<link rel=\"stylesheet\" href=\"/assets/plugins.css\"><script type=\"module\" src=\"/assets/plugins.js\"></script>"
+        } else if docs {
+            "<link rel=\"stylesheet\" href=\"/assets/docs.css\">"
         } else {
             ""
         };
@@ -536,9 +611,10 @@ pub fn build(root: &Path, origin: &str, output: &Path) -> Result<usize> {
             pages.iter().position(|page| page.source.file_stem().unwrap().to_string_lossy().to_lowercase() == *slug)
         })
         .collect::<Vec<_>>();
-    let link = |page: &Page| format!("<a href=\"{}\">{}</a>", page.url, escape(&page.title));
+    let messages = read_json(&root.join("locales/site/zh-CN.json"))?;
+    let link = |page: &Page| docs_link(page, &messages);
     let sidebar = format!(
-        "<details class=\"docs-menu\" open><summary>文档目录</summary><nav aria-label=\"文档\">{}<details><summary>全部参考文档</summary>{}</details></nav></details>",
+        "<details class=\"docs-menu\" open><summary data-site-i18n=\"docs.navigation\">文档目录</summary><nav aria-label=\"文档\" data-site-i18n-aria=\"nav.docs\">{}<details><summary data-site-i18n=\"docs.all\">全部参考文档</summary>{}</details></nav></details>",
         featured.iter().map(|&i| link(&pages[i])).collect::<String>(),
         pages.iter().enumerate().filter(|(i, _)| !featured.contains(i)).map(|(_, p)| link(p)).collect::<String>()
     );
@@ -566,7 +642,7 @@ pub fn build(root: &Path, origin: &str, output: &Path) -> Result<usize> {
         template: fs::read_to_string(root.join("site/template.html"))?,
         sidebar,
         languages,
-        messages: read_json(&root.join("locales/site/zh-CN.json"))?,
+        messages,
     };
     renderer.emit(
         "/",
@@ -583,27 +659,48 @@ pub fn build(root: &Path, origin: &str, output: &Path) -> Result<usize> {
         false,
     )?;
     for page in &pages {
-        let (body, sections) = markdown(&root, &page.text, &page.source);
-        let toc = format!(
-            "<nav aria-label=\"本页目录\"><strong>本页内容</strong>{}</nav>",
-            sections
+        let (body, links) = if page.url == "/docs/" {
+            docs_index(&pages, &renderer.messages)?
+        } else {
+            let (body, sections) = markdown(&root, &page.text, &page.source);
+            let lang = page.language();
+            let links = sections
                 .iter()
-                .map(|(level, title, id)| format!(
-                    "<a class=\"level-{level}\" href=\"#{}\">{}</a>",
-                    escape(id),
-                    escape(title)
-                ))
-                .collect::<String>()
+                .map(|(level, title, id)| {
+                    format!(
+                        "<a class=\"level-{level}\" href=\"#{}\" lang=\"{lang}\" dir=\"auto\">{}</a>",
+                        escape(id),
+                        escape(title)
+                    )
+                })
+                .collect::<String>();
+            let hidden = if lang == "zh-CN" { " hidden" } else { "" };
+            let label = page.label_key();
+            let label = if renderer.messages[&label].is_string() { label.as_str() } else { "" };
+            let body = format!(
+                "<p class=\"docs-language-notice\" data-docs-source=\"{lang}\" data-docs-label=\"{label}\"{hidden}><span data-site-i18n=\"docs.original\">暂无所选语言版本，下方显示原文。</span> <bdi data-docs-source-label></bdi></p><article lang=\"{lang}\" dir=\"ltr\">{body}</article><p class=\"source-link\"><a href=\"{REPOSITORY}/edit/main/{}\" data-site-i18n=\"docs.edit\">在 GitHub 改进本页</a></p>",
+                escape(&page.source.strip_prefix(&root)?.to_string_lossy())
+            );
+            (body, links)
+        };
+        let toc = format!(
+            "<nav aria-label=\"本页内容\" data-site-i18n-aria=\"docs.toc\"><strong data-site-i18n=\"docs.toc\">本页内容</strong>{links}</nav>"
         );
-        let lang = if ENGLISH.contains(&page.source.file_name().unwrap().to_str().unwrap()) { "en" } else { "zh-CN" };
-        renderer.emit(&page.url,&format!("{} · i 文档",page.title),&format!("<article lang=\"{lang}\">{body}<p class=\"source-link\" lang=\"zh-CN\"><a href=\"{REPOSITORY}/edit/main/{}\">在 GitHub 改进本页</a></p></article>",page.source.strip_prefix(&root)?.to_string_lossy()),&toc,true)?;
+        renderer.emit(&page.url, &format!("{} · i", page.title), &body, &toc, true)?;
     }
     copy_tree(&root.join("site/assets"), &staging.path().join("assets"))?;
     write(&staging.path().join("third-party-licenses.txt"), fs::read(root.join("THIRD_PARTY_LICENSES.txt"))?)?;
     write(
         &staging.path().join("search-index.json"),
         serde_json::to_string(
-            &pages.iter().map(|p| json!({"title":p.title,"url":p.url,"text":p.text})).collect::<Vec<_>>(),
+            &pages
+                .iter()
+                .map(|p| {
+                    let key = p.label_key();
+                    json!({"title":p.title,"url":p.url,"text":p.text,"lang":p.language(),
+                    "label":renderer.messages[&key].as_str().map(|_| key.as_str())})
+                })
+                .collect::<Vec<_>>(),
         )?,
     )?;
     let urls = ["/", "/plugins/"]

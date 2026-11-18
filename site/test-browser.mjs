@@ -7,6 +7,7 @@ import {languageOptions} from './assets/languages.js';
 await import('./test-button-contrast.mjs');
 await import('./test-select-layout.mjs');
 await import('./test-plugins.mjs');
+await import('./test-docs.mjs');
 
 const profile=await mkdtemp(join(tmpdir(),'lninl-site-'));
 const origin=process.env.SITE_TEST_ORIGIN||'http://localhost:8090';
