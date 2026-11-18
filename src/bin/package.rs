@@ -489,6 +489,22 @@ mod checksum_tests {
         let sums = fs::read_to_string(root.path().join("SHA256SUMS")).unwrap();
         assert!(sums.ends_with("  bin/i.exe\n"), "{sums}");
     }
+
+    #[test]
+    fn zip_entries_use_portable_separators() {
+        let root = tempfile::tempdir().unwrap();
+        fs::create_dir(root.path().join("bin")).unwrap();
+        fs::write(root.path().join("bin/i.exe"), b"fixture").unwrap();
+        let mut writer = zip::ZipWriter::new(io::Cursor::new(Vec::new()));
+        let options = zip::write::SimpleFileOptions::default();
+        add_dir_to_zip(&mut writer, root.path(), Path::new("bundle"), &options, &options).unwrap();
+        let mut archive = zip::ZipArchive::new(writer.finish().unwrap()).unwrap();
+        for index in 0..archive.len() {
+            let entry = archive.by_index(index).unwrap();
+            assert!(!entry.name().contains('\\'), "{}", entry.name());
+        }
+        assert!(archive.by_name("bundle/bin/i.exe").is_ok());
+    }
 }
 
 fn collect_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
@@ -637,12 +653,13 @@ fn add_dir_to_zip<W: Write + io::Seek>(
         let entry = entry?;
         let path = entry.path();
         let name = prefix.join(path.strip_prefix(dir)?);
+        let zip_name = name.components().map(|part| part.as_os_str().to_string_lossy()).collect::<Vec<_>>().join("/");
 
         if path.is_dir() {
-            zip.add_directory(name.to_string_lossy(), *exec_options)?;
+            zip.add_directory(zip_name, *exec_options)?;
             add_dir_to_zip(zip, &path, &name, exec_options, file_options)?;
         } else {
-            zip.start_file(name.to_string_lossy(), *file_options)?;
+            zip.start_file(zip_name, *file_options)?;
             let content = fs::read(&path)?;
             zip.write_all(&content)?;
         }

@@ -23,7 +23,7 @@ def extract_package(archive, root):
         return
     with zipfile.ZipFile(archive) as package:
         for entry in package.infolist():
-            name = entry.filename
+            name = entry.orig_filename
             path = PurePosixPath(name)
             if (not path.parts or path.is_absolute() or PureWindowsPath(name).drive
                     or '..' in path.parts or '\\' in name

@@ -2,6 +2,7 @@ import tempfile
 from pathlib import Path
 import unittest
 import zipfile
+from unittest.mock import patch
 
 from check_package import extract_package
 
@@ -27,6 +28,17 @@ class PackageExtractionTests(unittest.TestCase):
                     if name == 'bundle/link':
                         info.external_attr = 0o120777 << 16
                     package.writestr(info, b'../escape')
+                with self.assertRaises(ValueError):
+                    extract_package(archive, root / 'out')
+
+    def test_zip_rejects_raw_backslashes_before_windows_normalization(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / 'bundle.zip'
+            with zipfile.ZipFile(archive, 'w') as package:
+                package.writestr('bundle/bin/i.exe', b'fixture')
+            archive.write_bytes(archive.read_bytes().replace(b'bundle/bin/i.exe', b'bundle\\bin\\i.exe'))
+            with patch.object(zipfile.os, 'sep', '\\'):
                 with self.assertRaises(ValueError):
                     extract_package(archive, root / 'out')
 
