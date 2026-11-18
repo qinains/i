@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 use std::{
     fs::{self, File, OpenOptions, TryLockError},
     path::{Path, PathBuf},
@@ -20,7 +20,12 @@ impl SessionLock {
             dunce::canonicalize(parent)?.join(name)
         };
         let name = path.file_name().context("session path needs a file name")?;
-        let directory = path.parent().context("session path needs a parent")?.join(".i-session-locks");
+        let parent = path.parent().context("session path needs a parent")?;
+        ensure!(
+            !parent.file_name().is_some_and(|name| name.eq_ignore_ascii_case(".i-session-locks")),
+            "session path cannot point to the lock directory"
+        );
+        let directory = parent.join(".i-session-locks");
         fs::create_dir_all(&directory)?;
         // The session file is replaced at each checkpoint; the lock file must keep its identity.
         let guard =

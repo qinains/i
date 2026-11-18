@@ -566,7 +566,8 @@ impl Api {
         let after = after["content_estimate_tokens"].as_u64().context("missing compaction estimate")?;
         ensure!(after < before, "compaction did not reduce estimated tokens");
         if let Some(path) = path {
-            save_session(Some(&path.with_extension("precompact.json")), &self.plugins.root, messages)?;
+            let backup = session_lock::SessionLock::acquire(&path.with_extension("precompact.json"))?;
+            save_session(Some(backup.path()), &self.plugins.root, messages)?;
         }
         self.plugins.save(path, &mut next)?;
         *messages = next;
