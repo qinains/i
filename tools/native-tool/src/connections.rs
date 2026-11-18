@@ -301,7 +301,10 @@ pub fn package(args: &[String]) -> Result<()> {
     }
     let helpers: Vec<_> =
         HELPERS.iter().map(|(name, _)| (*name, plan.binaries_dir.join(format!("{name}{}", suffix())))).collect();
-    let out = args.windows(2).find(|v| v[0] == "--output").map(|v| PathBuf::from(&v[1]))
+    let out = args
+        .windows(2)
+        .find(|v| v[0] == "--output")
+        .map(|v| PathBuf::from(&v[1]))
         .unwrap_or_else(|| crate::root().join("dist"));
     let archive = package_into(&out, host, &helpers, plan.rustc_flags.as_deref())?;
     if args.iter().any(|arg| arg == "--verify") {
