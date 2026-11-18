@@ -1,4 +1,6 @@
 {
+  "Download unsent draft": "ดาวน์โหลดฉบับร่างที่ยังไม่ได้ส่ง",
+  "Download full message": "ดาวน์โหลดข้อความทั้งหมด",
   "Reflect on this conversation (one extra model request)": "ทบทวนบทสนทนานี้ (ส่งคำขอโมเดลเพิ่มหนึ่งครั้ง)",
   "Reflection report": "รายงานการทบทวน",
   "Reflection sends selected conversation text to the current model in one extra request. It does not change history, instructions or files. Continue?": "การทบทวนจะส่งข้อความบทสนทนาที่เลือกไปยังโมเดลปัจจุบันด้วยคำขอเพิ่มหนึ่งครั้ง โดยไม่เปลี่ยนประวัติ คำสั่ง หรือไฟล์ ต้องการดำเนินการต่อหรือไม่?",

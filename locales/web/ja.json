@@ -1,4 +1,6 @@
 {
+  "Download unsent draft": "未送信の下書きをダウンロード",
+  "Download full message": "メッセージ全文をダウンロード",
   "Reflect on this conversation (one extra model request)": "この会話を振り返る（モデルへの追加リクエスト1回）",
   "Reflection report": "振り返りレポート",
   "Reflection sends selected conversation text to the current model in one extra request. It does not change history, instructions or files. Continue?": "選択した会話テキストを現在のモデルに追加で1回送信します。履歴、指示、ファイルは変更しません。続行しますか？",

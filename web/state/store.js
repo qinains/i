@@ -2,6 +2,9 @@ const DB='harness_state';
 import {validateSession} from './records.js';
 const LIMIT=64*1024*1024;
 const MiB=1024*1024;
+export class SessionRevisionConflict extends Error {
+    constructor(){super('Session changed in another window. Reload before continuing; your draft is not overwritten.');}
+}
 async function prepareImages(record,budget){
     validateSession(record);
     const draft=record.composerBlocks??[],queued=record.pendingMessages??[];
@@ -75,7 +78,7 @@ export async function openStateStore() {
             checked(snapshot);const copy=structuredClone(snapshot);
             return write('sessions',(store,result,fail)=>{
                 const get=store.get(copy.id);get.onsuccess=()=>{
-                    if((get.result?.revision ?? 0)!==expectedRevision){fail(new Error('Session changed in another window. Reload before continuing; your draft is not overwritten.'));return;}
+                    if((get.result?.revision ?? 0)!==expectedRevision){fail(new SessionRevisionConflict());return;}
                     copy.revision=expectedRevision+1;copy.updatedAt=Date.now();store.put(copy);result(copy.revision);
                 };
             });

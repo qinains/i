@@ -1,4 +1,6 @@
 {
+  "Download unsent draft": "Download unsent draft",
+  "Download full message": "Download full message",
   "Reflect on this conversation (one extra model request)": "Reflect on this conversation (one extra model request)",
   "Reflection report": "Reflection report",
   "Reflection sends selected conversation text to the current model in one extra request. It does not change history, instructions or files. Continue?": "Reflection sends selected conversation text to the current model in one extra request. It does not change history, instructions or files. Continue?",

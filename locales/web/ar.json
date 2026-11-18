@@ -1,4 +1,6 @@
 {
+  "Download unsent draft": "تنزيل المسودة غير المرسلة",
+  "Download full message": "تنزيل الرسالة كاملة",
   "Reflect on this conversation (one extra model request)": "مراجعة هذه المحادثة (طلب إضافي واحد إلى النموذج)",
   "Reflection report": "تقرير المراجعة",
   "Reflection sends selected conversation text to the current model in one extra request. It does not change history, instructions or files. Continue?": "ترسل المراجعة النص المحدد من المحادثة إلى النموذج الحالي في طلب إضافي واحد. ولا تغيّر السجل أو التعليمات أو الملفات. هل تريد المتابعة؟",

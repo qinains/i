@@ -1,4 +1,6 @@
 {
+  "Download unsent draft": "下载未发送草稿",
+  "Download full message": "下载完整消息",
   "Reflect on this conversation (one extra model request)": "反思此对话（额外请求一次模型）",
   "Reflection report": "反思报告",
   "Reflection sends selected conversation text to the current model in one extra request. It does not change history, instructions or files. Continue?": "反思会额外请求一次当前模型，发送所选对话文本，不修改历史、指令或文件。继续？",

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {recoverHistory} from '../state/recovery.js';
+import {SessionRevisionConflict} from '../state/store.js';
 import {legacyWorkspace} from '../state/migration.js';
 import {validateSession} from '../state/records.js';
 import {SessionController} from '../sessions.js';
@@ -38,9 +38,21 @@ test('old sessions default to ask while unknown persisted execution modes are re
     const record={id:'a',workspaceId:'default',name:'a',connectionId:'',connectionIdentity:'',draft:'',revision:1,history:[],transcript:[],status:'idle'};
     assert.equal(validateSession(record).mode??'ask','ask');assert.equal(validateSession({...record,mode:'auto'}).mode,'auto');assert.throws(()=>validateSession({...record,mode:'unsafe'}),/Invalid/);
 });
-test('interrupted batch restores real results and explicit unknown/not-executed outcomes',()=>{
-    const call=id=>({id,type:'function',function:{name:'write',arguments:'{}'}});
-    const assistant={role:'assistant',content:null,tool_calls:[call('a'),call('b'),call('c')]};
-    const history=recoverHistory([{role:'system',content:'test'}],{assistant,calls:[{id:'a',status:'finished',result:{output:'written'}},{id:'b',status:'started'},{id:'c',status:'pending'}]});
-    assert.equal(history[2].content,'written');assert.match(history[3].content,/unknown/i);assert.match(history[4].content,/not executed/i);
+test('the next save retains the draft after an IndexedDB abort but not after a concurrent revision',async()=>{
+    let writes=0;
+    const controller=new SessionController(null,{commitSession:async(record,revision)=>{
+        if(++writes===2)throw new DOMException('temporary abort','AbortError');
+        if(writes===3)assert.equal(record.draft,'retained');
+        if(writes===4)throw new SessionRevisionConflict();
+        return revision+1;
+    }},{});
+    const record=await controller.create('default','Draft');record.draft='retained';
+    await assert.rejects(controller.save(record),{name:'AbortError'});
+    assert.equal(controller.failed.has(record.id),true);
+    await controller.flush(record.id);
+    assert.equal(record.revision,2);assert.equal(controller.failed.has(record.id),false);
+    const results=await Promise.allSettled([controller.save(record),controller.save(record)]);
+    assert.ok(results.every(result=>result.status==='rejected'&&result.reason instanceof SessionRevisionConflict));
+    await assert.rejects(controller.flush(record.id),SessionRevisionConflict);
+    assert.equal(writes,4);assert.equal(record.revision,2);
 });

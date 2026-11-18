@@ -21,6 +21,7 @@ fn user_model_proxy_routes_a_real_request_and_overrides_old_model_config() {
                 Err(error) => panic!("{error}"),
             }
         };
+        socket.set_nonblocking(false).unwrap();
         socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
         let mut header = Vec::new();
         let mut byte = [0];

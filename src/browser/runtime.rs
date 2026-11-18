@@ -118,6 +118,16 @@ impl BrowserAgent {
         agent::history::checked_history(value).map_err(failure)?;
         Ok(())
     }
+    pub fn recover_history(history: &str, journal: &str) -> std::result::Result<String, JsValue> {
+        (|| {
+            ensure_history_size(history)?;
+            ensure_history_size(journal)?;
+            let history: Vec<Value> = serde_json::from_str(history)?;
+            let journal: Value = serde_json::from_str(journal)?;
+            Ok(serde_json::to_string(&agent::recovery::recover(&history, Some(&journal))?)?)
+        })()
+        .map_err(failure)
+    }
     pub async fn create(
         on_event: Function,
         on_approval: Function,

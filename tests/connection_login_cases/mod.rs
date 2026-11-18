@@ -118,10 +118,11 @@ fn login_with_retired_generated_search_manifest_can_execute_and_restart() {
     let file = setup(root.path(), false);
     let config = file.parent().unwrap();
     let manifest = config.join("desktop.json");
+    let retired = root.path().join("retired").join(format!("i-plugins{}", std::env::consts::EXE_SUFFIX));
     let legacy = json!({"tools":[
-        {"name":"search","description":"retired search","parameters":{"type":"object"},"exec":["/retired/i-plugins","search"],"cwd":config},
-        {"name":"find_files","description":"retired glob","parameters":{"type":"object"},"exec":["/retired/i-plugins","search"],"cwd":config}],
-        "hooks":[{"events":["session_load"],"exec":["/retired/i-plugins","cache"],"cwd":config}]});
+        {"name":"search","description":"retired search","parameters":{"type":"object"},"exec":[retired,"search"],"cwd":config},
+        {"name":"find_files","description":"retired glob","parameters":{"type":"object"},"exec":[retired,"search"],"cwd":config}],
+        "hooks":[{"events":["session_load"],"exec":[retired,"cache"],"cwd":config}]});
     fs::write(&manifest, legacy.to_string()).unwrap();
     fs::write(&file, json!({"plugins":"desktop.json"}).to_string()).unwrap();
     for input in [b"/login chatgpt\n1\nhello\n/exit\n".as_slice(), b"hello again\n/exit\n"] {

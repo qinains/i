@@ -103,7 +103,10 @@ fn main() {
                 fs::write(directory.join("active-account"), "account-B").unwrap();
                 println!("{}", json!({"signed_in":true,"id":"fixture-account"}));
             }
-            "models" => println!("{}", json!({"models":[{"slug":"fixture-model","visibility":"list"},{"slug":"hidden-model","visibility":"hide"}]})),
+            "models" => println!(
+                "{}",
+                json!({"models":[{"slug":"fixture-model","visibility":"list"},{"slug":"hidden-model","visibility":"hide"}]})
+            ),
             "status" => println!("{}", json!({"active":"fixture-account","accounts":[]})),
             "logout" => println!("{}", json!({"signed_out":true,"remote_revocation_confirmed":false})),
             "worker" => {
