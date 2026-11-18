@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.1.4 - 2026-11-18
+
+- Recover from transient browser save failures and export unsent drafts, queued
+  messages, and attachments locally without exporting connection settings.
+- Protect native sessions against competing writers. Recover interrupted tool
+  batches consistently in native and browser clients without replaying tools.
+- Keep the browser responsive when loading very long messages: show a bounded
+  preview and offer the original text for download.
+- Make native state replacement resilient to temporary Windows file contention
+  without deleting the previous state file.
 
 - Accept response-scoped ChatGPT metadata events without treating them as output
   items; retain response identity, completed-item and tool argument validation.
