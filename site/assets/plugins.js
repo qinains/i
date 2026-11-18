@@ -16,7 +16,7 @@ function render(){
     list.replaceChildren();
     for(const plugin of plugins){
         const card=document.createElement('article');card.className='plugin-card';
-        card.append(element('h2',plugin.name),element('code',plugin.id+' · '+plugin.version),element('p',plugin.description));
+        card.append(element('h3',plugin.name),element('code',plugin.id+' · '+plugin.version),element('p',plugin.description));
         card.append(element('p',t('plugins.permissions')),element('pre',JSON.stringify(plugin.permissions,null,2)));
         const links=document.createElement('nav');
         links.append(externalLink(t('plugins.repository'),plugin.repository),externalLink(t('plugins.download'),plugin.package.url));

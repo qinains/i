@@ -1,0 +1,18 @@
+{
+  "tools": [
+    {
+      "name": "verify_project_check",
+      "description": "Run a predefined acceptance check in this trusted i source checkout, or read its progress using the returned run_id. browser-session-recovery verifies restored drafts and unsent image export against the real browser workbench. Only a completed passed result is evidence of success.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "check_id": {"type": "string", "enum": ["browser-session-recovery"]},
+          "run_id": {"type": "string", "description": "Omit to run the check. Supply the returned ID to query an existing run without starting another process."}
+        },
+        "required": ["check_id"],
+        "additionalProperties": false
+      },
+      "exec": ["node", "verification-plugin.mjs"]
+    }
+  ]
+}

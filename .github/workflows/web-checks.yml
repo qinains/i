@@ -27,6 +27,7 @@ jobs:
       - run: sh scripts/build_web.sh
       - run: npm ci --prefix web
       - run: npm test --prefix web
+      - run: node --test examples/verification-plugin.test.mjs
       - name: Build offline browser plugin and relay fixtures
         run: |
           sh scripts/build_plugin_fixtures.sh

@@ -164,10 +164,20 @@ fn full_site_preserves_public_pages_localization_security_and_asset_allowlist() 
         "connect-src 'self' https://qinains.github.io;",
         "/app/?settings=plugins",
         "https://github.com/qinains/i-plugins",
+        "id=\"native-plugins\"",
+        "id=\"browser-plugins\"",
+        "verify_project_check",
+        "href=\"/docs/plugin-development/#示例-用验收证据核对浏览器会话恢复\"",
     ] {
         assert!(plugins.contains(text), "{text}");
     }
     assert!(fs::read_to_string(output.join("sitemap.xml")).unwrap().contains("https://i.lninl.com/plugins/"));
+    assert!(
+        fs::read_to_string(output.join("docs/plugin-development/index.html"))
+            .unwrap()
+            .contains("id=\"示例-用验收证据核对浏览器会话恢复\"")
+    );
+    assert!(home.contains("href=\"/plugins/\" data-site-i18n=\"nav.plugins\">插件</a>"));
     for text in [
         "href=\"#security\"",
         "id=\"security\"",

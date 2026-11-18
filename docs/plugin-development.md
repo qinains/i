@@ -146,6 +146,34 @@ cargo run --features bundled --bin i -- --plugins examples/rust-plugin.json -C /
 原生插件可以使用 OS 能力，属于可信程序，不具备 WASM 沙箱隔离。hook 会自动执行，
 必须审查来源；工具仍经过宿主审批。完整生命周期和帧限制见 [worker 契约](plugins.md)。
 
+## 示例：用验收证据核对浏览器会话恢复
+
+在可信的 `i` 源码工作区构建 WASM、安装 Playwright 及其 Chromium 后，用独立清单注册工具。
+这个示例没有 hook，不修改系统提示词，不需要为验收测试配置真实模型或凭据：
+
+```sh
+sh scripts/build_web.sh
+npm ci --prefix web
+(cd web && npx playwright install chromium)
+i -C "$PWD" --plugins examples/verification-plugin.json \
+  '运行 verify_project_check 的 browser-session-recovery 检查。若返回 running，按 retry_after_ms 等待后用同一个 run_id 查询，不要重跑。报告实际结果和证据路径。'
+```
+
+`i` 对外部工具有默认审批；测试本身只使用本地浏览器和回归夹具，但以上让 Agent
+调用工具的命令仍需要已配置的模型连接。运行阶段只接受固定的 `check_id`，
+不接受命令、路径、URL 或额外参数。当前检查在真实 WASM 和浏览器存储上验证两个行为：
+刷新后仍能恢复未初始化会话及其草稿；双窗口保存冲突时，旧窗口仍可导出原始草稿和附件，
+且不会覆盖另一窗口保存的草稿。
+
+开始返回 `running`；保持同一次 `i` 运行，用返回的 `run_id` 查询。完成后返回
+`passed`、`failed` 或 `not_run`。缺依赖、用例未运行、结果不完整或运行超时都不算通过。
+JSON 报告、stderr、总结和失败 trace（如有）位于本机临时目录。插件只把总结和路径
+交给 Agent，不自动读取或上传原始日志。每个 worker 一次只跑一个检查，查询只保留最近一次。
+本示例不修改源码、不自动提交或发布；依然只应在可信的 checkout 运行原生测试代码。
+
+验证插件判定逻辑：`node --test examples/verification-plugin.test.mjs`。现有浏览器 CI
+独立运行同一套回归，不依赖 Agent 是否记得调用插件。
+
 ## 提交 PR 的最小材料
 
 源代码、许可、manifest、可复现构建命令、synthetic 输入输出、权限说明、测试证据
