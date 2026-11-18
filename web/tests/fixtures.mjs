@@ -32,23 +32,29 @@ export const test = base.extend({
             // Playwright routing cannot intercept requests owned by a worker.
             // PWA suites exercise workers; model-routing suites isolate that layer.
             serviceWorkers:testInfo.file.endsWith('pwa.spec.mjs')?'allow':'block'};
-        const context = browserName === 'webkit'
-            ? await playwright.webkit.launchPersistentContext(testInfo.outputPath('webkit-profile'),{...options,headless:true})
-            : await browser.newContext(options);
+        let context;
         try {
+            context = browserName === 'webkit'
+                ? await playwright.webkit.launchPersistentContext(testInfo.outputPath('webkit-profile'),{...options,headless:true})
+                : await browser.newContext(options);
             if(alias){
                 // Ports can also recur across worker restarts or separate runs.
                 // Reset only this reserved test origin, once before app startup;
                 // reloads within the test must retain the actual OPFS contents.
-                const setup=await context.newPage();
-                try{
-                    await setup.route('**/__harness_test_storage__',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><title>Test storage setup</title>'}));
-                    await setup.goto('/__harness_test_storage__');
-                    await setup.evaluate(async()=>{const root=await navigator.storage.getDirectory();for await(const name of root.keys())await root.removeEntry(name,{recursive:true});});
-                }finally{await setup.close();}
+                await base.step('Reset OPFS in a dedicated WebKit setup page',async()=>{
+                    const setup=await context.newPage();
+                    try{
+                        await setup.route('**/__harness_test_storage__',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><title>Test storage setup</title>'}));
+                        await setup.goto('/__harness_test_storage__');
+                        await setup.evaluate(async()=>{const root=await navigator.storage.getDirectory();for await(const name of root.keys())await root.removeEntry(name,{recursive:true});});
+                    }finally{await setup.close();}
+                });
             }
             await use(context);
-        } finally {await context.close(); if (alias) {alias.closeAllConnections(); await new Promise(resolve => alias.close(resolve));}}
+        } finally {
+            try{await context?.close();}
+            finally{if(alias){alias.closeAllConnections();await new Promise(resolve=>alias.close(resolve));}}
+        }
     }, {timeout:60_000}],
 });
 export {expect};

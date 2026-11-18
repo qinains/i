@@ -4,6 +4,9 @@ import {fileURLToPath} from 'node:url';
 
 const packages=['example.word-count','example.json-format'].map(id=>({id,path:fileURLToPath(new URL(`../../dist/plugins/${id}-1.0.0.hplugin.zip`,import.meta.url))}));
 test('two real Rust WASM plugins install together, execute with scoped permissions, and survive reload',async({page},testInfo)=>{
+    page.on('console',message=>{
+        if(message.type()==='warning'&&message.text().startsWith('[plugin-snapshot] '))console.warn(message.text());
+    });
     await page.setViewportSize({width:1440,height:1200});await page.goto('/');await expect(page.locator('#status')).toHaveText('Ready');
     await page.locator('#settings-btn').click();await page.locator('[data-settings-tab=plugins]').click();
     for(const plugin of packages){

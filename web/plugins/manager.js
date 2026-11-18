@@ -1,5 +1,6 @@
 import {pluginId,persistentWorkspace} from './store.js';
 const ranks={none:0,read:1,'read-write':2},LIMIT=10*1024*1024;
+const snapshotErrorNames=new Set(['NotFoundError','NotReadableError','InvalidStateError','NotAllowedError','AbortError','SecurityError','TimeoutError','OperationError','TypeError']);
 export async function digest(bytes){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(v=>v.toString(16).padStart(2,'0')).join('');}
 export async function publicToolName(id,name){pluginId(id);if(!/^[a-z][a-z0-9_]{0,31}$/u.test(name))throw new Error('Invalid plugin tool name.');return `p_${name}_${(await digest(new TextEncoder().encode(id+'\0'+name))).slice(0,16)}`;}
 function validPermissions(p){return !!p&&Object.keys(p).length===2&&Object.hasOwn(ranks,p.workspace)&&typeof p.storage==='boolean';}
@@ -17,12 +18,16 @@ export class PluginManager {
         const copy=bytes.slice(),verified=await this.#inspect(copy.slice());
         const view={manifest:structuredClone(verified.manifest),digest:verified.digest,license:verified.license};this.#previews.set(view,copy);return view;
     }
-    async #read(record){
-        identity(record);const dir=await directory(record),file=await (await dir.getFileHandle('package.hplugin.zip')).getFile();
+    async #read(record,onStage=()=>{}){
+        onStage('package-path');identity(record);const dir=await directory(record),file=await (await dir.getFileHandle('package.hplugin.zip')).getFile();
         if(file.size>LIMIT)throw new Error('Installed plugin exceeds package limit.');
+        onStage('package-read');
         const bytes=new Uint8Array(await file.arrayBuffer());
+        onStage('package-digest');
         if(await digest(bytes)!==record.packageDigest)throw new Error('Installed plugin package digest mismatch.');
+        onStage('package-inspect');
         const verified=await this.#inspect(bytes);
+        onStage('package-identity');
         if(!equal(record,{id:verified.manifest.id,version:verified.manifest.version,digest:verified.digest}))throw new Error('Installed plugin identity mismatch.');
         return verified;
     }
@@ -67,13 +72,20 @@ export class PluginManager {
     async withSnapshot(workspaceId,fn){persistentWorkspace(workspaceId);return lock('shared',async()=>{
         const state=await this.#store.loadRegistry(),tools=[],unavailable=[];
         for(const grant of state.grants.filter(g=>g.workspaceId===workspaceId)){
+            let stage='grant-binding';
             try{
                 const active=state.active.find(p=>p.id===grant.pluginId),record=state.packages.find(p=>active&&equal(p,active));
                 if(!record||record.version!==grant.version||record.digest!==grant.digest)throw new Error('Plugin grant version mismatch.');
-                const verified=await this.#read(record),m=verified.manifest;if(!grantFits(grant.permissions,m.permissions))throw new Error('Invalid plugin grant.');
+                const verified=await this.#read(record,value=>{stage=value;}),m=verified.manifest;
+                stage='grant-permissions';if(!grantFits(grant.permissions,m.permissions))throw new Error('Invalid plugin grant.');
+                stage='tool-descriptors';
                 for(const tool of m.tools){const publicName=await publicToolName(m.id,tool.name);if(tools.some(t=>t.publicName===publicName))throw new Error('Plugin tool name collision.');tools.push({pluginId:m.id,version:m.version,digest:verified.digest,localName:tool.name,publicName,description:tool.description,parameters:tool.parameters,permissions:structuredClone(grant.permissions)});}
                 if(tools.length>128)throw new Error('Enabled plugins exceed 128 tools.');
-            }catch{unavailable.push(String(grant.pluginId));}
+            }catch(error){
+                unavailable.push(String(grant.pluginId));
+                const name=error?.name;
+                console.warn(`[plugin-snapshot] ${stage}: ${snapshotErrorNames.has(name)?name:'Error'}`);
+            }
         }
         // Never expose a partially added plugin if any of its tools failed validation.
         const safeTools=tools.filter(t=>!unavailable.includes(t.pluginId));

@@ -5,10 +5,14 @@ function session({signal,timeoutMs=15000,onMessage,message}){
     const worker=startWorker(),token=crypto.randomUUID();let finished=false,paused=false,remaining=timeoutMs,last=performance.now(),timer;
     let resolve,reject;const result=new Promise((a,b)=>{resolve=a;reject=b;});
     function end(error,value){if(finished)return;finished=true;clearTimeout(timer);signal?.removeEventListener('abort',aborted);worker.terminate();error?reject(error):resolve(value);}
-    function arm(){last=performance.now();timer=setTimeout(()=>end(new Error('Plugin execution timed out. File changes may already have completed; inspect files before retrying.')),Math.max(0,remaining));}
+    function arm(){last=performance.now();timer=setTimeout(()=>end(message.type==='inspect'
+        ?new DOMException('Plugin inspection timed out.','TimeoutError')
+        :new Error('Plugin execution timed out. File changes may already have completed; inspect files before retrying.')),Math.max(0,remaining));}
     function pauseBudget(value){if(finished||paused===value)return;if(value){remaining-=performance.now()-last;clearTimeout(timer);}paused=value;if(!paused)arm();}
     const aborted=()=>end(new Error('Plugin cancelled. File modification outcomes may be unknown; inspect files before retrying.'));
-    worker.onerror=event=>{event.preventDefault();end(new Error('Plugin worker failed. File modification outcomes may be unknown.'));};
+    worker.onerror=event=>{event.preventDefault();end(message.type==='inspect'
+        ?new DOMException('Plugin inspection worker failed.','OperationError')
+        :new Error('Plugin worker failed. File modification outcomes may be unknown.'));};
     worker.onmessage=async event=>{
         if(finished)return;
         try{

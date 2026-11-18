@@ -36,6 +36,8 @@ jobs:
         working-directory: web
       - run: npx playwright test --project=${{ matrix.browser }} --workers=1
         working-directory: web
+        env:
+          DEBUG: ${{ matrix.browser == 'webkit' && 'pw:browser' || '' }}
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
