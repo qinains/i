@@ -1,18 +1,15 @@
-.documentation article{font-size:1.125rem;line-height:1.75;max-inline-size:78ch}
-[data-page=docs] .search-bar{font-size:.9375rem}
-[data-page=docs] .search-bar label{overflow-wrap:anywhere}
-[data-page=docs] #search{font-size:1rem;min-width:0}
-.documentation p{line-height:1.75}
+.documentation article{font-size:var(--reading-body);line-height:var(--reading-line);max-inline-size:78ch}
+.documentation p{line-height:var(--reading-line)}
 .documentation li{margin-block:.45em}
-.documentation h1{font-size:clamp(2rem,3vw,2.5rem);margin-block-end:1.25rem}
-.documentation h2{font-size:clamp(1.5rem,2vw,1.75rem);margin-block:2.25rem 1rem}
-.documentation h3{font-size:1.25rem}
-.documentation .sidebar,.documentation .toc{font-size:1rem;line-height:1.5;overflow-wrap:anywhere}
+.documentation h1{font-size:var(--reading-title);margin-block-end:1.25rem}
+.documentation h2{font-size:var(--reading-heading);margin-block:2.25rem 1rem}
+.documentation h3{font-size:var(--reading-subheading)}
+.documentation .sidebar,.documentation .toc{font-size:var(--reading-control);line-height:var(--reading-detail-line);overflow-wrap:anywhere}
 .documentation .sidebar{padding-inline-end:.5rem;padding-inline-start:0}
-.documentation .toc a,.documentation .toc strong{font-size:.9375rem}
+.documentation .toc a,.documentation .toc strong{font-size:var(--reading-detail)}
 .documentation .toc .level-3{padding-inline-start:.75rem;padding-inline-end:0}
-.documentation pre,.documentation table{font-size:.9375rem}
-.documentation .code-block>span,.documentation .source-link,.docs-language-notice{font-size:.9375rem}
+.documentation pre,.documentation table{font-size:var(--reading-detail)}
+.documentation .code-block>span,.documentation .source-link,.docs-language-notice{font-size:var(--reading-detail)}
 .documentation pre,.documentation .code-block>span{direction:ltr;text-align:start}
 .documentation img{max-inline-size:100%;height:auto}
 .documentation table{text-align:start}

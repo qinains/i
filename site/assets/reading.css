@@ -1,0 +1,97 @@
+:root {
+    --reading-body: 1.125rem;
+    --reading-control: 1rem;
+    --reading-detail: .9375rem;
+    --reading-title: clamp(2rem, 3vw, 2.5rem);
+    --reading-heading: clamp(1.5rem, 2vw, 1.75rem);
+    --reading-subheading: 1.25rem;
+    --reading-line: 1.7;
+    --reading-detail-line: 1.55;
+}
+
+/* Shared reading styles are loaded after page-specific layouts. */
+html .search-bar {
+    font-size: var(--reading-detail);
+    line-height: var(--reading-detail-line);
+}
+.search-bar label { overflow-wrap: anywhere; }
+html #search {
+    font-size: var(--reading-control);
+    min-inline-size: 0;
+}
+html #search-results {
+    top: 100%;
+    left: auto;
+    right: auto;
+    inset-inline-start: 1rem;
+    width: min(36rem, calc(100% - 2rem));
+    overflow-wrap: anywhere;
+}
+html[data-page=home] #search-results {
+    left: auto;
+    right: auto;
+    top: 100%;
+    inset-inline: auto 1rem;
+    width: min(36rem, calc(100% - 2rem));
+}
+html footer, html[data-page=home] footer {
+    font-size: var(--reading-detail);
+    line-height: var(--reading-detail-line);
+    overflow-wrap: anywhere;
+}
+footer > .muted { font-size: inherit; }
+.header-inner nav > a:is([href="/docs/"], [href="/plugins/"]) { font-size: var(--reading-detail); }
+.plugin-directory h1 { font-size: var(--reading-title); }
+.plugin-directory h2 { font-size: var(--reading-heading); }
+
+.home-hero .hero-note, .home-hero .hero-security,
+.home-section .section-foot, .home-final p.docs-language-note,
+.extension-downloads summary, .extension-downloads .downloads a,
+.client-summary .client-fineprint, .client-summary .client-target, .checksum-link,
+.install-bottom summary, .install-bottom, .client-tabs button,
+.install-steps pre, .install-bottom pre, .plugin-card pre,
+.plugin-directory section > .muted {
+    font-size: var(--reading-detail);
+    line-height: var(--reading-detail-line);
+}
+.home-section .section-heading > p:not(.eyebrow), .home-section .plugin-copy > p:not(.eyebrow),
+.runtime-panel p, .workflow-rail p, .boundary-list p,
+.client-summary > p:not(.client-fineprint, .client-target), .install-steps p, .install-bottom details p,
+.plugin-directory section > p:not(.muted), .plugin-card p {
+    font-size: var(--reading-body);
+    line-height: var(--reading-line);
+    overflow-wrap: anywhere;
+}
+.boundary-list h3, .install-steps h4, .plugin-card h3 {
+    font-size: var(--reading-subheading);
+    line-height: 1.4;
+}
+.runtime-panel p { min-height: 0; }
+.section-foot { align-items: baseline; }
+
+.landing a[href^="/docs/"]:not(.button), .plugin-directory a[href^="/docs/"]:not(.button) {
+    color: var(--accent);
+    font-size: var(--reading-control);
+    font-weight: 550;
+    line-height: var(--reading-detail-line);
+    text-decoration: underline;
+    text-decoration-thickness: .07em;
+    text-underline-offset: .23em;
+    overflow-wrap: anywhere;
+}
+.landing a[href^="/docs/"]:not(.button):hover, .plugin-directory a[href^="/docs/"]:not(.button):hover {
+    text-decoration-thickness: .12em;
+}
+.plugin-reference { flex-wrap: wrap; gap: .75rem 1.25rem; }
+.plugin-reference a { background: none; padding: 0; }
+.plugin-copy a.button[href^="/docs/"] { font-size: var(--reading-control); }
+.install-steps, .client-panel > * { min-inline-size: 0; }
+.install-steps li { padding-inline: 2.25rem 0; }
+.install-steps li:before { inset-inline: 0 auto; }
+.install-steps pre, .install-bottom pre { direction: ltr; text-align: start; }
+
+@media(max-width:720px) {
+    .header-inner nav > a:is([href="/docs/"], [href="/plugins/"]) { font-size: .875rem; }
+    .landing :is(.section-foot, .install-bottom, .plugin-reference) > a { max-inline-size: 100%; }
+    .landing .client-tabs button { padding-inline: .75rem; }
+}

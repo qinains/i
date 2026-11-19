@@ -57,6 +57,29 @@ for(const [name,browserType] of Object.entries({chromium,webkit})){
         await page.locator('.docs-language-notice').waitFor();
         await language.selectOption('en');
         assert.equal(await page.locator('.docs-language-notice').isVisible(),false);
-        console.log(`PASS ${name}: all 17 documentation locales, localized search, source fallback, typography and RTL mobile`);
+        const fontSize=selector=>page.locator(selector).first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
+        for(const width of [1440,320]){
+            await page.setViewportSize({width,height:900});
+            await page.goto(origin+'/');
+            assert.equal(await fontSize('#search'),16);
+            assert.equal(await fontSize('.plugin-copy > p:not(.eyebrow)'),articleSize);
+            assert.equal(await fontSize('.boundary-list p'),articleSize);
+            assert.equal(await fontSize('#client-browser .install-steps p'),articleSize);
+            assert.equal(await fontSize('.docs-language-note'),15);
+            const referenceLinks=await page.locator('.landing a[href^="/docs/"]:not(.button)').evaluateAll(links=>
+                links.map(link=>[getComputedStyle(link).fontSize,getComputedStyle(link).textDecorationLine]));
+            assert.ok(referenceLinks.length>=8);
+            assert.ok(referenceLinks.every(([size,line])=>size==='16px'&&line.includes('underline')));
+            for(const {code} of languageOptions){
+                await language.selectOption(code);
+                assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${name}:${code}: home guide overflow at ${width}px`);
+            }
+        }
+        await page.goto(origin+'/plugins/');
+        assert.equal(await fontSize('#native-plugins .plugin-card p'),articleSize);
+        assert.equal(await fontSize('#native-plugins .plugin-card a'),16);
+        assert.equal(await fontSize('#search'),16);
+        assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+        console.log(`PASS ${name}: all 17 documentation locales, localized search, source fallback, and consistent guides on home, docs, and plugins`);
     }finally{await browser.close();}
 }
