@@ -4,6 +4,10 @@ const root=document.documentElement;
 const home=root.dataset.page==='home';let savedLanguage,language;
 const docsTitle=document.querySelector('[data-docs-title]');
 const docsSource=document.querySelector('[data-docs-source]');
+const docsVariants=new Map([...document.querySelectorAll('template[data-docs-variant]')].map(template=>[template.dataset.docsVariant,template]));
+const docsArticle=docsVariants.size?document.querySelector('article'):null;
+const docsToc=docsVariants.size?document.querySelector('.toc nav'):null;
+const docsEdit=docsVariants.size?document.querySelector('.source-link a'):null;
 try{savedLanguage=localStorage.getItem('lninl_site_language');}catch{}
 populateLanguageSelect(document.getElementById('site-language'));
 function applyLanguage(next){
@@ -15,8 +19,21 @@ function applyLanguage(next){
     if(docsTitle)document.title=docsTitle.textContent+' · i';
     if(docsSource){
         const {docsSource:source,docsLabel:label}=docsSource.dataset;
-        docsSource.hidden=source===next;
-        if(label)document.title=translate(next,label)+' · i';
+        const articleLanguage=docsVariants.has(next)?next:source;
+        docsSource.hidden=articleLanguage===next;
+        if(docsArticle&&docsArticle.lang!==articleLanguage){
+            const template=docsVariants.get(articleLanguage);
+            const variant=template.content.cloneNode(true);
+            docsArticle.replaceChildren(...variant.querySelector('article').childNodes);
+            docsArticle.lang=articleLanguage;
+            docsArticle.dir=template.dataset.docsDir;
+            for(const link of docsToc.querySelectorAll('a'))link.remove();
+            docsToc.append(...variant.querySelector('nav').childNodes);
+            docsEdit.href=template.dataset.docsEdit;
+            if(location.hash)try{document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView();}catch{}
+        }
+        const articleTitle=docsArticle&&articleLanguage===next?docsArticle.querySelector('h1 .anchor')?.getAttribute('aria-label'):null;
+        if(articleTitle||label)document.title=(articleTitle||translate(next,label))+' · i';
         let sourceName=source;
         try{sourceName=new Intl.DisplayNames([next],{type:'language'}).of(source)??source;}catch{}
         docsSource.querySelector('[data-docs-source-label]').textContent='('+sourceName+')';
@@ -42,7 +59,10 @@ input.addEventListener('input',async()=>{
         indexPromise??=fetch('/search-index.json',{credentials:'omit'}).then(response=>{if(!response.ok)throw new Error('Search unavailable');return response.json();});
         const pages=await indexPromise;if(generation!==searchGeneration)return;
         const label=page=>page.label?translate(language,page.label):page.title;
-        const terms=query.split(/\s+/u),matches=pages.filter(page=>terms.every(term=>(label(page)+' '+page.title+' '+page.text).toLocaleLowerCase().includes(term))).slice(0,10);
+        const terms=query.split(/\s+/u),matches=pages.filter(page=>{
+            const text=[label(page),page.title,page.text,page.translations?.[language]??''].join(' ').toLocaleLowerCase();
+            return terms.every(term=>text.includes(term));
+        }).slice(0,10);
         for(const page of matches){const li=document.createElement('li'),link=document.createElement('a');link.href=page.url;link.textContent=label(page);if(!page.label&&page.lang){link.lang=page.lang;link.dir='auto';}li.append(link);results.append(li);}
         if(!matches.length){const li=document.createElement('li');li.textContent=translate(language,'search.empty');results.append(li);}
     }catch{if(generation!==searchGeneration)return;indexPromise=null;results.textContent=translate(language,'search.error');}

@@ -11,9 +11,12 @@
 .documentation pre,.documentation table{font-size:var(--reading-detail)}
 .documentation .code-block>span,.documentation .source-link,.docs-language-notice{font-size:var(--reading-detail)}
 .documentation pre,.documentation .code-block>span{direction:ltr;text-align:start}
+.documentation article[dir=rtl] :not(pre)>code{direction:ltr;unicode-bidi:isolate}
 .documentation img{max-inline-size:100%;height:auto}
 .documentation table{text-align:start}
 .docs-language-notice{margin:0 0 1.5rem;padding:.75rem 1rem;background:var(--soft);border-inline-start:.2rem solid var(--accent);border-radius:.25rem}
+.documentation article blockquote{margin:0 0 1.5rem;padding:.75rem 1rem;background:var(--soft);border-inline-start:.2rem solid var(--accent);border-radius:.25rem}
+.documentation article blockquote p{margin:0}
 .documentation .anchor{margin-inline-start:.6rem;margin-inline-end:0}
 @media(max-width:720px){
     .documentation .sidebar{padding:0}

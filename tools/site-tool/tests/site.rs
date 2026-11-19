@@ -1,4 +1,5 @@
 use i_site_tool::{copy_tree, cors, hash, site, translations, write};
+use regex::Regex;
 use serde_json::{Value, json};
 use std::{
     fs,
@@ -101,7 +102,7 @@ fn markdown_escapes_html_preserves_blocks_and_routes_safe_links() {
     let source = root.join("docs/example.md");
     let (rendered, toc) = site::markdown(
         root,
-        "## Same\n## Same\n\n<script>alert(1)</script> [Docs](index.md#part) [bad](javascript:alert) [escape](../../secret) ![alt](image.png) **bold** `code`\n\n```rs\n<x>\n```\n\n| A | B |\n| -- | -- |\n| one | two |\n\n1. first\n2. second\n\n---",
+        "## Same\n## Same\n\n<script>alert(1)</script> [Docs](index.md#part) [bad](javascript:alert) [escape](../../secret) ![alt](image.png) **bold** `code`\n> **Note**\n> <escaped>\n\n```rs\n<x>\n```\n\n| A | B |\n| -- | -- |\n| one | two |\n\n1. first\n2. second\n\n---",
         &source,
     );
     for text in [
@@ -113,6 +114,7 @@ fn markdown_escapes_html_preserves_blocks_and_routes_safe_links() {
         "alt",
         "<strong>bold</strong>",
         "<code>code</code>",
+        "<blockquote><p><strong>Note</strong> &lt;escaped&gt;</p></blockquote>",
         "<span>rs</span>",
         "&lt;x&gt;",
         "<th>A</th>",
@@ -129,6 +131,39 @@ fn markdown_escapes_html_preserves_blocks_and_routes_safe_links() {
     assert_eq!(site::href(root, "missing.js", &source), "https://github.com/qinains/i/blob/main/docs/missing.js");
 }
 #[test]
+fn localized_sign_in_guide_preserves_commands_and_links() {
+    let root = source();
+    let languages: Value = serde_json::from_slice(&fs::read(root.join("locales/languages.json")).unwrap()).unwrap();
+    let baseline = fs::read_to_string(root.join("docs/translations/en/chatgpt-login.md")).unwrap();
+    let original = fs::read_to_string(root.join("docs/chatgpt-login.md")).unwrap();
+    let fences = Regex::new(r"(?s)```[^\n]*\n(.*?)\n```").unwrap();
+    let comments = Regex::new(r"(?m) +# [^\n]+").unwrap();
+    let spans = Regex::new(r"`([^`\n]+)`").unwrap();
+    let links = Regex::new(r"\]\((https://[^\s)]+)\)").unwrap();
+    let signature = |text: &str| {
+        let commands = fences
+            .captures_iter(text)
+            .map(|block| comments.replace_all(&block[1], "").into_owned())
+            .collect::<Vec<_>>();
+        let prose = fences.replace_all(text, "");
+        let collect = |pattern: &Regex| {
+            let mut values = pattern.captures_iter(&prose).map(|part| part[1].to_owned()).collect::<Vec<_>>();
+            values.sort_unstable();
+            values
+        };
+        (commands, collect(&spans), collect(&links))
+    };
+    for locale in languages.as_array().unwrap() {
+        let code = locale["code"].as_str().unwrap();
+        if matches!(code, "en" | "zh-CN") {
+            continue;
+        }
+        let localized = fs::read_to_string(root.join(format!("docs/translations/{code}/chatgpt-login.md"))).unwrap();
+        let reference = if code == "zh-TW" { &original } else { &baseline };
+        assert_eq!(signature(&localized), signature(reference), "{code}");
+    }
+}
+#[test]
 fn full_site_preserves_public_pages_localization_security_and_asset_allowlist() {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path();
@@ -137,6 +172,17 @@ fn full_site_preserves_public_pages_localization_security_and_asset_allowlist() 
     let output = root.join("dist/site");
     let count = site::build(root, "https://i.lninl.com", &output).unwrap();
     assert!(count > 20);
+    let login = fs::read_to_string(output.join("docs/chatgpt-login/index.html")).unwrap();
+    assert!(login.contains("<article lang=\"zh-CN\""));
+    let languages: Value = serde_json::from_slice(&fs::read(root.join("locales/languages.json")).unwrap()).unwrap();
+    for locale in languages.as_array().unwrap() {
+        let code = locale["code"].as_str().unwrap();
+        let dir = locale["dir"].as_str().unwrap();
+        assert!(login.contains(&format!("<template data-docs-variant=\"{code}\" data-docs-dir=\"{dir}\"")), "{code}");
+    }
+    assert!(login.contains("Manage sign-in plugins with i"));
+    assert!(login.contains("href=\"#浏览器配对\" lang=\"en\" dir=\"auto\">Pair with a browser</a>"));
+    assert!(!output.join("docs/translations").exists());
     assert_eq!(
         fs::read(output.join("third-party-licenses.txt")).unwrap(),
         fs::read(root.join("THIRD_PARTY_LICENSES.txt")).unwrap()

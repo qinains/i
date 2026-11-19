@@ -57,6 +57,41 @@ for(const [name,browserType] of Object.entries({chromium,webkit})){
         await page.locator('.docs-language-notice').waitFor();
         await language.selectOption('en');
         assert.equal(await page.locator('.docs-language-notice').isVisible(),false);
+        await page.goto(origin+'/docs/chatgpt-login/#浏览器配对');
+        const article=page.locator('article');
+        const toc=page.locator('.toc a');
+        const loginNote=page.locator('.docs-language-notice');
+        assert.equal(await article.getAttribute('lang'),'en');
+        assert.match(await article.locator('h1').textContent(),/^Manage sign-in plugins with i/);
+        assert.match(await article.locator('blockquote').textContent(),/Claude uses Console API billing/);
+        assert.equal(await toc.first().textContent(),'Set up from the terminal');
+        assert.equal(await page.locator('[id="浏览器配对"] a.anchor').getAttribute('aria-label'),'Pair with a browser');
+        assert.equal(await page.locator('.source-link a').getAttribute('href'),'https://github.com/qinains/i/edit/main/docs/translations/en/chatgpt-login.md');
+        await page.locator('#search').fill('manage sign-in plugins');
+        await page.locator('#search-results a[href="/docs/chatgpt-login/"]').waitFor();
+        const anchors=await toc.evaluateAll(links=>links.map(link=>link.getAttribute('href')));
+        const excerpts=new Set();
+        for(const {code,dir} of languageOptions){
+            await language.selectOption(code);
+            const excerpt=await article.locator('blockquote').textContent();
+            assert.ok(excerpt?.trim(),`${name}:${code}: missing translation`);
+            excerpts.add(excerpt);
+            assert.equal(await article.getAttribute('lang'),code);
+            assert.equal(await article.getAttribute('dir'),dir);
+            assert.equal(await loginNote.isVisible(),false);
+            const heading=await article.locator('h1 .anchor').getAttribute('aria-label');
+            assert.equal(await page.title(),heading+' · i');
+            assert.equal(await toc.first().getAttribute('lang'),code);
+            assert.deepEqual(await toc.evaluateAll(links=>links.map(link=>link.getAttribute('href'))),anchors);
+            assert.equal(await article.locator('pre').first().textContent(),'/plugins');
+            assert.equal(await article.locator('pre').first().evaluate(el=>getComputedStyle(el).direction),'ltr');
+            assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${name}:${code}: translated article overflow`);
+        }
+        assert.equal(excerpts.size,languageOptions.length);
+        await language.selectOption('en');
+        await page.reload();
+        assert.equal(await article.getAttribute('lang'),'en');
+        assert.equal(await page.locator('.docs-language-notice').isVisible(),false);
         const fontSize=selector=>page.locator(selector).first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
         for(const width of [1440,320]){
             await page.setViewportSize({width,height:900});

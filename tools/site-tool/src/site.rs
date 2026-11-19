@@ -214,6 +214,10 @@ pub fn inline(root: &Path, value: &str, source: &Path) -> String {
 }
 pub type Section = (usize, String, String);
 pub fn markdown(root: &Path, value: &str, source: &Path) -> (String, Vec<Section>) {
+    render_markdown(root, value, source, &[])
+}
+
+fn render_markdown(root: &Path, value: &str, source: &Path, original: &[Section]) -> (String, Vec<Section>) {
     let lines = value.lines().collect::<Vec<_>>();
     let mut output = vec![];
     let mut sections = vec![];
@@ -223,7 +227,7 @@ pub fn markdown(root: &Path, value: &str, source: &Path) -> (String, Vec<Section
     let item = Regex::new(r"^\s*(?:[-*]|\d+\.)\s+(.+)$").unwrap();
     let ordered = Regex::new(r"^\s*\d+\.").unwrap();
     let table_separator = Regex::new(r"^\|[\s:|\-]+\|?$").unwrap();
-    let paragraph_stop = Regex::new(r"^(#{1,6}\s|```|\||\s*[-*]\s|\s*\d+\.\s)").unwrap();
+    let paragraph_stop = Regex::new(r"^(#{1,6}\s|```|\||>|\s*[-*]\s|\s*\d+\.\s)").unwrap();
     while index < lines.len() {
         let line = lines[index];
         if line.trim().is_empty() {
@@ -252,12 +256,15 @@ pub fn markdown(root: &Path, value: &str, source: &Path) -> (String, Vec<Section
             let identifier = slug(title);
             let count = identifiers.entry(identifier.clone()).or_default();
             *count += 1;
-            let identifier = if *count > 1 { format!("{identifier}-{count}") } else { identifier };
+            let identifier =
+                if (2..=3).contains(&level) { original.get(sections.len()).map(|(_, _, id)| id.clone()) } else { None }
+                    .unwrap_or_else(|| if *count > 1 { format!("{identifier}-{count}") } else { identifier });
             output.push(format!(
-                "<h{level} id=\"{}\">{}<a class=\"anchor\" href=\"#{}\" aria-label=\"链接到此节\">#</a></h{level}>",
+                "<h{level} id=\"{}\">{}<a class=\"anchor\" href=\"#{}\" aria-label=\"{}\">#</a></h{level}>",
                 escape(&identifier),
                 inline(root, title, source),
-                escape(&identifier)
+                escape(&identifier),
+                escape(title)
             ));
             if (2..=3).contains(&level) {
                 sections.push((level, title.to_owned(), identifier));
@@ -298,6 +305,18 @@ pub fn markdown(root: &Path, value: &str, source: &Path) -> (String, Vec<Section
         if matches!(line.trim(), "---" | "***") {
             output.push("<hr>".into());
             index += 1;
+            continue;
+        }
+        if line.starts_with('>') {
+            let mut quote = String::new();
+            for line in lines[index..].iter().map_while(|line| line.strip_prefix('>')) {
+                if !quote.is_empty() {
+                    quote.push(' ');
+                }
+                quote.push_str(line.trim_start());
+                index += 1;
+            }
+            output.push(format!("<blockquote><p>{}</p></blockquote>", inline(root, &quote, source)));
             continue;
         }
         let mut paragraph = vec![];
@@ -451,6 +470,7 @@ struct Page {
     title: String,
     url: String,
     text: String,
+    translations: BTreeMap<String, String>,
 }
 impl Page {
     fn language(&self) -> &'static str {
@@ -461,6 +481,19 @@ impl Page {
         let slug = self.url.strip_prefix("/docs/").unwrap_or(&self.url).trim_matches('/');
         format!("docs.page.{}", if slug.is_empty() { "index" } else { slug })
     }
+}
+
+fn section_links(sections: &[Section], lang: &str) -> String {
+    sections
+        .iter()
+        .map(|(level, title, id)| {
+            format!(
+                "<a class=\"level-{level}\" href=\"#{}\" lang=\"{lang}\" dir=\"auto\">{}</a>",
+                escape(id),
+                escape(title)
+            )
+        })
+        .collect()
 }
 
 fn docs_label(messages: &Value, key: &str) -> Result<String> {
@@ -584,6 +617,8 @@ pub fn build(root: &Path, origin: &str, output: &Path) -> Result<usize> {
         "Refusing to replace an unrecognized output directory"
     );
     let root = fs::canonicalize(root)?;
+    let registry = read_json(&root.join("locales/languages.json"))?;
+    let registry = registry.as_array().context("languages array")?;
     let mut documents = fs::read_dir(root.join("docs"))?
         .filter_map(|entry| entry.ok().map(|e| e.path()))
         .filter(|path| {
@@ -603,7 +638,30 @@ pub fn build(root: &Path, origin: &str, output: &Path) -> Result<usize> {
             .find_map(|line| line.strip_prefix("# ").map(|s| s.trim_start_matches(['#', ' ']).to_owned()))
             .unwrap_or_else(|| source.file_stem().unwrap().to_string_lossy().into());
         let url = route(&root, &source).context("document has no public route")?;
-        pages.push(Page { source, title, url, text: content });
+        pages.push(Page { source, title, url, text: content, translations: BTreeMap::new() });
+    }
+    for locale in registry {
+        let lang = text(locale, "code")?;
+        let directory = root.join("docs/translations").join(lang);
+        if !directory.is_dir() {
+            continue;
+        }
+        for entry in fs::read_dir(directory)? {
+            let path = entry?.path();
+            if !path.is_file() || path.extension().is_none_or(|ext| ext != "md") {
+                continue;
+            }
+            let page = pages
+                .iter_mut()
+                .find(|p| {
+                    p.url != "/docs/"
+                        && p.source.starts_with(root.join("docs"))
+                        && p.source.file_name() == path.file_name()
+                })
+                .with_context(|| format!("No public source article for {}", path.display()))?;
+            ensure!(page.language() != lang, "Duplicate source language in {}", path.display());
+            page.translations.insert(lang.to_owned(), fs::read_to_string(&path)?);
+        }
     }
     let featured = FEATURED
         .iter()
@@ -618,10 +676,7 @@ pub fn build(root: &Path, origin: &str, output: &Path) -> Result<usize> {
         featured.iter().map(|&i| link(&pages[i])).collect::<String>(),
         pages.iter().enumerate().filter(|(i, _)| !featured.contains(i)).map(|(_, p)| link(p)).collect::<String>()
     );
-    let registry = read_json(&root.join("locales/languages.json"))?;
     let languages = registry
-        .as_array()
-        .context("languages array")?
         .iter()
         .map(|item| {
             Ok(format!(
@@ -664,24 +719,39 @@ pub fn build(root: &Path, origin: &str, output: &Path) -> Result<usize> {
         } else {
             let (body, sections) = markdown(&root, &page.text, &page.source);
             let lang = page.language();
-            let links = sections
-                .iter()
-                .map(|(level, title, id)| {
-                    format!(
-                        "<a class=\"level-{level}\" href=\"#{}\" lang=\"{lang}\" dir=\"auto\">{}</a>",
-                        escape(id),
-                        escape(title)
-                    )
-                })
-                .collect::<String>();
+            let links = section_links(&sections, lang);
             let hidden = if lang == "zh-CN" { " hidden" } else { "" };
             let label = page.label_key();
             let label = if renderer.messages[&label].is_string() { label.as_str() } else { "" };
+            let edit = escape(&page.source.strip_prefix(&root)?.to_string_lossy());
+            let mut templates = String::new();
+            if !page.translations.is_empty() {
+                let variant = |code: &str, content: &str, toc: &str, edit: &str| -> Result<String> {
+                    let dir =
+                        registry.iter().find(|locale| locale["code"] == code).context("Unknown article language")?;
+                    let dir = text(dir, "dir")?;
+                    Ok(format!(
+                        "<template data-docs-variant=\"{code}\" data-docs-dir=\"{dir}\" data-docs-edit=\"{REPOSITORY}/edit/main/{edit}\"><article>{content}</article><nav>{toc}</nav></template>"
+                    ))
+                };
+                templates.push_str(&variant(lang, &body, &links, &edit)?);
+                for (code, content) in &page.translations {
+                    let (content, translated) = render_markdown(&root, content, &page.source, &sections);
+                    ensure!(
+                        translated.iter().map(|s| s.0).eq(sections.iter().map(|s| s.0)),
+                        "Section structure differs in {code} translation of {edit}"
+                    );
+                    let toc = section_links(&translated, code);
+                    let edit =
+                        format!("docs/translations/{code}/{}", page.source.file_name().unwrap().to_string_lossy());
+                    templates.push_str(&variant(code, &content, &toc, &escape(&edit))?);
+                }
+            }
             let body = format!(
                 "<p class=\"docs-language-notice\" data-docs-source=\"{lang}\" data-docs-label=\"{label}\"{hidden}><span data-site-i18n=\"docs.original\">暂无所选语言版本，下方显示原文。</span> <bdi data-docs-source-label></bdi></p><article lang=\"{lang}\" dir=\"ltr\">{body}</article><p class=\"source-link\"><a href=\"{REPOSITORY}/edit/main/{}\" data-site-i18n=\"docs.edit\">在 GitHub 改进本页</a></p>",
-                escape(&page.source.strip_prefix(&root)?.to_string_lossy())
+                edit
             );
-            (body, links)
+            (body + &templates, links)
         };
         let toc = format!(
             "<nav aria-label=\"本页内容\" data-site-i18n-aria=\"docs.toc\"><strong data-site-i18n=\"docs.toc\">本页内容</strong>{links}</nav>"
@@ -698,7 +768,7 @@ pub fn build(root: &Path, origin: &str, output: &Path) -> Result<usize> {
                 .map(|p| {
                     let key = p.label_key();
                     json!({"title":p.title,"url":p.url,"text":p.text,"lang":p.language(),
-                    "label":renderer.messages[&key].as_str().map(|_| key.as_str())})
+                    "label":renderer.messages[&key].as_str().map(|_| key.as_str()), "translations":p.translations})
                 })
                 .collect::<Vec<_>>(),
         )?,
