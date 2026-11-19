@@ -112,21 +112,20 @@ fn logo_is_deterministic_and_keeps_i_visible_without_color() {
     assert!(plain.contains("lninl / i") && plain.lines().any(|line| line.contains('o')));
     assert_eq!(plain, brand::render(false, true));
     let rows: Vec<_> = plain.lines().skip(1).take(7).collect();
-    assert!(rows[0].starts_with("   ##") && rows[6].starts_with("    ##"));
+    assert!(rows[0].starts_with("  ##") && rows[6].starts_with("   ##"));
     assert!(!rows.iter().any(|row| row.contains("#####")), "lowercase l must not use the capital L foot");
     for row in &rows {
-        assert_eq!(*row, row.chars().rev().collect::<String>(), "each logo row must mirror around i");
+        assert_eq!(&row[2..5], &row[26..29], "both lowercase l glyphs must face the same way");
+        assert_eq!(&row[7..12], &row[19..24], "both lowercase n glyphs must face the same way");
     }
+    assert_eq!(&rows[0][14..17], " o ");
+    assert_eq!(&rows[1][14..17], "   ");
+    assert!(rows[2..].iter().all(|row| &row[14..17] == " # "));
     assert!(brand::render(true, false).contains("\x1b[1;36m"));
     let svg = brand::svg();
     assert!(svg.starts_with("<svg") && svg.contains("#22d3ee") && svg.contains("lninl / i"));
     assert!(!svg.contains('\x1b'));
-    assert!(svg.contains("viewBox=\"0 0 343 132\"") && svg.contains("cx=\"171.5\""));
-    let pattern = regex::Regex::new(r#"<rect x="(\d+)" y="(\d+)" width="7""#).unwrap();
-    let pixels: std::collections::HashSet<(u32, u32)> =
-        pattern.captures_iter(&svg).map(|capture| (capture[1].parse().unwrap(), capture[2].parse().unwrap())).collect();
-    assert!(!pixels.is_empty());
-    assert!(pixels.iter().all(|&(x, y)| pixels.contains(&(336 - x, y))), "SVG pixels must mirror too");
+    assert_eq!(svg, include_str!("../../../assets/lninl.svg"));
 }
 use serde_json::{Value, json};
 use std::{fs, path::Path};

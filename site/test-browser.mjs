@@ -99,9 +99,11 @@ try{
             await fresh.goto(origin+'/');await fresh.locator('html[lang=fr]').waitFor();
             assert.ok(await fresh.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${name}:320px French overflow`);
             assert.equal(await fresh.locator('.terminal-cursor').evaluate(element=>getComputedStyle(element).animationName),'none');
-            const before=await fresh.locator('header .brand span').evaluate(element=>getComputedStyle(element).color);assert.equal(before,'rgb(34, 211, 238)');
+            const brand=fresh.locator('header .brand img');await brand.waitFor();
+            assert.equal(await brand.getAttribute('src'),'/assets/wordmark.svg');
+            await fresh.waitForFunction(()=>document.querySelector('header .brand img').naturalWidth>0);
             await fresh.locator('#theme').click();assert.equal(await fresh.locator('html').getAttribute('data-theme'),'light');
-            assert.equal(await fresh.locator('header .brand span').evaluate(element=>getComputedStyle(element).color),before);
+            assert.equal(await brand.getAttribute('src'),'/assets/wordmark.svg');
             await fresh.reload();await fresh.locator('html[data-theme=light]').waitFor();
             await fresh.addInitScript(()=>{Storage.prototype.getItem=()=>{throw new Error('Unavailable');};Storage.prototype.setItem=()=>{throw new Error('Unavailable');};});
             await fresh.reload();await fresh.locator('html[lang=fr]').waitFor();await fresh.locator('#site-language').selectOption('de');await fresh.locator('html[lang=de]').waitFor();

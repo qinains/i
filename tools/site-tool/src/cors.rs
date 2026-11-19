@@ -1,6 +1,5 @@
-use crate::{copy_tree, files, hash, read_json, text, write};
+use crate::{brand, copy_tree, files, hash, read_json, text, write};
 use anyhow::{Result, ensure};
-use flate2::{Compression, write::ZlibEncoder};
 use serde_json::{Value, json};
 use std::{fs, io::Write, path::Path, process::Command};
 const FILES: &[&str] = &[
@@ -14,39 +13,6 @@ const FILES: &[&str] = &[
     "README.md",
     "LICENSE",
 ];
-fn chunk(kind: &[u8; 4], data: &[u8]) -> Vec<u8> {
-    let mut result = (data.len() as u32).to_be_bytes().to_vec();
-    result.extend(kind);
-    result.extend(data);
-    let mut crc = crc32fast::Hasher::new();
-    crc.update(kind);
-    crc.update(data);
-    result.extend(crc.finalize().to_be_bytes());
-    result
-}
-pub fn icon(size: u32) -> Result<Vec<u8>> {
-    let mut rows = Vec::new();
-    for y in 0..size {
-        rows.push(0);
-        for x in 0..size {
-            let mark = f64::from(size) * 0.42 <= f64::from(x)
-                && f64::from(x) < f64::from(size) * 0.58
-                && ((f64::from(size) * 0.2 <= f64::from(y) && f64::from(y) < f64::from(size) * 0.35)
-                    || (f64::from(size) * 0.45 <= f64::from(y) && f64::from(y) < f64::from(size) * 0.8));
-            rows.extend(if mark { [80, 160, 255] } else { [24, 30, 40] });
-        }
-    }
-    let mut compressed = ZlibEncoder::new(Vec::new(), Compression::best());
-    compressed.write_all(&rows)?;
-    let mut header = size.to_be_bytes().to_vec();
-    header.extend(size.to_be_bytes());
-    header.extend([8, 2, 0, 0, 0]);
-    let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
-    png.extend(chunk(b"IHDR", &header));
-    png.extend(chunk(b"IDAT", &compressed.finish()?));
-    png.extend(chunk(b"IEND", &[]));
-    Ok(png)
-}
 fn zip_files(source: &Path, names: &[String], destination: &Path) -> Result<()> {
     let mut archive = zip::ZipWriter::new(fs::File::create(destination)?);
     let options = zip::write::SimpleFileOptions::default()
@@ -100,7 +66,7 @@ pub fn build(root: &Path) -> Result<Value> {
         }
         for size in [48, 128] {
             let name = format!("icon-{size}.png");
-            write(&folder.join(&name), icon(size)?)?;
+            write(&folder.join(&name), brand::png(size)?)?;
             names.push(name);
         }
         write(&folder.join("manifest.json"), serde_json::to_string_pretty(&variant)? + "\n")?;

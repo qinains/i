@@ -2,7 +2,7 @@ use anyhow::{Context, Result, bail};
 use std::path::PathBuf;
 fn main() -> Result<()> {
     let mut args = std::env::args().skip(1).collect::<Vec<_>>();
-    const USAGE: &str = "i-site-tool [--root PATH] translations [--check] | site [--origin URL] [--output PATH] | cors-extension | cors-safari [--build] | serve [--directory PATH] [--port PORT]";
+    const USAGE: &str = "i-site-tool [--root PATH] translations [--check] | brand-icons [--check | --pwa] | site [--origin URL] [--output PATH] | cors-extension | cors-safari [--build] | serve [--directory PATH] [--port PORT]";
     if args.iter().any(|argument| matches!(argument.as_str(), "--help" | "-h")) {
         println!("{USAGE}");
         return Ok(());
@@ -22,6 +22,15 @@ fn main() -> Result<()> {
             }
             i_site_tool::translations::generate(&root, check)?;
             println!("Translation catalogs {}", if check { "verified" } else { "generated" });
+        }
+        "brand-icons" => {
+            if args == ["--pwa"] {
+                i_site_tool::brand::build_pwa(&root)?;
+            } else if args.is_empty() || args == ["--check"] {
+                i_site_tool::brand::sync_svg(&root, !args.is_empty())?;
+            } else {
+                bail!("unexpected brand-icons arguments");
+            }
         }
         "cors-extension" => {
             if !args.is_empty() {

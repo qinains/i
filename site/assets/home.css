@@ -102,7 +102,7 @@ html[data-theme=light] .demo-code{color:#316182}
 .plugin-copy .button{margin-top:20px}
 .plugin-blueprint{background-image:radial-gradient(var(--line) .8px,transparent .8px);background-size:16px 16px;padding:34px 26px 20px;border:1px solid var(--line);border-radius:8px}
 .blueprint-core{display:flex;flex-direction:column;align-items:center;gap:8px;width:160px;padding:16px;margin:0 auto 40px;border:1px solid var(--accent);background:var(--surface);box-shadow:0 0 34px #81dfcf08;position:relative;border-radius:5px}
-.blueprint-logo{font:28px ui-monospace,monospace;letter-spacing:-2px}.blueprint-logo b{color:var(--brand-accent)}
+.blueprint-logo{display:block;block-size:auto}
 .blueprint-core>span:last-child{font:8px ui-monospace,monospace;letter-spacing:.14em;color:var(--muted)}
 .blueprint-core:after{content:"";position:absolute;top:100%;height:23px;width:1px;background:var(--accent)}
 .blueprint-branches{display:grid;grid-template-columns:1fr 1fr;gap:24px;position:relative}

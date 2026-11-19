@@ -1,3 +1,4 @@
+pub mod brand;
 pub mod cors;
 pub mod serve;
 pub mod site;

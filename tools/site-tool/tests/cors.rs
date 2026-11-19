@@ -1,4 +1,4 @@
-use i_site_tool::{copy_tree, cors, hash, read_json, site};
+use i_site_tool::{brand, copy_tree, cors, hash, read_json, site};
 use std::{
     fs,
     io::{Cursor, Read},
@@ -42,11 +42,11 @@ fn packages_are_deterministic_and_browser_permissions_are_separate() {
             assert_eq!(entry.unix_mode().unwrap() & 0o777, 0o644);
             assert!(!entry.name().unwrap().contains(".."));
         }
-        let mut png = vec![];
-        archive.by_name("icon-48.png").unwrap().read_to_end(&mut png).unwrap();
-        let rows = decode_png(&png);
-        assert_eq!(&rows[1..4], &[24, 30, 40]);
-        assert_eq!(&rows[24 * (48 * 3 + 1) + 1 + 24 * 3..][..3], &[80, 160, 255]);
+        for size in [48, 128] {
+            let mut png = vec![];
+            archive.by_name(&format!("icon-{size}.png")).unwrap().read_to_end(&mut png).unwrap();
+            assert_eq!(png, brand::png(size).unwrap());
+        }
     }
 }
 fn decode_png(data: &[u8]) -> Vec<u8> {
@@ -140,32 +140,37 @@ fn safari_refuses_symlinked_resource_directory() {
     assert!(cors::safari(temp.path(), false).unwrap_err().to_string().contains("symbolic link"));
 }
 #[test]
-fn brand_icons_retain_geometry_and_colors_without_writing_served_assets() {
+fn brand_icons_match_across_svg_pwa_and_extension_sizes() {
     let root = root();
-    assert_eq!(
-        fs::read(root.join("site/assets/favicon.svg")).unwrap(),
-        fs::read(root.join("web/icons/icon.svg")).unwrap()
-    );
-    for source in ["web/icons/icon.svg", "assets/lninl.svg", "site/assets/site.css", "web/style.css"] {
-        assert!(fs::read_to_string(root.join(source)).unwrap().contains("#22d3ee"), "{source}");
-    }
-    // Node remains the frontend build runtime; exercise its existing rasterizer in memory.
-    let script = fs::read_to_string(root.join("scripts/build_pwa.mjs")).unwrap();
-    let begin = script.find("function crc(").unwrap();
-    let end = script.find("await mkdir(new URL('icons/'").unwrap();
-    let source = &script[begin..end];
-    let output=std::process::Command::new("node").args(["--input-type=module","-e"]).arg(format!("import {{deflateSync}} from 'node:zlib';\n{source}\nfor(const size of [192,512])console.log(icon(size).toString('hex')); ")).output().unwrap();
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
-    for (size, line) in [192, 512].into_iter().zip(String::from_utf8(output.stdout).unwrap().lines()) {
-        let bytes = line
-            .as_bytes()
-            .chunks_exact(2)
-            .map(|v| u8::from_str_radix(std::str::from_utf8(v).unwrap(), 16).unwrap())
-            .collect::<Vec<_>>();
+    brand::sync_svg(&root, true).unwrap();
+    let svg = brand::svg();
+    assert!(svg.contains("viewBox=\"0 0 64 64\""));
+    assert!(svg.contains("#22d3ee") && svg.contains("#0f172a"));
+    assert_eq!(svg.matches("<circle ").count(), 1);
+    assert_eq!(svg.matches("<rect x=\"29\"").count(), 5);
+    assert_eq!(svg.matches("<rect x=").count(), 5);
+    for size in [48, 128, 192, 512] {
+        let bytes = brand::png(size).unwrap();
         let rows = decode_png(&bytes);
-        for (x, y, expected) in [(0, 0, [15, 23, 42]), (size / 2, size / 2, [34, 211, 238])] {
-            let offset = y * (size * 3 + 1) + 1 + x * 3;
-            assert_eq!(&rows[offset..offset + 3], &expected);
+        for (x, y, expected) in [
+            (0, 0, [15, 23, 42]),
+            (32, 11, [34, 211, 238]),
+            (32, 18, [15, 23, 42]),
+            (32, 24, [34, 211, 238]),
+            (23, 37, [15, 23, 42]),
+            (32, 52, [34, 211, 238]),
+            (25, 52, [15, 23, 42]),
+            (39, 52, [15, 23, 42]),
+        ] {
+            let (x, y) = (x * size / 64, y * size / 64);
+            let offset = (y * (size * 3 + 1) + 1 + x * 3) as usize;
+            assert_eq!(&rows[offset..offset + 3], &expected, "{size}px at {x},{y}");
+        }
+        if size >= 192 {
+            let x = size / 2;
+            let y = 55 * size / 128;
+            let offset = (y * (size * 3 + 1) + 1 + x * 3) as usize;
+            assert_eq!(&rows[offset..offset + 3], &[15, 23, 42], "stem pixels must stay separate");
         }
     }
 }

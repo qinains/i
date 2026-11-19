@@ -9,13 +9,13 @@
   <link rel="stylesheet" href="style.css">
   <script type="module" src="theme.js"></script>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icons/icon.svg">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
 </head>
 <body>
 <div id="app">
   <header>
-    <span class="brand" role="img" aria-label="lninl" title="lninl"><span aria-hidden="true">ln</span><span class="brand-i" aria-hidden="true">i</span><span aria-hidden="true">nl</span></span>
+    <span class="brand"><img src="icons/wordmark.svg" alt="lninl" width="82" height="25"></span>
     <label class="sr-only" for="workspace-select" data-i18n="Workspace">Workspace</label>
     <select id="workspace-select" title="Current workspace"></select>
     <div id="session-tabs" role="tablist" aria-label="Conversations"></div>
@@ -155,7 +155,7 @@
         <details id="connection-extra"><summary data-i18n="More connection options">More connection options</summary><div class="form-field"><label for="custom-headers" data-i18n="Custom headers (Direct only)">Custom headers (Direct only)</label><textarea id="custom-headers" rows="3" placeholder='{"X-Client":"example"}'></textarea></div></details>
         <details id="cors-help"><summary data-i18n="Desktop CORS extension">Desktop CORS extension</summary>
           <p data-i18n="Download our opt-in CORS helper. Ordinary mode changes response headers for one tab and the exact API URL; it cannot fix rejected OPTIONS, authentication or TLS failures.">Download our opt-in CORS helper. Ordinary mode changes response headers for one tab and the exact API URL; it cannot fix rejected OPTIONS, authentication or TLS failures.</p>
-          <div class="actions"><a href="./downloads/harness-cors-helper-chromium-0.3.1.zip" download>Chrome / Edge ZIP</a><a href="./downloads/harness-cors-helper-firefox-0.3.1.zip" download>Firefox ZIP</a><a href="./downloads/harness-cors-helper-safari-0.3.1.zip" download data-i18n="Safari source ZIP">Safari source ZIP</a></div>
+          <div class="actions"><a href="./downloads/harness-cors-helper-chromium-0.3.2.zip" download>Chrome / Edge ZIP</a><a href="./downloads/harness-cors-helper-firefox-0.3.2.zip" download>Firefox ZIP</a><a href="./downloads/harness-cors-helper-safari-0.3.2.zip" download data-i18n="Safari source ZIP">Safari source ZIP</a></div>
           <p data-i18n="Chrome / Edge: OPTIONS 401/403/405 can use the separately confirmed Preflight repair mode. Requires debugger permission; real API authentication is unchanged.">Chrome / Edge: OPTIONS 401/403/405 can use the separately confirmed Preflight repair mode. Requires debugger permission; real API authentication is unchanged.</p>
           <ol>
             <li data-i18n="Chrome / Edge: unzip, open chrome://extensions or edge://extensions, enable Developer mode, then Load unpacked.">Chrome / Edge: unzip, open chrome://extensions or edge://extensions, enable Developer mode, then Load unpacked.</li>

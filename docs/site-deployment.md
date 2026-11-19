@@ -74,9 +74,10 @@ Gatekeeper 评估，再上传镜像和相邻校验文件并更新清单。原有
 正文、页内标题保留源语言，所选语言不匹配时，会在正文前用所选语言标出正在显示原文。
 交互工作台只是前端示例，不会发起模型请求。减少动态效果偏好会禁用入场和光标动画。
 
-Logo 中间 `i` 统一使用 `#22d3ee`；官网 favicon 与工作台 SVG 保持一致。
-`build_pwa.mjs` 生成同配色的 192/512 PNG。更改图标时需同时更新几何栅格化及品牌测试，
-重新构建 PWA；已安装应用的桌面图标更新时间由浏览器决定，不要清除工作区数据。
+像素字形统一定义在 `assets/brand.rs`。完整 `lninl` 用于官网、工作台、终端与 README，
+方形图标仅保留青色像素 `i`，用于 favicon、PWA、Apple Touch 图标和 CORS Helper。
+更新设计后执行 `cargo run --locked --manifest-path tools/site-tool/Cargo.toml -- brand-icons`
+同步 SVG，再运行 Web 构建生成 PNG。已安装应用的图标更新时间由浏览器决定，不要清除工作区数据。
 
 首页、文档、站内搜索、移动布局、MIT/贡献页面、三套扩展下载、`/app/`、WASM MIME、
 PWA scope 与离线资源均需检查。跨托管平台但保留相同 HTTPS origin 时，浏览器

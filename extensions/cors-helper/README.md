@@ -1,4 +1,4 @@
-# Harness CORS Helper 0.3.1
+# Harness CORS Helper 0.3.2
 
 ## 预检修复（仅 Chrome / Edge）
 

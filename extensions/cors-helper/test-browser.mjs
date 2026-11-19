@@ -67,7 +67,7 @@ try{
     assert.equal((await fetchApi(page,api+'/json')).blocked,true);assert.equal(await control.locator('#enable').innerText(),'启动');
     await repair(api+'/json');
     assert.equal((await fetchApi(page,api+'/json')).status,200);assert.equal(authorization,'FAKE_TEST_KEY');
-    await control.screenshot({path:new URL('../../dist/cors-helper/popup-0.3.1.png',import.meta.url).pathname});
+    await control.screenshot({path:new URL('../../dist/cors-helper/popup.png',import.meta.url).pathname});
     await stop();assert.equal((await fetchApi(page,api+'/json')).blocked,true);
     await worker.evaluate(()=>{globalThis.originalAttach=chrome.debugger.attach;chrome.debugger.attach=async()=>{throw new Error('fixture attach failure');};});
     control.once('dialog',dialog=>dialog.accept());await control.locator('#enable').click();

@@ -1,10 +1,10 @@
 import {test,expect} from './fixtures.mjs';
 test('tabs contain compact close icons and a minimal logo, including touch layout',async({page},testInfo)=>{
     await page.goto('/');await expect(page.locator('#status')).toHaveText('Ready');
-    await expect(page.locator('.brand')).toHaveAttribute('aria-label','lninl');await expect(page.locator('.brand')).toHaveText('lninl');await expect(page.locator('.brand-i')).toHaveText('i');
-    const brand=await page.locator('.brand').evaluate(el=>{const base=getComputedStyle(el),mark=getComputedStyle(el.querySelector('.brand-i'));return {base:base.color,mark:mark.color,baseWeight:base.fontWeight,markWeight:mark.fontWeight};});
-    expect(brand.mark).not.toBe(brand.base);expect(Number(brand.markWeight)).toBeGreaterThan(Number(brand.baseWeight));
-    expect(await page.locator('.brand').evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
+    const brand=page.getByRole('img',{name:'lninl'});
+    await expect(brand).toHaveAttribute('src','icons/wordmark.svg');
+    await expect.poll(()=>brand.evaluate(el=>el.naturalWidth)).toBeGreaterThan(0);
+    await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href','icons/icon.svg');
     const first=await page.locator('[role=tab]').getAttribute('data-session-id');
     await page.locator('#btn-new-session').click();await expect(page.locator('.session-tab')).toHaveCount(2);
     const group=page.locator('.session-tab').filter({has:page.locator(`[data-session-id="${first}"]`)});

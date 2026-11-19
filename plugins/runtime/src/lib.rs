@@ -198,7 +198,7 @@ fn run(args: Vec<String>) -> Result<i32> {
     }
     if command == "logo" {
         if args.iter().any(|arg| arg == "--svg") {
-            println!("{}", brand::svg());
+            print!("{}", brand::svg());
             return Ok(0);
         }
         use std::io::IsTerminal;

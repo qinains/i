@@ -13,6 +13,22 @@ test('PWA caches only static resources; offline WASM, OPFS and ZIP work at a sub
     await context.setOffline(true); await page.reload();
     await expect(page.locator('#status')).toHaveText('Ready'); await expect(page.locator('#file-list')).toContainText('offline.txt');
     await expect(page.locator('#pwa-status')).toContainText('Offline');
+    const icons = await page.evaluate(async () => {
+        const manifest = await (await fetch(document.querySelector('link[rel=manifest]').href)).json();
+        const paths = [document.querySelector('link[rel=icon]').href,
+            document.querySelector('link[rel=apple-touch-icon]').href,
+            document.querySelector('.brand img').src,
+            ...manifest.icons.map(icon => new URL(icon.src, document.baseURI).href)];
+        const images = await Promise.all(paths.map(async url => {
+            const image = new Image();
+            image.src = url;
+            await image.decode();
+            return image.naturalWidth;
+        }));
+        return {images, sizes: manifest.icons.map(icon => icon.sizes)};
+    });
+    expect(icons.sizes).toEqual(['192x192', '512x512']);
+    expect(icons.images.slice(3)).toEqual([192, 512]);
     const download = page.waitForEvent('download'); await page.locator('#btn-download').click(); await download;
     await page.locator('#input').fill('ask AI'); await page.locator('#input').press('Enter');
     await expect(page.locator('#global-error')).toContainText('Offline: the unsent message and attachments are retained.');
