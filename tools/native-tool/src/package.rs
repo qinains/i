@@ -131,10 +131,9 @@ pub fn check(archive: &Path) -> Result<()> {
             .contains(metadata["version"].as_str().unwrap_or("invalid")),
         "Version mismatch"
     );
-    ensure!(
-        String::from_utf8(exec(&binary, &args(&["--runtime", "logo", "--svg"]), b"")?.stdout)?.contains("cx=\"171.5\""),
-        "Logo missing"
-    );
+    let logo = fs::read(bundle.join("logo.svg"))?;
+    ensure!(logo.starts_with(b"<svg ") && logo.ends_with(b"</svg>\n"), "Invalid package logo");
+    ensure!(exec(&binary, &args(&["--runtime", "logo", "--svg"]), b"")?.stdout == logo, "Package logo mismatch");
     exec(&binary, &args(&["--runtime", "init"]), b"")?;
     let installed = root.join("installed/bin");
     exec(&binary, &["install".into(), "--bin-dir".into(), installed.to_string_lossy().into()], b"")?;
